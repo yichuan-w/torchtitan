@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The verifier imposed an unstated, case-sensitive audit-header grammar and interpreted the first blank line as the start of the unified diff, rejecting reasonable reports that documented the required facts.",
+    "evidence": "instruction.md requests a forensics header without prescribing labels or whitespace, while tests/test_state.py parse_audit_header required exact 'Baseline commit:', 'Final commit:', and 'Reflog reference:' prefixes and stopped header parsing at a blank line; attempt-01.jsonl turn 8 demonstrated the resulting rejection with correct derived values.",
+    "change": "Parse the required header facts case-insensitively from descriptive labels and begin the patch at the standard 'diff --git' marker, preserving all semantic state and exact-diff checks.",
+    "kind": "hidden_requirement"
+  }
+]

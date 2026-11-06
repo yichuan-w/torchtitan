@@ -1,0 +1,71 @@
+{
+  "retained_skill": "Efficiently orchestrate the scoring API to score the complete valid primer candidate set within its request quota, then select minimum-off-target primer pairs.",
+  "bottleneck": "A verifier defect rejects a Flask API that is running correctly when it was launched as `python3 api.py` from `/app/services`, which is the launch form used by all 12 scored attempts.",
+  "change": "Repair only the service-state check in the scratch verifier so it recognizes the task's stated API process whether Python was given an absolute or relative api.py path; no task help, instruction, environment, solution, quota, candidate, or output requirement changes.",
+  "restore": "No simplification is added to restore. A later revision can replace the repaired process-name check with a behavior-only HTTP identity probe, but must not restore the path-sensitive defect.",
+  "prediction": "The repair addresses the failing service-recognition action: attempts that start a responsive API as `python3 api.py` will proceed to the reusable-script quota and full-candidate checks instead of failing before those checks. This is refuted if a fresh replay still fails the service-ready assertion despite Redis replying on database 0 and port 5000 accepting connections.",
+  "expected": "6 of 12",
+  "previous": "The earlier hardening predicted 6 of 12 after adding a 12-request quota and batch API, but measured 0 of 12. Current traces show the agents did adapt to batching in many attempts; all were instead stopped first by the newly added absolute-path process matcher, so this rewrite repairs that defect rather than weakening the quota decision.",
+  "evidence": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turn": 11,
+      "observation": "Launched the API from `/app/services` as `python3 api.py`; turn 23 showed Redis and `python3 api.py` alive. Fresh command replay and `./sandbox grade` failed only the service-ready assertion first. With that assertion temporarily isolated, the next failure was that design.py did not score the full valid candidate set. After the repaired matcher, a fresh replay reached and failed the retained full-candidate API check (zero candidates were sent to the grader API)."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turn": 10,
+      "observation": "Launched the API as `python3 api.py`; the recorded grader rejected it at the service-ready assertion before exercising its batch-scoring design."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turn": 10,
+      "observation": "Restarted the API as `python3 api.py`; the recorded grader rejected service readiness first."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turn": 14,
+      "observation": "Launched `REDIS_URL=redis://localhost:6379/0 python3 api.py`; the recorded grader rejected service readiness first."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turn": 30,
+      "observation": "Launched the API as `python3 api.py`; the recorded grader rejected service readiness first."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turn": 27,
+      "observation": "Launched the API as `python3 api.py`; turn 37 displayed the process, but the recorded grader rejected service readiness first."
+    },
+    {
+      "attempt": "attempt-07.jsonl",
+      "turn": 16,
+      "observation": "Restarted the API as `python3 api.py`; turn 24 displayed the service, but the recorded grader rejected service readiness first."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turn": 8,
+      "observation": "Launched the API as `python3 api.py`; turn 20 displayed the process, but the recorded grader rejected service readiness first."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turn": 9,
+      "observation": "Launched the API as `python3 api.py`; turn 22 showed it and received an API response, but the recorded grader rejected service readiness first."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turn": 14,
+      "observation": "Launched the API as `python3 api.py`; turn 24 displayed Python and Redis, but the recorded grader rejected service readiness first."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turn": 11,
+      "observation": "Launched `REDIS_URL=redis://localhost:6379/0 python3 api.py`; turn 23 found api.py, but the recorded grader rejected service readiness first."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turn": 14,
+      "observation": "Launched the API as `python3 api.py`; turn 24 received a batch API response. Fresh command replay and `./sandbox grade` failed only the service-ready assertion first; isolating that assertion exposed a later incomplete-candidate-set failure. After the repaired matcher, a fresh replay reached and failed the retained full-candidate API check (its 20-per-region generation omitted endpoint candidates)."
+    }
+  ]
+}

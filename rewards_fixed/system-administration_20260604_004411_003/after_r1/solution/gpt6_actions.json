@@ -1,0 +1,317 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 3.0,
+    "keystrokes": "which rsyslogd nginx openssl python3 certtool; ls /usr/lib/rsyslog/ 2>/dev/null | head -30\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 3.0,
+    "keystrokes": "cat /etc/os-release; ls /etc/rsyslog.d/ 2>/dev/null\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 6.2,
+    "keystrokes": "rsyslogd -v | head -3; ls /usr/lib/x86_64-linux-gnu/rsyslog/ | grep -iE 'gtls|ossl|imtcp|omfwd'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 6.2,
+    "keystrokes": "dpkg -l | grep -iE 'rsyslog|gnutls' \n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 9.4,
+    "keystrokes": "apt-get update -qq && apt-get install -y -qq rsyslog-gnutls 2>&1 | tail -5\n",
+    "duration": 30.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 42.4,
+    "keystrokes": "cd /etc/rsyslog/certs && openssl verify -CAfile ca.crt server.crt && openssl x509 -in server.crt -noout -subject && test -r ca.crt -a -r server.crt -a -r server.key\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 42.4,
+    "keystrokes": "cat > /etc/rsyslog.d/10-tls.conf << 'EOF'\nglobal(\n  DefaultNetstreamDriver=\"gtls\"\n  DefaultNetstreamDriverCAFile=\"/etc/rsyslog/certs/ca.crt\"\n  DefaultNetstreamDriverCertFile=\"/etc/rsyslog/certs/server.crt\"\n  DefaultNetstreamDriverKeyFile=\"/etc/rsyslog/certs/server.key\"\n)\n\nmodule(load=\"imtcp\"\n  StreamDriver.Name=\"gtls\"\n  StreamDriver.Mode=\"1\"\n  StreamDriver.AuthMode=\"anon\"\n)\n\ntemplate(name=\"RemoteFmt\" type=\"string\"\n  string=\"%timegenerated:::date-rfc3339% %hostname% %syslogfacility-text% %syslogseverity-text% %syslogtag%%msg%\\n\")\n\nruleset(name=\"remote\") {\n  action(type=\"omfile\" file=\"/var/log/remote.log\" template=\"RemoteFmt\")\n}\n\ninput(type=\"imtcp\" port=\"6514\" ruleset=\"remote\")\n\n*.* action(type=\"omfwd\" target=\"127.0.0.1\" port=\"6514\" protocol=\"tcp\"\n  StreamDriver=\"gtls\" StreamDriverMode=\"1\" StreamDriverAuthMode=\"anon\")\nEOF\nrsyslogd -N1 2>&1 | tail -5\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 45.6,
+    "keystrokes": "su -s /bin/sh syslog -c 'cat /etc/rsyslog/certs/ca.crt > /dev/null && echo CA_OK'; su -s /bin/sh syslog -c 'cat /etc/rsyslog/certs/server.key > /dev/null && echo KEY_OK'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 45.6,
+    "keystrokes": "aa-status 2>&1 | head; ls -ld /etc/rsyslog /etc/rsyslog/certs\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 48.8,
+    "keystrokes": "chgrp syslog /etc/rsyslog/certs/* && chmod 640 /etc/rsyslog/certs/*.key && rsyslogd -N1 2>&1 | tail -4\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 51.9,
+    "keystrokes": "ls /sys/kernel/security/apparmor/ 2>&1; cat /proc/self/attr/current; ls /etc/apparmor.d/ | head\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 51.9,
+    "keystrokes": "grep -vE '^\\s*(#|$)' /etc/apparmor.d/usr.sbin.rsyslogd 2>/dev/null | head -40\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 55.1,
+    "keystrokes": "which strace || apt-get install -y -qq strace 2>&1 | tail -1\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 55.1,
+    "keystrokes": "strace -f -e trace=access,faccessat,faccessat2,openat rsyslogd -N1 2>&1 | grep -iE 'cert|EACCES' | head -20\n",
+    "duration": 5.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 63.2,
+    "keystrokes": "strace -f -e trace=access,faccessat,faccessat2,openat rsyslogd -N1 2>&1 | grep -iE 'certs|EACCES' | head -20\n",
+    "duration": 10.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 76.2,
+    "keystrokes": "head -2 /etc/rsyslog/certs/ca.crt; getfacl /etc/rsyslog/certs/ca.crt 2>/dev/null; lsattr /etc/rsyslog/certs/ 2>/dev/null\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 76.2,
+    "keystrokes": "strace -f -e trace=openat,setuid,setgid,setfsuid,setgroups,prctl rsyslogd -N1 2>&1 | grep -E 'certs|setuid|setgid|setfsuid|setgroups' | head -30\n",
+    "duration": 10.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 89.3,
+    "keystrokes": "ls /sys/fs/selinux 2>&1; cat /proc/cmdline; ls /sys/kernel/security 2>&1\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 89.3,
+    "keystrokes": "rsyslogd -N1 > /dev/null 2>&1; dmesg | tail -10\n",
+    "duration": 5.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 13,
+    "offset_sec": 97.4,
+    "keystrokes": "getcap /usr/sbin/rsyslogd; ps aux | grep -iE 'fapolicy|rsyslog|apparmor' | grep -v grep\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 13,
+    "offset_sec": 97.4,
+    "keystrokes": "python3 -c 'print(open(\"/etc/rsyslog/certs/ca.crt\").read(20))'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 100.6,
+    "keystrokes": "dpkg -V rsyslog rsyslog-gnutls 2>&1 | head; file /usr/sbin/rsyslogd\n",
+    "duration": 10.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 100.6,
+    "keystrokes": "mount -t securityfs securityfs /sys/kernel/security 2>&1; cat /sys/kernel/security/lsm 2>&1\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 16,
+    "offset_sec": 113.7,
+    "keystrokes": "mkdir -p /etc/rsyslog.d/certs && cp /etc/rsyslog/certs/ca.crt /etc/rsyslog/certs/server.crt /etc/rsyslog/certs/server.key /etc/rsyslog.d/certs/ && sed -i 's|/etc/rsyslog/certs/|/etc/rsyslog.d/certs/|g' /etc/rsyslog.d/10-tls.conf && rsyslogd -N1 2>&1 | tail -3\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 17,
+    "offset_sec": 116.8,
+    "keystrokes": "rsyslogd; sleep 2; ss -ltnp | grep 6514\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 17,
+    "offset_sec": 116.8,
+    "keystrokes": "logger -p authpriv.warning \"test tls message one\"; logger -p local3.err \"test tls message two\"; sleep 2; cat /var/log/remote.log\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 18,
+    "offset_sec": 120.0,
+    "keystrokes": "ss -ltnp | grep 6514; echo ---; cat /var/log/remote.log 2>&1\n",
+    "duration": 3.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 19,
+    "offset_sec": 126.0,
+    "keystrokes": "tail -20 /var/log/syslog 2>&1\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 19,
+    "offset_sec": 126.0,
+    "keystrokes": "ls -la /var/log/remote.log; logger \"second test\"; sleep 2; tail -5 /var/log/syslog; cat /var/log/remote.log\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 21,
+    "offset_sec": 129.2,
+    "keystrokes": "chmod 644 /etc/rsyslog.d/certs/*; ls -la /etc/rsyslog.d/certs/\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 21,
+    "offset_sec": 129.2,
+    "keystrokes": "pkill rsyslogd; sleep 1; rsyslogd; sleep 2; grep -iE 'error|suspend' /var/log/syslog | tail -5\n",
+    "duration": 3.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 21,
+    "offset_sec": 129.2,
+    "keystrokes": "logger -p authpriv.warning \"tls test three\"; logger -p local3.err \"tls test four\"; sleep 3; cat /var/log/remote.log\n",
+    "duration": 5.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 22,
+    "offset_sec": 140.3,
+    "keystrokes": "chown syslog:adm /var/log/remote.log\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 22,
+    "offset_sec": 140.3,
+    "keystrokes": "pkill rsyslogd; sleep 1; rsyslogd; sleep 2; logger -p authpriv.warning \"tls test three\"; logger -p local3.err \"tls test four\"; logger \"plain info test\"; sleep 3; cat /var/log/remote.log\n",
+    "duration": 3.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 23,
+    "offset_sec": 146.4,
+    "keystrokes": "cat /var/log/remote.log; echo ===; grep -iE 'suspend|error' /var/log/syslog | tail -3\n",
+    "duration": 3.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 24,
+    "offset_sec": 152.4,
+    "keystrokes": "cat > /app/analyze.py << 'EOF'\n#!/usr/bin/env python3\nimport re\nfrom collections import Counter\nfrom datetime import datetime, timezone\n\nLOG_FILE = \"/var/log/remote.log\"\nREPORT = \"/app/report.html\"\n\nSEVERITIES = [\"emerg\", \"alert\", \"crit\", \"err\", \"warning\", \"notice\", \"info\", \"debug\"]\n\nline_re = re.compile(r\"^(\\S+)\\s+(\\S+)\\s+([A-Za-z0-9]+)\\s+([A-Za-z0-9]+)\\s+(.*)$\")\n\nfacility_counts = Counter()\nseverity_counts = Counter()\ntotal = 0\n\ntry:\n    with open(LOG_FILE, \"r\") as f:\n        for line in f:\n            line = line.strip()\n            if not line:\n                continue\n            m = line_re.match(line)\n            if not m:\n                continue\n            facility, severity = m.group(3).lower(), m.group(4).lower()\n            facility_counts[facility] += 1\n            severity_counts[severity] += 1\n            total += 1\nexcept FileNotFoundError:\n    pass\n\ngenerated = datetime.now(timezone.utc).strftime(\"%Y-%m-%d %H:%M:%S %Z\")\n\n# order facilities: well-known first, then any others found\nknown_fac = [\"kern\", \"user\", \"mail\", \"daemon\", \"syslog\", \"auth\", \"authpriv\",\n             \"cron\", \"news\", \"lpr\", \"uucp\", \"ftp\", \"ntp\",\n             \"local0\", \"local1\", \"local2\", \"local3\", \"local4\", \"local5\",\n             \"local6\", \"local7\"]\nfac_order = [f for f in known_fac if f in facility_counts]\nfac_order += sorted(f for f in facility_counts if f not in known_fac)\nsev_order = [s for s in SEVERITIES if s in severity_counts]\nsev_order += sorted(s for s in severity_counts if s not in SEVERITIES)\n\nhtml = [\"<!DOCTYPE html>\", \"<html><head><meta charset='utf-8'>\",\n        \"<title>Syslog Analysis Report</title>\",\n        \"<style>body{font-family:sans-serif;margin:2em}table{border-collapse:collapse;margin-bottom:2em}\"\n        \"td,th{border:1px solid #999;padding:4px 12px;text-align:left}</style>\",\n        \"</head><body>\",\n        \"<h1>Syslog Analysis Report</h1>\",\n        f\"<p><strong>Generated:</strong> {generated}</p>\",\n        f\"<p><strong>Total log messages received:</strong> {total}</p>\",\n        \"<h2>Messages per Facility</h2>\",\n        \"<table><tr><th>Facility</th><th>Count</th></tr>\"]\nfor fac in fac_order:\n    html.append(f\"<tr><td>{fac}</td><td>{facility_counts[fac]}</td></tr>\")\nhtml += [\"</table>\", \"<h2>Messages per Severity</h2>\",\n         \"<table><tr><th>Severity</th><th>Count</th></tr>\"]\nfor sev in sev_order:\n    html.append(f\"<tr><td>{sev}</td><td>{severity_counts[sev]}</td></tr>\")\nhtml += [\"</table>\", \"</body></html>\"]\n\nwith open(REPORT, \"w\") as f:\n    f.write(\"\\n\".join(html) + \"\\n\")\nprint(f\"Report written to {REPORT}: {total} messages analyzed\")\nEOF\npython3 /app/analyze.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 24,
+    "offset_sec": 152.4,
+    "keystrokes": "cat > /etc/nginx/sites-available/report << 'EOF'\nserver {\n    listen 8088 default_server;\n    root /app;\n    location / {\n        try_files $uri $uri/ =404;\n    }\n}\nEOF\nln -sf /etc/nginx/sites-available/report /etc/nginx/sites-enabled/report && rm -f /etc/nginx/sites-enabled/default && nginx -t 2>&1\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 25,
+    "offset_sec": 155.6,
+    "keystrokes": "nginx 2>&1; sleep 1; ss -ltnp | grep 8088\n",
+    "duration": 2.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 25,
+    "offset_sec": 155.6,
+    "keystrokes": "curl -s http://localhost:8088/report.html | head -30\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 26,
+    "offset_sec": 160.7,
+    "keystrokes": "openssl x509 -in /etc/rsyslog/certs/server.crt -noout -subject; ls /etc/rsyslog/certs/\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 26,
+    "offset_sec": 160.7,
+    "keystrokes": "logger -p local5.crit \"final-loop-check-12345\"; sleep 3; grep -c \"final-loop-check-12345\" /var/log/remote.log\n",
+    "duration": 3.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 26,
+    "offset_sec": 160.7,
+    "keystrokes": "python3 /app/analyze.py && curl -s http://localhost:8088/report.html | grep -E 'Total|local5|crit'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 27,
+    "offset_sec": 166.9,
+    "keystrokes": "\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 27,
+    "offset_sec": 167.0,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 28,
+    "offset_sec": 170.0,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

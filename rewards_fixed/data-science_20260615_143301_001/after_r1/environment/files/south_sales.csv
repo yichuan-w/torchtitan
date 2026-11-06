@@ -1,0 +1,16 @@
+id;klant_id;datum;product_naam;aantal;prijs;regio
+S001;KL201;15-01-2024;Draadloze Muis;3;22.50;South
+S002;KL202;16-01-2024;Toetsenbord;1;44.99;South
+S003;KL203;17-01-2024;Café Latte Machine;1;129.99;South
+S004;KL201;18-01-2024;USB-C Hub;2;32.00;South
+S005;KL204;19-01-2024;Crème Brûlée Torch;1;19.99;South
+S006;KL205;20-01-2024;Draadloze Muis;5;22.50;South
+S007;KL206;21-01-2024;Monitor 27";1;210.00;South
+S008;KL207;22-01-2024;Toetsenbord;2;44.99;South
+S009;KL208;23-01-2024;Webcam HD;1;75.50;South
+S010;KL202;24-01-2024;Laptop Standaard;1;40.00;South
+S011;KL209;25-01-2024;USB-C Hub;4;32.00;South
+S012;KL210;26-01-2024;Draadloze Muis;1;22.50;South
+S013;KL211;27-01-2024;Monitor 27";2;210.00;South
+S014;KL212;28-01-2024;Toetsenbord;1;44.99;South
+S015;KL213;29-01-2024;Crème Brûlée Torch;2;19.99;South

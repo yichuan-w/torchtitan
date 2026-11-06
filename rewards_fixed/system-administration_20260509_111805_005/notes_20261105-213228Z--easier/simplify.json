@@ -1,0 +1,70 @@
+{
+  "retained_skill": "Diagnose and repair the nginx/fcgiwrap/git-http-backend integration so authenticated Git clone and push work end to end.",
+  "bottleneck": "The dominant cause is a task defect: all eleven submitted attempts achieved authenticated clone and push, but hidden static implementation checks rejected configurations that omitted particular FastCGI variable names and/or did not make the repository writable specifically by www-data even when the running fcgiwrap process could push successfully.",
+  "change": "Repair the scratch verifier only: remove static checks for specific FastCGI parameter spellings and www-data ownership, retaining end-to-end authenticated clone and push, service, authentication, and receive-pack checks. This is a verifier repair, not added help; no task stage or retained decision is supplied.",
+  "restore": "Restore the removed static checks only if the public task is later changed to require those exact implementation choices; otherwise the end-to-end behavior remains the contract.",
+  "prediction": "Submitted attempts that already produced successful authenticated clone and push will no longer be rejected for equivalent implementation choices. This is refuted if replaying attempt-11's functional approach still fails a retained behavior check, or if an implementation with broken clone/push passes.",
+  "expected": "11 of 12",
+  "evidence": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turn": 81,
+      "observation": "Push succeeded; original grading passed 8 of 9 and failed only the static FastCGI-parameter check."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turn": 109,
+      "observation": "Push succeeded; original grading passed 8 of 9 and failed only the static FastCGI-parameter check."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turn": 25,
+      "observation": "Clone and push succeeded; grading failed only static FastCGI-parameter and www-data permission checks."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turn": 41,
+      "observation": "Clone and push succeeded; grading failed only static FastCGI-parameter and www-data permission checks."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turn": 23,
+      "observation": "Clone and push succeeded; grading failed only static FastCGI-parameter and www-data permission checks."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turn": 135,
+      "observation": "The attempt hit the context limit while still debugging HTTP 500 responses and did not submit; this is the sole attempt not predicted to pass from the repair."
+    },
+    {
+      "attempt": "attempt-07.jsonl",
+      "turn": 109,
+      "observation": "Authenticated clone and push succeeded; grading passed 8 of 9 and failed only the static FastCGI-parameter check."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turn": 27,
+      "observation": "Clone and push succeeded; grading passed 8 of 9 and failed only the static www-data permission check."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turn": 42,
+      "observation": "Clone and push succeeded; grading failed only static FastCGI-parameter and www-data permission checks."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turn": 25,
+      "observation": "Clone and push succeeded; grading failed only static FastCGI-parameter and www-data permission checks. The required pre-edit sandbox reconstruction was also graded, though exact batched command replay did not persist because exec receives a command rather than stdin."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turn": 22,
+      "observation": "Clone and push succeeded; grading failed only static FastCGI-parameter and www-data permission checks. A faithful functional reconstruction was graded: seven retained checks passed and only those two static checks failed. After the verifier repair, the same reconstructed functional approach graded 7 of 7 and earned reward 1.0."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turn": 71,
+      "observation": "Authenticated push succeeded; grading passed 8 of 9 and failed only the static FastCGI-parameter check. A reconstructed approach also confirmed the static parameter rejection, though its approximated location regex did not preserve clone behavior."
+    }
+  ]
+}

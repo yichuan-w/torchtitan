@@ -1,0 +1,70 @@
+{
+  "retained_skill": "Debugging the existing Python template engine so variable substitution, conditionals, loops, comments, dotted lookup, and their interactions render correctly without replacing the design wholesale.",
+  "bottleneck": "The public syntax leaves condition operands, missing-variable output, and feature composition unspecified, while grading requires signed integer literals, boolean/None literals, a particular undefined marker, and conditionals inside loops. Seven otherwise-near-complete submissions first fail only on one or more of those semantics; five others also make broader implementation or terminal mistakes.",
+  "change": "Instruction-level contract repair: state the supported condition operand categories, preserve the engine's discoverable undefined marker, and say that the listed features must work in combination. This is vague semantic direction rather than implementation steps; it exposes the original render-result signal while leaving the parser, evaluation order, and fixes to the student.",
+  "restore": "A later hardening can remove the added semantic paragraph once the verifier's edge cases are inferable from visible tests or another workspace artifact; the original debugging task and all existing correctness checks otherwise remain intact.",
+  "prediction": "Attempts 01, 03, 05, 06, 07, 10, and 11 stopped after locally testing a narrower interpretation and then failed only the newly stated semantic cases. Naming those result requirements should make them test signed literals, missing variables, and composed blocks before submission; a next group with fewer than four successes would refute that the hidden contract was the dominant obstacle, while more than ten would show the clarification was too strong.",
+  "expected": "7 of 12",
+  "evidence": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turn": 4,
+      "observation": "Replayed all recorded commands with `./sandbox reset`, `./sandbox exec`, and `./sandbox grade`; grading failed only conditional-inside-loop and signed-negative comparison (37/39 passed). After the instruction repair, a fresh reset and replay reaches the same two now-explicit failures, so the attempt is directed to test and repair them rather than falsely concluding completion."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turn": 8,
+      "observation": "First diverges into unsupported nested-loop work, then repeatedly hangs and rewrites; final grading has 36 failures, so clarification alone does not make this attempt count toward expected successes."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turn": 3,
+      "observation": "Restored and graded its submitted commands; like attempt 01, only conditional-inside-loop and signed-negative comparison fail (37/39 passed)."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turn": 7,
+      "observation": "Concludes the visible `RENDERED` debug suffix is required and submits it; grading rejects that suffix across ordinary renders in addition to edge cases."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turn": 4,
+      "observation": "Implements the core features but chooses empty output for missing variables; grading fails the undefined marker, missing dotted value, and signed-negative comparison only (36/39 passed)."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turn": 2,
+      "observation": "Diagnoses and repairs the visible bugs but does not test composed conditional-loop behavior or signed literals; grading fails exactly those two checks (37/39 passed)."
+    },
+    {
+      "attempt": "attempt-07.jsonl",
+      "turn": 4,
+      "observation": "Builds a narrower condition parser; grading leaves signed-negative, None-literal, and undefined-condition tags unprocessed (36/39 passed)."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turn": 13,
+      "observation": "Spends later work on nested-loop mechanics and still retains the debug render suffix; grading has 35 broad output failures, so it is not counted as rescued."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turn": 4,
+      "observation": "Rewrites from the initial diagnosis but retains broad output errors including the debug suffix; grading has 36 failures rather than a single hidden-edge miss."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turn": 30,
+      "observation": "Completes extensive local checks but omits signed numeric literals; recorded grading fails only signed-negative comparison (38/39 passed). A literal replay was also run, but its multiline terminal timing did not reconstruct the submitted file and therefore was not used as outcome evidence."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turn": 4,
+      "observation": "Chooses empty output for unresolved values and omits signed literals; grading fails only the two missing-variable cases and signed-negative comparison (36/39 passed)."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turn": 10,
+      "observation": "Declares success while retaining the debug render suffix; grading has 36 ordinary-output failures, so semantic clarification alone is insufficient for this attempt."
+    }
+  ]
+}

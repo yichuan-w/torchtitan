@@ -1,0 +1,961 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "ls -la /app",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "find /app/examples -maxdepth 1 -type f -printf '%f %s bytes\\n' 2>/dev/null; find /app/expected -maxdepth 1 -type f -printf '%f %s bytes\\n' 2>/dev/null",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "file /app/vm /app/examples/* 2>/dev/null",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "for f in /app/examples/*.bin; do echo \"=== $f ===\"; xxd -g1 \"$f\"; done",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "for f in /app/expected/*.txt; do echo \"=== $f ===\"; cat \"$f\"; echo; done",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "strings -a /app/vm | head -100",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "objdump -d -Mintel /app/vm | head -200",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 2.5,
+    "keystrokes": "C-c",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 2.5,
+    "keystrokes": "ls -la /app\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 2.5,
+    "keystrokes": "find /app/examples -maxdepth 1 -type f -printf '%f %s bytes\\n'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 2.5,
+    "keystrokes": "find /app/expected -maxdepth 1 -type f -printf '%f %s bytes\\n'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 2.9,
+    "keystrokes": "for f in /app/examples/*.bin; do echo \"=== $f ===\"; xxd -g1 \"$f\"; done\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 2.9,
+    "keystrokes": "for f in /app/expected/*.txt; do echo \"=== $f ===\"; cat \"$f\"; echo; done\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 2.9,
+    "keystrokes": "file /app/vm\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 2.9,
+    "keystrokes": "strings -a /app/vm | head -120\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 2.9,
+    "keystrokes": "objdump -d -Mintel /app/vm | head -200\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 6.1,
+    "keystrokes": "for f in /app/examples/*.bin; do echo \"=== $f ===\"; od -An -v -tx1 \"$f\"; done\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 6.1,
+    "keystrokes": "for f in /app/examples/*.bin; do echo \"=== $f ===\"; /app/vm \"$f\"; echo \"exit=$?\"; done\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 6.1,
+    "keystrokes": "readelf -h /app/vm\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 6.1,
+    "keystrokes": "readelf -S /app/vm | head -80\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 6.1,
+    "keystrokes": "readelf -l /app/vm | head -80\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 9.3,
+    "keystrokes": "for f in /app/examples/*.bin; do echo \"=== $f ===\"; od -Ax -v -tx1 \"$f\"; done\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 9.3,
+    "keystrokes": "echo arith; /app/vm /app/examples/arith.bin; echo; echo hello; /app/vm /app/examples/hello.bin; echo; echo pop; /app/vm /app/examples/pop.bin; echo\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 9.3,
+    "keystrokes": "readelf -h /app/vm\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 9.3,
+    "keystrokes": "readelf -S /app/vm | sed -n '1,120p'\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 11.5,
+    "keystrokes": "echo '=== arith.bin ==='; od -Ax -v -tx1 /app/examples/arith.bin\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 11.5,
+    "keystrokes": "echo '=== hello.bin ==='; od -Ax -v -tx1 /app/examples/hello.bin\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 11.5,
+    "keystrokes": "echo '=== pop.bin ==='; od -Ax -v -tx1 /app/examples/pop.bin\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 11.5,
+    "keystrokes": "echo '--- run arith ---'; /app/vm /app/examples/arith.bin; echo; echo '--- run hello ---'; /app/vm /app/examples/hello.bin; echo; echo '--- run pop ---'; /app/vm /app/examples/pop.bin; echo\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 11.9,
+    "keystrokes": "chmod +x /app/vm\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 11.9,
+    "keystrokes": "echo '--- arith ---'; /app/vm /app/examples/arith.bin; echo\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 11.9,
+    "keystrokes": "echo '--- hello ---'; /app/vm /app/examples/hello.bin; echo\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 11.9,
+    "keystrokes": "echo '--- pop ---'; /app/vm /app/examples/pop.bin; echo\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 12.3,
+    "keystrokes": "strings -a -n 4 /app/vm | grep -i -E 'magic|opcode|bytecode|push|halt|stack|invalid|unknown|vm|program|instruction|label|jump|jmp|dup|swap|mod|div|print|prch|assemble|encoding' | head -200\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 12.3,
+    "keystrokes": "readelf -s /app/vm | head -80\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 12.3,
+    "keystrokes": "readelf -S /app/vm | grep -E 'text|rodata|data'\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 12.3,
+    "keystrokes": "strings -a -n 4 /app/vm | grep -E '^[A-Za-z0-9 _.,:/()-]{10,}$' | head -200\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 15.4,
+    "keystrokes": "grep -oba $'\\x4d\\x56\\x4d\\x01' /app/vm\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 15.4,
+    "keystrokes": "strings -a -n 4 /app/vm | grep -i -E 'MVM|program|bytecode|opcode|PUSH|HALT|unknown|invalid|stack|label|assemble|instruction|jump|printing|vm' | head -200\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 15.4,
+    "keystrokes": "objdump -d -Mintel /app/vm > /tmp/vm.dis\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 15.4,
+    "keystrokes": "wc -l /tmp/vm.dis\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 15.4,
+    "keystrokes": "objdump -d -Mintel --start-address=0x4020c0 --stop-address=0x402300 /app/vm\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 17.7,
+    "keystrokes": "go version -m /app/vm 2>&1 | head -100\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 17.7,
+    "keystrokes": "strings -a /app/vm | grep -E '^main\\.|^github\\.com|^[a-zA-Z0-9_./-]+\\.go$' | head -200\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 17.7,
+    "keystrokes": "strings -a /app/vm | grep -i -E 'opcode|bytecode|program|instruction|stack underflow|stack overflow|unknown instr|invalid magic|invalid program|halt|push|pop|dup|swap|prch|print|div|mod' | head -200\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 17.7,
+    "keystrokes": "grep -oba $'\\x4d\\x56\\x4d\\x01' /app/vm || true\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 17.7,
+    "keystrokes": "objdump -d -Mintel --start-address=0x401e00 --stop-address=0x402200 /app/vm\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 13,
+    "offset_sec": 19.1,
+    "keystrokes": "go version 2>&1\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 13,
+    "offset_sec": 19.1,
+    "keystrokes": "go tool nm /app/vm 2>&1 | grep -E ' main\\.|main\\.' | head -200\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 13,
+    "offset_sec": 19.1,
+    "keystrokes": "grep -oba $'\\x4d\\x56\\x4d\\x01' /app/vm 2>/dev/null || true\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 13,
+    "offset_sec": 19.1,
+    "keystrokes": "strings -a -n 4 /app/vm | grep -E 'main\\.|opcode|Opcode|bytecode|Bytecode|program|Program|instruction|Instruction|stack|Stack' | head -200\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 19.5,
+    "keystrokes": "strings -a -t x /app/vm | grep -E 'usage:|program too large|unknown opcode|stack underflow|stack overflow'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 19.5,
+    "keystrokes": "strings -a -t x /app/vm | grep -i -E 'too short|invalid|magic|read|open|cannot|failed|input'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 19.5,
+    "keystrokes": "objdump -d -Mintel /app/vm | grep -E 'unknown opcode|stack underflow|program too large' | head -20\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 15,
+    "offset_sec": 20.7,
+    "keystrokes": "strings -a -t x /app/vm | grep 'unknown opcode'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 15,
+    "offset_sec": 20.7,
+    "keystrokes": "strings -a -t x /app/vm | grep 'stack underflow'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 15,
+    "offset_sec": 20.7,
+    "keystrokes": "strings -a -t x /app/vm | grep 'program too large'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 15,
+    "offset_sec": 20.7,
+    "keystrokes": "strings -a -t x /app/vm | grep 'usage:'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 15,
+    "offset_sec": 20.7,
+    "keystrokes": "strings -a -t x /app/vm | grep 'stack overflow'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 16,
+    "offset_sec": 21.2,
+    "keystrokes": "objdump -d -Mintel --start-address=0x4020c0 --stop-address=0x402170 /app/vm\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 16,
+    "offset_sec": 21.2,
+    "keystrokes": "objdump -d -Mintel /app/vm | grep -nE '480121|48000e|480031|480021|480092' | head -50\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 16,
+    "offset_sec": 21.2,
+    "keystrokes": "od -Ax -v -tx1 -j 0x80000 -N 0x200 /app/vm\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 17,
+    "offset_sec": 23.3,
+    "keystrokes": "objdump -d -Mintel --start-address=0x401900 --stop-address=0x401d00 /app/vm\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 17,
+    "offset_sec": 23.3,
+    "keystrokes": "objdump -d -Mintel --start-address=0x401d00 --stop-address=0x4022d0 /app/vm\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 17,
+    "offset_sec": 23.3,
+    "keystrokes": "objdump -d -Mintel /app/vm | grep -nE '4d564d|4d,0x56|4d564d01|0x14d564d|14d564d|4d564d' | head -50\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 18,
+    "offset_sec": 25.4,
+    "keystrokes": "objdump -d -Mintel --start-address=0x401a00 --stop-address=0x401c00 /app/vm\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 18,
+    "offset_sec": 25.4,
+    "keystrokes": "objdump -d -Mintel --start-address=0x401c00 --stop-address=0x401e00 /app/vm\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 19,
+    "offset_sec": 27.4,
+    "keystrokes": "objdump -d -Mintel --start-address=0x401a00 --stop-address=0x401b00 /app/vm\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 20,
+    "offset_sec": 28.4,
+    "keystrokes": "objdump -d -Mintel --start-address=0x401a00 --stop-address=0x401a60 /app/vm\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 20,
+    "offset_sec": 28.4,
+    "keystrokes": "objdump -d -Mintel --start-address=0x401a60 --stop-address=0x401ac0 /app/vm\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 20,
+    "offset_sec": 28.4,
+    "keystrokes": "objdump -d -Mintel --start-address=0x4020c0 --stop-address=0x402130 /app/vm\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 22,
+    "offset_sec": 31.4,
+    "keystrokes": "objdump -d -Mintel --start-address=0x401b00 --stop-address=0x401c00 /app/vm\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 22,
+    "offset_sec": 31.4,
+    "keystrokes": "objdump -d -Mintel --start-address=0x401c00 --stop-address=0x401d00 /app/vm\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 23,
+    "offset_sec": 33.4,
+    "keystrokes": "objdump -d -Mintel --start-address=0x4018e0 --stop-address=0x401980 /app/vm\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 23,
+    "offset_sec": 33.4,
+    "keystrokes": "objdump -d -Mintel --start-address=0x401980 --stop-address=0x401a00 /app/vm\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 23,
+    "offset_sec": 33.4,
+    "keystrokes": "objdump -d -Mintel --start-address=0x401b00 --stop-address=0x401b80 /app/vm\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 24,
+    "offset_sec": 36.4,
+    "keystrokes": "python3 -c \"key=[0x2e,0x9c,0x3f,0x7a]; import sys; d=open(sys.argv[1],'rb').read(); body=d[4:]; print(' '.join(f'{b^key[i%4]:02x}' for i,b in enumerate(body)))\" /app/examples/arith.bin\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 24,
+    "offset_sec": 36.4,
+    "keystrokes": "python3 -c \"key=[0x2e,0x9c,0x3f,0x7a]; import sys; d=open(sys.argv[1],'rb').read(); body=d[4:]; print(' '.join(f'{b^key[i%4]:02x}' for i,b in enumerate(body)))\" /app/examples/hello.bin\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 24,
+    "offset_sec": 36.4,
+    "keystrokes": "python3 -c \"key=[0x2e,0x9c,0x3f,0x7a]; import sys; d=open(sys.argv[1],'rb').read(); body=d[4:]; print(' '.join(f'{b^key[i%4]:02x}' for i,b in enumerate(body)))\" /app/examples/pop.bin\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 26,
+    "offset_sec": 36.7,
+    "keystrokes": "objdump -d -Mintel --start-address=0x401b7d --stop-address=0x401be0 /app/vm\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 26,
+    "offset_sec": 36.7,
+    "keystrokes": "objdump -d -Mintel --start-address=0x401be0 --stop-address=0x401c50 /app/vm\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 26,
+    "offset_sec": 36.7,
+    "keystrokes": "objdump -d -Mintel --start-address=0x401c50 --stop-address=0x401ca8 /app/vm\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 26,
+    "offset_sec": 36.7,
+    "keystrokes": "objdump -d -Mintel --start-address=0x401ca8 --stop-address=0x401d00 /app/vm\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 27,
+    "offset_sec": 37.1,
+    "keystrokes": "objdump -d -Mintel --start-address=0x401b60 --stop-address=0x401c00 /app/vm\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 27,
+    "offset_sec": 37.1,
+    "keystrokes": "objdump -d -Mintel --start-address=0x401d00 --stop-address=0x401e00 /app/vm\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 28,
+    "offset_sec": 39.1,
+    "keystrokes": "objdump -d -Mintel --start-address=0x401b80 --stop-address=0x401c00 /app/vm\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 28,
+    "offset_sec": 39.1,
+    "keystrokes": "objdump -d -Mintel --start-address=0x401d00 --stop-address=0x401e00 /app/vm\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 28,
+    "offset_sec": 39.1,
+    "keystrokes": "objdump -d -Mintel --start-address=0x401e00 --stop-address=0x401f00 /app/vm\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 28,
+    "offset_sec": 39.1,
+    "keystrokes": "objdump -d -Mintel --start-address=0x401f00 --stop-address=0x402080 /app/vm\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 29,
+    "offset_sec": 39.5,
+    "keystrokes": "objdump -d -Mintel --start-address=0x401b60 --stop-address=0x401bc0 /app/vm > /tmp/d1.txt; cat /tmp/d1.txt\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 30,
+    "offset_sec": 40.5,
+    "keystrokes": "python3 - <<'PY'\nimport struct\nbase=0x482240\noff=base-0x400000\nwith open('/app/vm','rb') as f:\n    f.seek(off)\n    data=f.read(43*4)\nfor i in range(43):\n    val=struct.unpack_from('<i',data,i*4)[0]\n    print(f'{i:2d} opcode 0x{0x13+i:02x} -> 0x{base+val:x} (delta {val})')\nPY\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 31,
+    "offset_sec": 40.6,
+    "keystrokes": "python3 - <<'PY'\nimport struct\nbase=0x482240\nwith open('/app/vm','rb') as f:\n    f.seek(base-0x400000)\n    for i in range(8):\n        v=struct.unpack('<i',f.read(4))[0]\n        print(f'{i:2d} opcode 0x{0x13+i:02x} -> 0x{base+v:x} ({v})')\nPY\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 31,
+    "offset_sec": 40.6,
+    "keystrokes": "objdump -d -Mintel --start-address=0x401bbd --stop-address=0x401c60 /app/vm\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 31,
+    "offset_sec": 40.6,
+    "keystrokes": "objdump -d -Mintel --start-address=0x401e00 --stop-address=0x401f00 /app/vm\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 32,
+    "offset_sec": 42.7,
+    "keystrokes": "python3 - <<'PY'\nimport struct\nbase=0x482240\nwith open('/app/vm','rb') as f:\n    f.seek(base-0x400000)\n    for i in range(11):\n        v=struct.unpack('<i',f.read(4))[0]\n        print(f'{i:2d} opcode 0x{0x13+i:02x} -> 0x{base+v:x} ({v})')\nPY\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 33,
+    "offset_sec": 42.8,
+    "keystrokes": "objdump -d -Mintel --start-address=0x401d00 --stop-address=0x401d60 /app/vm\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 33,
+    "offset_sec": 42.8,
+    "keystrokes": "objdump -d -Mintel --start-address=0x401d60 --stop-address=0x401d99 /app/vm\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 33,
+    "offset_sec": 42.8,
+    "keystrokes": "objdump -d -Mintel --start-address=0x401bbd --stop-address=0x401c60 /app/vm\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 34,
+    "offset_sec": 45.8,
+    "keystrokes": "objdump -d -Mintel --start-address=0x401d00 --stop-address=0x401d99 /app/vm\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 34,
+    "offset_sec": 45.8,
+    "keystrokes": "objdump -d -Mintel --start-address=0x401e30 --stop-address=0x401f00 /app/vm\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 34,
+    "offset_sec": 45.8,
+    "keystrokes": "objdump -d -Mintel --start-address=0x4020f0 --stop-address=0x4022d0 /app/vm\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 35,
+    "offset_sec": 48.8,
+    "keystrokes": "objdump -d -Mintel --start-address=0x401d00 --stop-address=0x401d60 /app/vm\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 35,
+    "offset_sec": 48.8,
+    "keystrokes": "objdump -d -Mintel --start-address=0x401e30 --stop-address=0x401e8c /app/vm\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 35,
+    "offset_sec": 48.8,
+    "keystrokes": "objdump -d -Mintel --start-address=0x4021f0 --stop-address=0x402240 /app/vm\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 36,
+    "offset_sec": 51.8,
+    "keystrokes": "objdump -d -Mintel --start-address=0x401d00 --stop-address=0x401d40 /app/vm\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 36,
+    "offset_sec": 51.8,
+    "keystrokes": "objdump -d -Mintel --start-address=0x401d40 --stop-address=0x401d99 /app/vm\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 37,
+    "offset_sec": 52.0,
+    "keystrokes": "objdump -d -Mintel --start-address=0x401d00 --stop-address=0x401d20 /app/vm\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 37,
+    "offset_sec": 52.0,
+    "keystrokes": "objdump -d -Mintel --start-address=0x401ee0 --stop-address=0x401f90 /app/vm\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 37,
+    "offset_sec": 52.0,
+    "keystrokes": "objdump -d -Mintel --start-address=0x401e30 --stop-address=0x401e70 /app/vm\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 37,
+    "offset_sec": 52.0,
+    "keystrokes": "objdump -d -Mintel --start-address=0x401e40 --stop-address=0x401e90 /app/vm\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 38,
+    "offset_sec": 52.4,
+    "keystrokes": "objdump -d -Mintel --start-address=0x401d00 --stop-address=0x401d20 /app/vm\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 38,
+    "offset_sec": 52.4,
+    "keystrokes": "objdump -d -Mintel --start-address=0x401ee0 --stop-address=0x401f90 /app/vm\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 38,
+    "offset_sec": 52.4,
+    "keystrokes": "objdump -d -Mintel --start-address=0x401e30 --stop-address=0x401e70 /app/vm\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 39,
+    "offset_sec": 52.7,
+    "keystrokes": "objdump -d -Mintel --start-address=0x401d00 --stop-address=0x401d1b /app/vm | grep -E '^ +401d'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 40,
+    "offset_sec": 52.8,
+    "keystrokes": "objdump -d -Mintel --start-address=0x401ee5 --stop-address=0x401f37 /app/vm | sed -n '6,80p'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 40,
+    "offset_sec": 52.8,
+    "keystrokes": "objdump -d -Mintel --start-address=0x401f37 --stop-address=0x401f82 /app/vm | sed -n '6,80p'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 40,
+    "offset_sec": 52.8,
+    "keystrokes": "objdump -d -Mintel --start-address=0x401d1b --stop-address=0x401d99 /app/vm | sed -n '6,100p'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 41,
+    "offset_sec": 53.1,
+    "keystrokes": "objdump -d -Mintel --start-address=0x401ee5 --stop-address=0x401f37 /app/vm | grep -E '^ +401'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 41,
+    "offset_sec": 53.1,
+    "keystrokes": "objdump -d -Mintel --start-address=0x401f37 --stop-address=0x401f82 /app/vm | grep -E '^ +401'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 42,
+    "offset_sec": 53.3,
+    "keystrokes": "cat > /app/asm.c <<'EOF'\n#define _GNU_SOURCE\n#include <stdio.h>\n#include <stdlib.h>\n#include <stdint.h>\n#include <string.h>\n#include <ctype.h>\n#include <errno.h>\n#include <limits.h>\n\n#define MAX_LABEL 256\n#define STATIC_MAGIC_0 0x4d\n#define STATIC_MAGIC_1 0x56\n#define STATIC_MAGIC_2 0x4d\n#define STATIC_MAGIC_3 0x01\n\nenum arg_type { ARG_NONE, ARG_IMM, ARG_LABEL };\n\nstruct opdef {\n    const char *name;\n    int opcode;\n    int len;\n    enum arg_type type;\n};\n\nstatic const struct opdef ops[] = {\n    {\"PUSH\",  0xa1, 5, ARG_IMM},\n    {\"ADD\",   0x13, 1, ARG_NONE},\n    {\"SUB\",   0x27, 1, ARG_NONE},\n    {\"MUL\",   0x3c, 1, ARG_NONE},\n    {\"DIV\",   0x4e, 1, ARG_NONE},\n    {\"MOD\",   0x5f, 1, ARG_NONE},\n    {\"EQ\",    0x1a, 1, ARG_NONE},\n    {\"LT\",    0x2b, 1, ARG_NONE},\n    {\"GT\",    0x3d, 1, ARG_NONE},\n    {\"POP\",   0xb2, 1, ARG_NONE},\n    {\"DUP\",   0x83, 1, ARG_NONE},\n    {\"SWAP\",  0x94, 1, ARG_NONE},\n    {\"PRINT\", 0x61, 1, ARG_NONE},\n    {\"PRCH\",  0x72, 1, ARG_NONE},\n    {\"JMP\",   0xe5, 5, ARG_LABEL},\n    {\"JZ\",    0xca, 5, ARG_LABEL},\n    {\"JNZ\",   0xdb, 5, ARG_LABEL},\n    {\"HALT\",  0x00, 1, ARG_NONE},\n    {NULL, 0, 0, ARG_NONE}\n};\n\nstruct label {\n    char name[MAX_LABEL];\n    int32_t pos;\n};\n\nstruct instr {\n    int opcode;\n    int len;\n    int32_t operand;\n    char label[MAX_LABEL];\n    int has_label;\n};\n\nstatic struct label *labels = NULL;\nstatic size_t nlabels = 0, label_cap = 0;\n\nstatic struct instr *program = NULL;\nstatic size_t ninstr = 0, instr_cap = 0;\n\nstatic void fail(const char *msg)\n{\n    fprintf(stderr, \"assembler error: %s\\n\", msg);\n    exit(1);\n}\n\nstatic void *xmalloc(size_t n)\n{\n    void *p = malloc(n);\n    if (!p) fail(\"out of memory\");\n    return p;\n}\n\nstatic void *xrealloc(void *p, size_t n)\n{\n    void *q = realloc(p, n);\n    if (!q) fail(\"out of memory\");\n    return q;\n}\n\nstatic void add_label(const char *name, int32_t pos)\n{\n    size_t i;\n    for (i = 0; i < nlabels; i++) {\n        if (strcmp(labels[i].name, name) == 0)\n            fail(\"duplicate label\");\n    }\n    if (nlabels == label_cap) {\n        label_cap = label_cap ? label_cap * 2 : 16;\n        labels = xrealloc(labels, label_cap * sizeof(*labels));\n    }\n    snprintf(labels[nlabels].name, sizeof(labels[nlabels].name), \"%s\", name);\n    labels[nlabels].pos = pos;\n    nlabels++;\n}\n\nstatic int32_t find_label(const char *name)\n{\n    size_t i;\n    for (i = 0; i < nlabels; i++) {\n        if (strcmp(labels[i].name, name) == 0)\n            return labels[i].pos;\n    }\n    fail(\"undefined label\");\n    return 0;\n}\n\nstatic void add_instruction(int opcode, int len, int has_label)\n{\n    if (ninstr == instr_cap) {\n        instr_cap = instr_cap ? instr_cap * 2 : 16;\n        program = xrealloc(program, instr_cap * sizeof(*program));\n    }\n    memset(&program[ninstr], 0, sizeof(program[ninstr]));\n    program[ninstr].opcode = opcode;\n    program[ninstr].len = len;\n    program[ninstr].has_label = has_label;\n    ninstr++;\n}\n\nstatic char *trim(char *s)\n{\n    char *end;\n    while (*s && isspace((unsigned char)*s)) s++;\n    end = s + strlen(s);\n    while (end > s && isspace((unsigned char)end[-1])) *--end = '\\0';\n    return s;\n}\n\nstatic const struct opdef *lookup_op(const char *name)\n{\n    int i;\n    for (i = 0; ops[i].name; i++) {\n        if (strcmp(ops[i].name, name) == 0)\n            return &ops[i];\n    }\n    return NULL;\n}\n\nstatic void parse_i32(const char *s, int32_t *out)\n{\n    char *end = NULL;\n    long v;\n    errno = 0;\n    v = strtol(s, &end, 10);\n    if (errno || end == s || *end != '\\0') fail(\"invalid integer\");\n    if (v < INT32_MIN || v > INT32_MAX) fail(\"integer out of signed 32-bit range\");\n    *out = (int32_t)v;\n}\n\nstatic void copy_label(char *dst, size_t dstsz, const char *src)\n{\n    size_t n = strlen(src);\n    if (n == 0 || n >= dstsz) fail(\"invalid label name\");\n    memcpy(dst, src, n + 1);\n}\n\nint main(int argc, char **argv)\n{\n    FILE *fp;\n    char *line = NULL;\n    size_t linecap = 0;\n    ssize_t nread;\n    int32_t pos = 0;\n    size_t i;\n    static const unsigned char key[4] = {0x2e, 0x9c, 0x3f, 0x7a};\n    uint64_t out_index = 0;\n\n    if (argc != 2) {\n        fprintf(stderr, \"usage: %s <assembly.s>\\n\", argv[0]);\n        return 1;\n    }\n\n    fp = fopen(argv[1], \"rb\");\n    if (!fp) {\n        fprintf(stderr, \"assembler error: cannot open %s\\n\", argv[1]);\n        return 1;\n    }\n\n    while ((nread = getline(&line, &linecap, fp)) != -1) {\n        char *s, *p, *arg;\n        const struct opdef *op;\n\n        (void)nread;\n\n        s = strchr(line, ';');\n        if (s) *s = '\\0';\n        s = trim(line);\n        if (*s == '\\0') continue;\n\n        p = strchr(s, ':');\n        if (p) {\n            char *name_end = p;\n            char *after = p + 1;\n            char name[MAX_LABEL];\n            size_t nlen;\n\n            while (name_end > s && isspace((unsigned char)name_end[-1]))\n                name_end--;\n            while (*after && isspace((unsigned char)*after))\n                after++;\n            if (*after != '\\0')\n                fail(\"invalid label line\");\n            if (name_end == s)\n                fail(\"empty label name\");\n\n            nlen = (size_t)(name_end - s);\n            if (nlen >= sizeof(name)) fail(\"label name too long\");\n            for (i = 0; i < nlen; i++) {\n                if (isspace((unsigned char)s[i]))\n                    fail(\"invalid label name\");\n                name[i] = s[i];\n            }\n            name[nlen] = '\\0';\n            add_label(name, pos);\n            continue;\n        }\n\n        p = s;\n        while (*p && !isspace((unsigned char)*p)) p++;\n        if (*p) {\n            *p++ = '\\0';\n            arg = trim(p);\n            if (*arg == '\\0') arg = NULL;\n        } else {\n            arg = NULL;\n        }\n\n        op = lookup_op(s);\n        if (!op) fail(\"unknown mnemonic\");\n\n        if (op->type == ARG_NONE) {\n            if (arg != NULL) fail(\"unexpected operand\");\n            add_instruction(op->opcode, op->len, 0);\n        } else if (op->type == ARG_IMM) {\n            int32_t v;\n            if (arg == NULL) fail(\"missing integer operand\");\n            parse_i32(arg, &v);\n            add_instruction(op->opcode, op->len, 0);\n            program[ninstr - 1].operand = v;\n        } else {\n            if (arg == NULL) fail(\"missing label operand\");\n            add_instruction(op->opcode, op->len, 1);\n            copy_label(program[ninstr - 1].label, sizeof(program[ninstr - 1].label), arg);\n        }\n\n        pos += op->len;\n    }\n\n    fclose(fp);\n    free(line);\n\n    for (i = 0; i < ninstr; i++) {\n        if (program[i].has_label)\n            program[i].operand = find_label(program[i].label);\n    }\n\n    {\n        unsigned char header[4] = {STATIC_MAGIC_0, STATIC_MAGIC_1, STATIC_MAGIC_2, STATIC_MAGIC_3};\n        if (fwrite(header, 1, sizeof(header), stdout) != sizeof(header))\n            fail(\"failed writing output\");\n    }\n\n    for (i = 0; i < ninstr; i++) {\n        unsigned char raw[5];\n        int j;\n        int len = program[i].len;\n\n        raw[0] = (unsigned char)program[i].opcode;\n        if (len == 5) {\n            uint32_t v = (uint32_t)program[i].operand;\n            raw[1] = (unsigned char)(v & 0xff);\n            raw[2] = (unsigned char)((v >> 8) & 0xff);\n            raw[3] = (unsigned char)((v >> 16) & 0xff);\n            raw[4] = (unsigned char)((v >> 24) & 0xff);\n        }\n\n        for (j = 0; j < len; j++) {\n            unsigned char b = raw[j] ^ key[out_index & 3];\n            if (fputc(b, stdout) == EOF)\n                fail(\"failed writing output\");\n            out_index++;\n        }\n    }\n\n    free(program);\n    free(labels);\n    return 0;\n}\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 42,
+    "offset_sec": 53.3,
+    "keystrokes": "gcc -static -o /app/asm /app/asm.c\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 42,
+    "offset_sec": 53.3,
+    "keystrokes": "ls -l /app/asm\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 43,
+    "offset_sec": 54.5,
+    "keystrokes": "cat > /tmp/hello.s <<'EOF'\nPUSH 72\nPRCH\nPUSH 101\nPRCH\nPUSH 108\nPRCH\nPUSH 108\nPRCH\nPUSH 111\nPRCH\nPUSH 44\nPRCH\nPUSH 32\nPRCH\nPUSH 87\nPRCH\nPUSH 111\nPRCH\nPUSH 114\nPRCH\nPUSH 108\nPRCH\nPUSH 100\nPRCH\nPUSH 33\nPRCH\nPUSH 10\nPRCH\nHALT\nEOF\n/app/asm /tmp/hello.s > /tmp/hello.bin\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 43,
+    "offset_sec": 54.5,
+    "keystrokes": "cat > /tmp/arith.s <<'EOF'\nPUSH 10\nPUSH 5\nADD\nPUSH 3\nMUL\nPUSH 8\nPUSH 2\nDIV\nSUB\nPRINT\nHALT\nEOF\n/app/asm /tmp/arith.s > /tmp/arith.bin\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 43,
+    "offset_sec": 54.5,
+    "keystrokes": "cat > /tmp/pop.s <<'EOF'\nPUSH 1\nPUSH 2\nPOP\nPRINT\nPUSH 10\nPRCH\nHALT\nEOF\n/app/asm /tmp/pop.s > /tmp/pop.bin\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 43,
+    "offset_sec": 54.5,
+    "keystrokes": "for t in hello arith pop; do echo \"--- $t ---\"; /app/vm /tmp/$t.bin; echo; cmp -l /app/examples/$t.bin /tmp/$t.bin && echo \"byte-identical to reference\"; done\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 44,
+    "offset_sec": 54.9,
+    "keystrokes": "cat > /tmp/arith.s <<'EOF'\nPUSH 10\nPUSH 5\nADD\nPUSH 3\nMUL\nPUSH 8\nPUSH 2\nDIV\nSUB\nPRINT\nPUSH 10\nPRCH\nHALT\nEOF\n/app/asm /tmp/arith.s > /tmp/arith.bin\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 44,
+    "offset_sec": 54.9,
+    "keystrokes": "cmp -l /app/examples/arith.bin /tmp/arith.bin && echo 'arith byte-identical to reference'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 44,
+    "offset_sec": 54.9,
+    "keystrokes": "cat > /tmp/feature.s <<'EOF'\n; test all remaining opcodes and labels\nPUSH 10\nPUSH 3\nMOD\nPRINT\nPUSH 5\nPUSH 5\nEQ\nPRINT\nPUSH 2\nPUSH 5\nLT\nPRINT\nPUSH 7\nPUSH 5\nGT\nPRINT\nPUSH 1\nDUP\nADD\nPRINT\nPUSH 1\nPUSH 2\nSWAP\nPRINT\nPRINT\nPUSH 0\nJZ zero\nPUSH 99\nPRINT\nHALT\nzero:\nPUSH 7\nJNZ nz\nPUSH 88\nPRINT\nHALT\nnz:\nPUSH -3\nPRINT\nHALT\nEOF\n/app/asm /tmp/feature.s > /tmp/feature.bin\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 44,
+    "offset_sec": 54.9,
+    "keystrokes": "echo 'feature output:'; /app/vm /tmp/feature.bin; echo\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 44,
+    "offset_sec": 54.9,
+    "keystrokes": "cat > /tmp/jmptest.s <<'EOF'\nPUSH 42\nJMP done\nPUSH 99\nPRINT\ndone:\nPRINT\nHALT\nEOF\n/app/asm /tmp/jmptest.s > /tmp/jmptest.bin\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 44,
+    "offset_sec": 54.9,
+    "keystrokes": "echo 'jmp output:'; /app/vm /tmp/jmptest.bin; echo\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 45,
+    "offset_sec": 55.5,
+    "keystrokes": "cd /app && gcc -static -o asm asm.c\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 45,
+    "offset_sec": 55.5,
+    "keystrokes": "cd /app && ./asm /tmp/hello.s > /tmp/ref_hello.bin && ./asm /tmp/arith.s > /tmp/ref_arith.bin && ./asm /tmp/pop.s > /tmp/ref_pop.bin\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 45,
+    "offset_sec": 55.5,
+    "keystrokes": "cd /app && cmp examples/hello.bin /tmp/ref_hello.bin && cmp examples/arith.bin /tmp/ref_arith.bin && cmp examples/pop.bin /tmp/ref_pop.bin && echo ALL_REFERENCES_MATCH\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 46,
+    "offset_sec": 56.7,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 47,
+    "offset_sec": 56.7,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The verifier requires DISTINCT, GROUP BY, COUNT, SUM, and AVG, but instruction.md never states that they are required.",
+    "evidence": "instruction.md lists only SELECT columns, WHERE, ORDER BY, and LIMIT, while environment/files/db_engine.py:7-16 advertises DISTINCT, GROUP BY, COUNT, SUM, and AVG and tests/test_outputs.py checks them; attempts 01, 02, 04, 10, and 12 all failed predominantly on this omitted surface.",
+    "change": "State DISTINCT, GROUP BY, COUNT, SUM, and AVG as part of the public SELECT contract.",
+    "kind": "hidden_requirement"
+  }
+]

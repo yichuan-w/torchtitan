@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The seed verifier required fitted initial and final temperatures within an unstated tolerance although the public task required accuracy only for tau.",
+    "evidence": "tests/test_outputs.py checked T_initial and T_final; all rewarded attempts happened to satisfy this check, so no attempt exploited it.",
+    "change": "Removed the unstated temperature-parameter check from the scratch verifier while retaining per-sensor tau accuracy and distinctness checks.",
+    "kind": "hidden_requirement"
+  }
+]

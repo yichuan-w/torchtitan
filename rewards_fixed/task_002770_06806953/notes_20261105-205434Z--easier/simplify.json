@@ -1,0 +1,70 @@
+{
+  "retained_skill": "Build and validate an executable Bash rollout script that generates TLS material, writes a working user-space Nginx reverse-proxy configuration, and logs deployment metadata derived at runtime.",
+  "bottleneck": "A hidden requirement is the dominant cause: all 12 scored attempts use Bash read -p for the stated interactive prompt, which works at a terminal but suppresses its prompt when the verifier supplies the tier through redirected standard input. Their first wrong action is at turn 1, although every attempt assumes its piped self-test demonstrated the prompt. Replays of attempts 01 and 02 show this is their only remaining failed behavior: script execution, certificates, Nginx validity and contents, and fingerprint logging all pass.",
+  "change": "Repair the hidden requirement by stating that the prompt remains visible when the tier arrives through redirected standard input. This instruction-level clarification targets mechanics around the retained skill and teaches the student to react to the original requirement's visible-prompt signal without naming a Bash implementation or supplying the solution; because every scored attempt reached this defect, no separate simplification is added.",
+  "restore": "Remove the standalone redirected-input prompt sentence; all original deliverables and correctness requirements remain unchanged.",
+  "prediction": "The clarified redirected-input contract should make some students test prompt visibility rather than infer it from successful piped execution, leading them to choose a prompt mechanism that actually emits output before reading while still independently implementing the deployment workflow. A next group that continues to use read -p and produces no prompt under redirected stdin, or that remains 0 of 12 at this same check, refutes the intervention.",
+  "expected": "6 of 12",
+  "evidence": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turn": 1,
+      "observation": "First wrong action is read -p. Rebuilt all recorded commands after a fresh reset and ran ./sandbox grade: prompt check failed. Running all checks without stop-on-first showed exactly one failure (redirected execution emitted no prompt); script/executable, certificate generation, Nginx validity, Nginx contents, and deploy-log fingerprint checks passed. After the instruction repair, replayed the same approach from a fresh reset and graded it: it still reaches and fails the now-explicit redirected-input prompt requirement, while all other checks pass; the cue therefore directly exposes the attempt’s remaining correction rather than completing it."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turn": 1,
+      "observation": "First wrong action is read -p; its turn-2 piped self-test could not expose prompt suppression. Rebuilt all recorded commands after a fresh reset and ran ./sandbox grade: prompt check failed. Running all checks showed exactly that one failure; the other five checks passed after the attempt's correction of its initially misplaced pid directive."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turn": 1,
+      "observation": "First wrong action is read -p; verifier summary reports the required prompt absent under redirected input."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turn": 1,
+      "observation": "First wrong action is read -p; verifier summary reports the required prompt absent under redirected input."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turn": 1,
+      "observation": "First wrong action is read -p; verifier summary reports the required prompt absent under redirected input."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turn": 1,
+      "observation": "First wrong action is read -p; verifier summary reports the required prompt absent under redirected input."
+    },
+    {
+      "attempt": "attempt-07.jsonl",
+      "turn": 1,
+      "observation": "First wrong action is read -p; verifier summary reports the required prompt absent under redirected input."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turn": 1,
+      "observation": "First wrong action is read -p; verifier summary reports the required prompt absent under redirected input."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turn": 1,
+      "observation": "First wrong action is read -p; verifier summary reports the required prompt absent under redirected input."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turn": 1,
+      "observation": "First wrong action is read -p; verifier summary reports the required prompt absent under redirected input."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turn": 1,
+      "observation": "First wrong action is read -p; verifier summary reports the required prompt absent under redirected input."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turn": 1,
+      "observation": "First wrong action is read -rp; verifier summary reports the required prompt absent under redirected input."
+    }
+  ]
+}

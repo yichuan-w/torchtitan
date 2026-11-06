@@ -1,0 +1,22 @@
+order_id,customer_id,order_date,product,quantity,unit_price,region
+N001,C101,01/15/2024,Wireless Mouse ,2,24.99,North
+N002,C102,2024-01-16,Keyboard,1,49.99,North
+N003,C103,01/17/2024,Monitor 24",1,189.99,North
+N004,C101,2024-01-18,USB-C Hub,3,34.50,North
+N005,C104,01/19/2024,Wireless Mouse,1,24.99,North
+N003,C103,01/17/2024,Monitor 24",1,189.99,North
+N006,C105,2024-01-21,Keyboard,2,49.99,North
+N007,C106,01/22/2024,Webcam HD,1,79.99,North
+N008,C107,2024-01-23,Laptop Stand,1,45.00,North
+N009,C108,01/24/2024,Wireless Mouse ,5,24.99,North
+N010,C102,2024-01-25,Monitor 24",1,189.99,North
+N011,C109,01/26/2024,USB-C Hub,2,34.50,North
+N012,C110,2024-01-27,Keyboard,1,49.99,North
+N013,C111,01/28/2024,Webcam HD,2,79.99,North
+N014,C112,2024-01-29,Desk Lamp,3,29.99,North
+N015,C113,01/30/2024,Wireless Mouse,1,24.99,North
+N016,C114,2024-01-31,Laptop Stand,1,45.00,North
+N017,C115,02/01/2024,Monitor 24",1,189.99,North
+N018,C116,2024-02-02,Keyboard,2,49.99,North
+N019,C117,02/03/2024,,2,34.50,North
+N020,C118,2024-02-04,Webcam HD,1,79.99,North

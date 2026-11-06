@@ -1,0 +1,15 @@
+// Sample input file for the parser
+{
+    name: "test-project",
+    version: "1.0.0",
+    dependencies: {
+        core: true,
+        utils: false
+    },
+    numbers: [42, 100, 256],
+    nested: {
+        deep: {
+            value: "hello"
+        }
+    }
+}

@@ -1,0 +1,14 @@
+[
+  {
+    "defect": "The grader required exact values for integers outside JavaScript's safe integer range even though the instruction only specifies using an integer within the safe range and does not define an unsafe-range JSON representation.",
+    "evidence": "instruction.md integer output bullet conflicts with tests/test_outputs.py::test_parse_large_integers; attempt-02 turn 18 and attempt-11 turn 8 produced otherwise functional parsers but rounded unsafe JSON numbers.",
+    "change": "Explicitly limit required integer fidelity to JavaScript's safe integer range and remove the unsupported exact-unsafe-integer check while retaining safe positive and negative integer checks.",
+    "kind": "hidden_requirement"
+  },
+  {
+    "defect": "The grader rejected valid ISO 8601 UTC timestamps containing fractional seconds although the instruction requires only an ISO 8601 string with a Z suffix.",
+    "evidence": "instruction.md date output bullet permits ISO 8601 while tests/test_outputs.py compared timestamp spelling literally; replays of attempt-02 and attempt-11 failed date checks solely for .000Z versus Z.",
+    "change": "Compare ISO 8601 timestamps by instant so both Z and fractional-second Z forms satisfy the stated contract, and make that allowance explicit.",
+    "kind": "hidden_requirement"
+  }
+]

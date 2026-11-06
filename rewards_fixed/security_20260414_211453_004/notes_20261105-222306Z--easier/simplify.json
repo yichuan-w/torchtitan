@@ -1,0 +1,70 @@
+{
+  "retained_skill": "Analyze and repair URL validation so SSRF bypasses cannot reach internal or metadata addresses while ordinary external HTTP(S) URLs remain usable.",
+  "bottleneck": "Broken setup: every scored attempt tried the instruction's advertised /tests/test_outputs.py at turn 3, found it absent, and then spent the rest of the attempt inventing a substitute test suite that did not expose the grader's edge cases.",
+  "change": "Repair in the original task's signal: ship the advertised test file in /tests so students can run the existing command and receive immediate failing examples from the original validation behavior. This supplies feedback around the retained skill but leaves diagnosis and implementation of robust SSRF validation to the student.",
+  "restore": "A later version can remove the public test copy from the image once the student reliably derives adversarial URL cases independently; the application, deliverables, and retained SSRF-validation decision remain unchanged.",
+  "prediction": "When /tests/test_outputs.py exists, attempts will stop creating self-authored tests after the missing-file error and will instead run the supplied suite, observe which URL classes remain accepted, and revise validate_url against that feedback. This is refuted if attempts still replace the supplied tests or if all twelve submit with supplied test failures.",
+  "expected": "5 of 12",
+  "evidence": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turn": 3,
+      "observation": "The advertised test file was missing; the attempt created /tests and its own tests, which passed, but the scored result failed."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turn": 3,
+      "observation": "The advertised test file was missing; the attempt searched for it, authored replacement tests, and submitted after those passed."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turn": 3,
+      "observation": "The advertised test file was missing. Replayed its submitted approach from a fresh reset and graded it: report, AWS metadata, IPv6 loopback, and zero-address checks passed; credential/backslash, user-info, and blocked-host subdomain checks failed."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turn": 3,
+      "observation": "The advertised test file was missing; the attempt searched the filesystem and later authored its own suite."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turn": 3,
+      "observation": "The advertised test file was missing; the attempt created a replacement suite and iterated only against it."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turn": 3,
+      "observation": "The advertised test file was missing; the attempt created replacement tests and rewrote the application repeatedly."
+    },
+    {
+      "attempt": "attempt-07.jsonl",
+      "turn": 3,
+      "observation": "The advertised test file was missing. Replayed its case-normalization patch and report on a fresh reset: report checks passed, while credential/backslash, user-info, metadata IP, IPv6 loopback, zero-address, and blocked-host subdomain checks failed. After the rewrite, replaying its approach reached the now-present supplied suite directly; grading still showed those six failures, making the retained decision visible rather than falsely green."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turn": 3,
+      "observation": "The advertised test file was missing; the attempt authored and repeatedly revised a substitute suite and application."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turn": 3,
+      "observation": "The advertised test file was missing; the attempt spent turns searching, then created replacement tests."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turn": 3,
+      "observation": "The advertised test file was missing; the attempt searched globally and then authored a substitute suite."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turn": 3,
+      "observation": "The advertised test file was missing; a one-line case fix passed its self-authored tests but did not cover the grader's remaining cases."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turn": 3,
+      "observation": "The advertised test file was missing; the attempt wrote two versions of replacement tests and passed those before submission."
+    }
+  ]
+}

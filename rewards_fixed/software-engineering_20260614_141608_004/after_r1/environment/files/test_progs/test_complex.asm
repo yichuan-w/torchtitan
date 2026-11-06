@@ -1,0 +1,28 @@
+; Test complex program
+
+PUSH 0
+STORE 0
+PUSH 1
+STORE 1
+loop:
+LOAD 1
+PUSH 6
+LT
+JZ done
+LOAD 1
+DUP
+MUL
+STORE 2
+LOAD 0
+LOAD 2
+ADD
+STORE 0
+LOAD 1
+PUSH 1
+ADD
+STORE 1
+JMP loop
+done:
+LOAD 0
+PRINT
+HALT

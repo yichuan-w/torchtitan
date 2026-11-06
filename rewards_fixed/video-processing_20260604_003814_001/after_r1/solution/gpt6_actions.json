@@ -1,0 +1,114 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "ls -la /app\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "cat > /app/freeze_detector.py << 'EOF'\n#!/usr/bin/env python3\nimport sys\nimport cv2\nimport numpy as np\nimport toml\n\ndef gaussian_kernel(size=11, sigma=1.5):\n    ax = np.arange(size) - (size - 1) / 2.0\n    g = np.exp(-(ax ** 2) / (2.0 * sigma ** 2))\n    g /= g.sum()\n    return np.outer(g, g).astype(np.float64)\n\nKERNEL = gaussian_kernel(11, 1.5)\nK1, K2, L = 0.01, 0.03, 255.0\nC1 = (K1 * L) ** 2\nC2 = (K2 * L) ** 2\n\ndef ssim(x, y):\n    x = x.astype(np.float64)\n    y = y.astype(np.float64)\n    mx = cv2.filter2D(x, -1, KERNEL, borderType=cv2.BORDER_REFLECT)\n    my = cv2.filter2D(y, -1, KERNEL, borderType=cv2.BORDER_REFLECT)\n    mxx = cv2.filter2D(x * x, -1, KERNEL, borderType=cv2.BORDER_REFLECT)\n    myy = cv2.filter2D(y * y, -1, KERNEL, borderType=cv2.BORDER_REFLECT)\n    mxy = cv2.filter2D(x * y, -1, KERNEL, borderType=cv2.BORDER_REFLECT)\n    vx = mxx - mx * mx\n    vy = myy - my * my\n    cxy = mxy - mx * my\n    num = (2 * mx * my + C1) * (2 * cxy + C2)\n    den = (mx * mx + my * my + C1) * (vx + vy + C2)\n    return float(np.mean(num / den))\n\ndef main():\n    video_path = sys.argv[1]\n    ssim_threshold = 0.995\n    black_frame_threshold = 10.0\n\n    cap = cv2.VideoCapture(video_path)\n    if not cap.isOpened():\n        print(\"Cannot open video:\", video_path)\n        sys.exit(1)\n    fps = cap.get(cv2.CAP_PROP_FPS) or 30.0\n    min_freeze_pairs = max(1, int(round(fps * 0.5)))\n\n    grays = []\n    means = []\n    while True:\n        ret, frame = cap.read()\n        if not ret:\n            break\n        means.append(float(frame.mean()))\n        grays.append(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY))\n    cap.release()\n\n    total = len(grays)\n    ssim_vals = []\n    is_freeze_pair = []\n    for i in range(total - 1):\n        s = ssim(grays[i], grays[i + 1])\n        ssim_vals.append(s)\n        black = means[i] < black_frame_threshold or means[i + 1] < black_frame_threshold\n        is_freeze_pair.append(s > ssim_threshold and not black)\n\n    events = []\n    i = 0\n    n = len(is_freeze_pair)\n    while i < n:\n        if is_freeze_pair[i]:\n            j = i\n            while j < n and is_freeze_pair[j]:\n                j += 1\n            length = j - i\n            if length >= min_freeze_pairs:\n                seg = ssim_vals[i:j]\n                events.append({\n                    \"start_frame\": i + 1,\n                    \"end_frame\": j + 1,\n                    \"duration_pairs\": length,\n                    \"duration_seconds\": round(length / fps, 4),\n                    \"mean_ssim\": round(float(np.mean(seg)), 4),\n                })\n            i = j\n        else:\n            i += 1\n\n    report = {\n        \"video_path\": video_path,\n        \"video_fps\": fps,\n        \"total_frames\": total,\n        \"parameters\": {\n            \"ssim_threshold\": ssim_threshold,\n            \"min_freeze_pairs\": min_freeze_pairs,\n            \"black_frame_threshold\": black_frame_threshold,\n        },\n        \"freeze_events\": events,\n    }\n    with open(\"/app/freeze_report.toml\", \"w\") as f:\n        toml.dump(report, f)\n\n    # Timeline PNG 1200x100\n    W, H = 1200, 100\n    img = np.full((H, W, 3), (50, 50, 50), dtype=np.uint8)\n    bar_y0, bar_y1 = 10, H - 10\n    img[bar_y0:bar_y1, :] = (0, 200, 0)  # green\n    for ev in events:\n        x0 = int((ev[\"start_frame\"] - 1) / max(total, 1) * W)\n        x1 = int(ev[\"end_frame\"] / max(total, 1) * W)\n        img[bar_y0:bar_y1, x0:max(x1, x0 + 1)] = (0, 0, 220)  # red\n    cv2.imwrite(\"/app/freeze_timeline.png\", img)\n\n    # SSIM plot 1200x400\n    W2, H2 = 1200, 400\n    ml, mr, mt, mb = 60, 20, 20, 40\n    plot = np.full((H2, W2, 3), (30, 30, 30), dtype=np.uint8)\n    pw, ph = W2 - ml - mr, H2 - mt - mb\n    def to_px(idx, val):\n        px = ml + int(idx / max(len(ssim_vals) - 1, 1) * (pw - 1)) if len(ssim_vals) > 1 else ml\n        py = mt + int((1.0 - val) * (ph - 1))\n        return px, py\n    # axes\n    cv2.line(plot, (ml, mt), (ml, mt + ph), (200, 200, 200), 1)\n    cv2.line(plot, (ml, mt + ph), (ml + pw, mt + ph), (200, 200, 200), 1)\n    # dashed threshold line\n    _, ty = to_px(0, ssim_threshold)\n    for x in range(ml, ml + pw, 20):\n        cv2.line(plot, (x, ty), (min(x + 10, ml + pw), ty), (0, 200, 200), 1)\n    # ssim line\n    for i in range(len(ssim_vals) - 1):\n        cv2.line(plot, to_px(i, ssim_vals[i]), to_px(i + 1, ssim_vals[i + 1]), (255, 255, 255), 1)\n    cv2.putText(plot, \"SSIM\", (10, mt + 20), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)\n    cv2.putText(plot, \"1.0\", (30, mt + 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)\n    cv2.putText(plot, \"0.0\", (30, mt + ph), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)\n    cv2.putText(plot, \"Frame pair index\", (W2 // 2 - 60, H2 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)\n    cv2.imwrite(\"/app/ssim_plot.png\", plot)\n\n    print(\"frames:\", total, \"events:\", len(events))\n\nif __name__ == \"__main__\":\n    main()\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "cd /app && python3 freeze_detector.py /app/example_video.mp4\n",
+    "duration": 30.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "cat /app/freeze_report.toml && ls -la /app/*.png\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 30.3,
+    "keystrokes": "which -a python3 python; ls /usr/bin/python*; ls /opt 2>/dev/null; ls /app/.venv 2>/dev/null\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 30.3,
+    "keystrokes": "python3 -c \"import sys; print(sys.path)\"; pip list 2>/dev/null | head -30\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 30.3,
+    "keystrokes": "find / -name \"cv2\" -maxdepth 6 -type d 2>/dev/null | head\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 31.4,
+    "keystrokes": "ls /opt/verifier/lib/python3.13/site-packages | head -40\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 31.4,
+    "keystrokes": "python3 -c \"import cv2; print(cv2.__version__)\"\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 32.9,
+    "keystrokes": "/usr/bin/python3 -c \"import cv2, numpy, toml; print(cv2.__version__, numpy.__version__)\"\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 32.9,
+    "keystrokes": "cd /app && /usr/bin/python3 freeze_detector.py /app/example_video.mp4\n",
+    "duration": 60.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 32.9,
+    "keystrokes": "cat /app/freeze_report.toml; ls -la /app/*.png\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 94.0,
+    "keystrokes": "/usr/bin/python3 -c \"import cv2; a=cv2.imread('/app/freeze_timeline.png'); b=cv2.imread('/app/ssim_plot.png'); print(a.shape, b.shape)\"\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 94.0,
+    "keystrokes": "ls -la /app/freeze_detector.py /app/freeze_report.toml /app/freeze_timeline.png /app/ssim_plot.png\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 95.1,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 95.1,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

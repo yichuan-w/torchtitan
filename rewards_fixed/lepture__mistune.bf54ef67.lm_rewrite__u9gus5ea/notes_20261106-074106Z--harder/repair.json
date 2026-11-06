@@ -1,0 +1,14 @@
+[
+  {
+    "defect": "The public reproduction used a backtick inside a backtick-fence info string, which CommonMark requires the parser to reject, while the displayed expected output assumes a parsed code block.",
+    "evidence": "traces/attempt-04.jsonl turn 58 reproduces the rejection and turns 67-68 switch to a tilde fence; traces/attempt-05.jsonl turns 62-64 make the same finding.",
+    "change": "Use a tilde fence in the reproduction so all listed special characters can legally occur in its info string.",
+    "kind": "broken_setup"
+  },
+  {
+    "defect": "The seed verifier checked only CommonMark entity decoding and did not check the task's promised special-character output; reversing the planted patch passed despite leaving apostrophes and backticks unencoded.",
+    "evidence": "The pre-edit oracle earned reward 1.0, while direct output after that oracle was still `<pre><code class=\"language-html&amp;&quot;&lt;&gt;'`\">...`.",
+    "change": "Add a semantic scratch check of the public reproduction while retaining the inherited CommonMark conformance check, and update the reference repair to satisfy both.",
+    "kind": "hidden_requirement"
+  }
+]

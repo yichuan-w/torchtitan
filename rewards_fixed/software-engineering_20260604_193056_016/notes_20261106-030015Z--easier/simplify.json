@@ -1,0 +1,70 @@
+{
+  "retained_skill": "Diagnose and correct the C parser's decoding logic by comparing its implementation and observed outputs with the binary format contract.",
+  "bottleneck": "Ten of twelve scored attempts preserved the incorrect negative-fixint mask, then treated successful exits and no trailing-byte warnings as proof that every decoded value was correct. The one attempt that corrected this value family ran out of time after broad terminal edits damaged other handlers; the other attempt that noticed the mask did not correct it.",
+  "change": "Repair the broken setup by copying the already-supplied SBMF format definition into the image and point to it briefly from the instruction. This help lives in the original task's own format signal: it makes the source of truth available, so students can compare scalar outputs against the contract rather than infer correctness from byte consumption. It does not identify any buggy line or provide a patch; students still diagnose and fix parser.c.",
+  "restore": "Remove the instruction sentence naming /app/format-spec.txt and remove the Dockerfile COPY for that file to restore the original task.",
+  "prediction": "Attempts that previously stopped after eliminating warnings will consult the available contract, detect that at least one simple scalar family still has wrong decoded values, and continue debugging instead of submitting. This is refuted if the next group still submits outputs such as the original negative-fixint results while claiming that no warnings proves correctness, or if all 12 solve.",
+  "expected": "5 of 12",
+  "evidence": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turn": 31,
+      "observation": "The attempt declared all values correct based on complex structure and no trailing-byte warnings while its submitted source retained the wrong negative-fixint mask. Replayed final parser.c on the seed task with ./sandbox grade: the sole aggregate correctness check failed, reporting 15/33 wrong files, including the unsigned-byte and negative-fixint scalar cases."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turn": 27,
+      "observation": "The attempt used exit status for every fixture as its final comprehensive check and retained the wrong negative-fixint mask."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turn": 31,
+      "observation": "This was the only attempt to decode the negative-fixint scalar fixtures correctly, but broad sed edits damaged array parsing and it rewrote the full source again before hitting the time budget at turn 32 without compiling the final rewrite."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turn": 34,
+      "observation": "The attempt equated successful parsing of all 33 files with correct values and retained the wrong negative-fixint mask."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turn": 36,
+      "observation": "The attempt treated absence of warnings and errors as proof that all fixtures passed and retained the wrong negative-fixint mask."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turn": 22,
+      "observation": "The attempt announced that all fixtures parsed without errors and retained the wrong negative-fixint mask."
+    },
+    {
+      "attempt": "attempt-07.jsonl",
+      "turn": 21,
+      "observation": "The attempt reached rebuilt fixture output but retained the wrong negative-fixint mask and submitted without a semantic oracle."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turn": 24,
+      "observation": "The attempt concluded all values were correct from structure and lack of warnings while retaining the wrong negative-fixint mask."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turn": 49,
+      "observation": "The attempt listed six confirmed fixes and declared zero warnings, but never corrected the negative-fixint mask."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turn": 55,
+      "observation": "After terminal-editing difficulties, the attempt claimed all 33 fixtures passed while retaining the wrong negative-fixint mask."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turn": 62,
+      "observation": "The attempt used counts of warnings and errors as final verification and retained the wrong negative-fixint mask."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turn": 22,
+      "observation": "The attempt explicitly claimed zero warnings proved every value correct. Replayed its final parser.c on the seed task with ./sandbox grade: the aggregate correctness check failed on exactly 4/33 files, t11-t13 and nested t30, all due to negative-fixint values. After the rewrite, replayed its approach from a fresh ./sandbox reset: /app/format-spec.txt was present, its Negative fixint section exposed the mismatch on t11, changing only that retained mask made t11 print the contract value, and ./sandbox grade then passed the aggregate all-files correctness check."
+    }
+  ]
+}

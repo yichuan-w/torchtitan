@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The instruction directs the student to inspect two workspace JSON files that are absent from the built environment.",
+    "evidence": "instruction.md names /workspace/rewrite_step_verifier.json and /workspace/rewrite_step_consistency_repair.json; all attempts, including attempt-01.jsonl turn 2 and turn 3, receive No such file or directory.",
+    "change": "Remove the sentence that directs students to the nonexistent files; all actual task requirements remain stated in instruction.md.",
+    "kind": "broken_setup"
+  }
+]

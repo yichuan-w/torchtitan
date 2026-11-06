@@ -1,0 +1,70 @@
+{
+  "retained_skill": "Debug a pandas sales pipeline by tracing how validation, joins, deduplication, filtering, revenue calculation, and aggregation affect the final grouped report, then correct every transformation that produces wrong totals.",
+  "bottleneck": "A hidden input contract blocks all scored attempts: every raw date is numerically ambiguous, the pipeline merely calls automatic parsing, and neither the instruction nor a discoverable data field identifies day/month order. All 12 attempts therefore preserve or explicitly assume month/day order after successfully addressing the other revenue defects.",
+  "change": "Repair the hidden requirement in the instruction by stating that raw sales dates use day/month/year order. This is instruction-level contract clarification, not a solution recipe: it exposes the interpretation required for an otherwise ambiguous input while leaving the student to locate and fix date parsing and all other pipeline defects.",
+  "restore": "Remove the standalone sentence stating the raw date order to restore the original task; no environment, reference solution, or verifier behavior changes.",
+  "prediction": "The change addresses the action shared by all failures: leaving automatic parsing unchanged or explicitly selecting month/day/year. Once the required input convention is visible, attempts that already fix correction selection, sale-price revenue, filtering, and summation can make a different next action at date parsing and produce May-through-August report dates. This prediction is refuted if attempts still emit February-through-April or September-through-December dates, or if the next 12 attempts all pass and the repair overshoots the learnable band.",
+  "expected": "10 of 12",
+  "evidence": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turn": 11,
+      "observation": "First incorrect implementation point: rewrote pipeline.py while retaining pd.to_datetime(df['date']) with no day-first handling. The attempt later described the input as MM/DD/YYYY. Submitted state was not separately replayed because attempt-04 and attempt-12 instantiate the same retained parsing error."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turn": 8,
+      "observation": "First rewrite kept automatic pd.to_datetime date parsing while changing deduplication, revenue, aggregation, and filtering behavior; date convention remained unresolved."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turn": 9,
+      "observation": "Began targeted fixes for keep-last, sum, sale price, and filtering but never patched parse_dates; turns 31-32 explicitly used format %m/%d/%Y in manual checks."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turn": 9,
+      "observation": "First targeted edit began the same four non-date fixes and left automatic date parsing intact. Replayed with: ./sandbox reset; sed edits for keep-last, sale price, sum, and disabling filter; python3 pipeline.py; ./sandbox grade. Failed checks: dates_are_correct and dedup_keeps_corrected_records; the other 10 checks passed."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turn": 9,
+      "observation": "Started non-date fixes and left parse_dates unchanged; subsequent repair of a sale-price edit did not address date interpretation."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turn": 10,
+      "observation": "Applied keep-last, sale-price, filter, and sum fixes while leaving automatic date parsing unchanged."
+    },
+    {
+      "attempt": "attempt-07.jsonl",
+      "turn": 7,
+      "observation": "Applied the same non-date edits first and investigated duplicates later, but never changed the ambiguous parser."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turn": 5,
+      "observation": "First explicitly concluded that the raw dates were MM/DD/YYYY, then turn 10 rewrote the pipeline with automatic parsing and all other core fixes."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turn": 8,
+      "observation": "Rewrote the pipeline with keep-last, sale-price handling, and sum while retaining automatic date parsing; a second rewrite still retained it."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turn": 7,
+      "observation": "Analysis explicitly classified dates as MM/DD/YYYY before applying the four non-date fixes at turns 9-15."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turn": 8,
+      "observation": "Applied all four non-date fixes, then used format %m/%d/%Y in manual verification at turns 19-21 instead of correcting pipeline parsing."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turn": 9,
+      "observation": "Applied keep-last, disabled filtering, sale-price revenue, and sum while leaving automatic date parsing. Replayed with: ./sandbox reset; equivalent sed edits; python3 pipeline.py; ./sandbox grade. Failed checks: dates_are_correct and dedup_keeps_corrected_records; all remaining 10 checks passed. After the instruction change, replayed its approach from a fresh ./sandbox reset, adding only day-first parsing prompted by the clarified contract; pipeline output began at 2023-05-03 and ./sandbox grade passed all 12 checks (reward 1.0)."
+    }
+  ]
+}

@@ -1,0 +1,198 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "ls -la /app/data /app/output 2>&1\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "file /app/data/*\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "head -c 2000 /app/data/products_main.csv; echo\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "head -c 2000 /app/data/products_legacy.tsv; echo\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "head -c 2000 /app/data/inventory.json; echo\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "head -c 2000 /app/data/pricing.txt; echo\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "head -c 2000 /app/data/product_details.xml; echo\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "zcat /app/data/suppliers.csv.gz | head -c 2000; echo\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.8,
+    "keystrokes": "tail -c 600 /app/data/product_details.xml\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.8,
+    "keystrokes": "cat -A /app/data/pricing.txt | tail -5\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.8,
+    "keystrokes": "awk '{print length($0), $0}' /app/data/pricing.txt\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.8,
+    "keystrokes": "cat -A /app/data/products_main.csv | head -20\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.8,
+    "keystrokes": "cat -A /app/data/products_legacy.tsv | head -15\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.8,
+    "keystrokes": "wc -l /app/data/*; python3 -c \"import pandas\" 2>&1\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 1.4,
+    "keystrokes": "mkdir -p /app/output && cat > /app/merge.py << 'EOF'\nimport csv, json, gzip, re, io\nfrom datetime import datetime\n\nissues = []\ndef issue(file, line, severity, field, desc):\n    issues.append({\"file\": file, \"line\": line, \"severity\": severity, \"field\": field, \"description\": desc})\n\ndef norm_id(raw):\n    if raw is None: return None\n    s = ''.join(c for c in raw.strip() if c.isalnum() or c == '-')\n    m = re.match(r'^PROD-?(\\d+)$', s, re.I)\n    if m:\n        s2 = 'PROD-%03d' % int(m.group(1))\n        if s2 != raw.strip():\n            issue(cur_file, cur_line, \"warning\", \"product_id\",\n                  f\"Product ID '{raw.strip()}' normalized to '{s2}'\")\n        return s2\n    return s\n\ndef parse_date(s, file, line):\n    s = (s or '').strip()\n    if not s: return None\n    for fmt in (\"%Y-%m-%d\", \"%m/%d/%Y\", \"%d.%m.%Y\"):\n        try:\n            d = datetime.strptime(s, fmt)\n            if fmt != \"%Y-%m-%d\":\n                issue(file, line, \"warning\", None,\n                      f\"Non-ISO date '{s}' parsed using format {fmt}\")\n            return d\n        except ValueError:\n            pass\n    issue(file, line, \"error\", None, f\"Unparseable date '{s}'; treated as missing\")\n    return None\n\nproducts = {}  # id -> dict of field->(value, date, source_rank)\ndef set_field(pid, field, value, date, rank, file, line):\n    if value is None or (isinstance(value, str) and value.strip() == ''):\n        return\n    value = value.strip() if isinstance(value, str) else value\n    p = products.setdefault(pid, {})\n    cur = p.get(field)\n    if cur is None or rank < cur[2] or (rank == cur[2] and (date or datetime.min) > (cur[1] or datetime.min)):\n        if cur is not None and str(cur[0]) != str(value):\n            issue(file, line, \"warning\", field,\n                  f\"Conflicting {field} for {pid}: kept '{value}' ({file}) over '{cur[0]}' per conflict-resolution rules\")\n        p[field] = (value, date, rank)\n\nCAT_MAP = {\"Office\": \"Office Supplies\", \"Office Supplies\": \"Office Supplies\",\n           \"Electronics\": \"Electronics\", \"Furniture\": \"Furniture\",\n           \"Pantry\": \"Pantry\", \"Gadgets\": \"Gadgets\"}\n\n# --- products_main.csv (rank 0) ---\ncur_file = \"products_main.csv\"\nwith open(\"/app/data/products_main.csv\", encoding=\"utf-8-sig\", newline='') as f:\n    rdr = csv.reader(f)\n    header = next(rdr)\n    for i, row in enumerate(rdr, start=2):\n        cur_line = i\n        if len(row) < 7:\n            issue(cur_file, i, \"error\", None, f\"Corrupt row with {len(row)} columns (expected 7); skipped: {row}\")\n            continue\n        pid = norm_id(row[0])\n        if row[1] != row[1].strip():\n            issue(cur_file, i, \"warning\", \"name\", f\"Name '{row[1]}' had leading/trailing whitespace; trimmed\")\n        if row[4] != row[4].strip():\n            issue(cur_file, i, \"warning\", \"cost\", f\"Cost '{row[4]}' had whitespace; trimmed\")\n        d = parse_date(row[6], cur_file, i)\n        set_field(pid, \"name\", row[1], d, 0, cur_file, i)\n        set_field(pid, \"category\", row[2], d, 0, cur_file, i)\n        set_field(pid, \"price\", row[3], d, 0, cur_file, i)\n        set_field(pid, \"cost\", row[4], d, 0, cur_file, i)\n        set_field(pid, \"supplier\", row[5], d, 0, cur_file, i)\n        set_field(pid, \"last_updated\", row[6].strip(), d, 0, cur_file, i)\nissue(\"products_main.csv\", None, \"warning\", None, \"File had UTF-8 BOM; handled with utf-8-sig decoding\")\nissue(\"products_main.csv\", 3, \"warning\", \"supplier\", \"Multi-line quoted field (embedded newline in supplier name) handled by CSV parser\")\n\n# --- products_legacy.tsv (rank 1) ---\ncur_file = \"products_legacy.tsv\"\nwith open(\"/app/data/products_legacy.tsv\", encoding=\"latin-1\", newline='') as f:\n    rdr = csv.reader(f, delimiter='\\t')\n    header = next(rdr)\n    for i, row in enumerate(rdr, start=2):\n        cur_line = i\n        if len(row) < 6:\n            issue(cur_file, i, \"error\", None, f\"Corrupt row with {len(row)} columns (expected 6); skipped: {row}\")\n            continue\n        pid = norm_id(row[0])\n        d = parse_date(row[5], cur_file, i)\n        if row[3] == \"Office\":\n            issue(cur_file, i, \"warning\", \"category\", f\"Category 'Office' mapped to canonical 'Office Supplies' for {pid}\")\n        if not row[4].strip():\n            issue(cur_file, i, \"warning\", \"supplier\", f\"Missing vendor for {pid}; field left empty unless provided by another source\")\n        set_field(pid, \"name\", row[1], d, 1, cur_file, i)\n        set_field(pid, \"category\", row[2], d, 1, cur_file, i)\n        set_field(pid, \"price\", row[3], d, 1, cur_file, i)\n        set_field(pid, \"supplier\", row[4], d, 1, cur_file, i)\n        set_field(pid, \"last_updated\", row[5].strip(), d, 1, cur_file, i)\nissue(\"products_legacy.tsv\", None, \"warning\", None, \"File encoded in ISO-8859-1 (Latin-1); decoded accordingly to fix mojibake (e.g. 'Papelera Gonzlez' -> 'Papelería González')\")\n\n# --- inventory.json (rank 1) ---\ncur_file = \"inventory.json\"\nwith open(\"/app/data/inventory.json\", encoding=\"utf-8\") as f:\n    inv = json.load(f)\nseen_keys = set()\nfor i, rec in enumerate(inv):\n    cur_line = i\n    idkey = next((k for k in (\"product_id\",\"prodId\",\"id\",\"item_number\") if k in rec), None)\n    seen_keys.add(idkey)\n    if idkey is None:\n        issue(cur_file, i, \"error\", \"product_id\", f\"Record {i} has no recognizable product ID key; skipped: {rec}\")\n        continue\n    raw = rec[idkey]\n    if raw != raw.strip():\n        issue(cur_file, i, \"warning\", \"product_id\", f\"Product ID '{raw}' had hidden/trailing whitespace; trimmed\")\n    pid = norm_id(raw)\n    d = parse_date(rec.get(\"last_counted\"), cur_file, i)\n    if \"stock\" not in rec:\n        issue(cur_file, i, \"warning\", \"stock\", f\"Missing stock value for {pid}; field left empty\")\n    set_field(pid, \"stock\", str(rec.get(\"stock\",\"\")) if rec.get(\"stock\") is not None else \"\", d, 1, cur_file, i)\n    set_field(pid, \"warehouse\", rec.get(\"warehouse\",\"\"), d, 1, cur_file, i)\n    set_field(pid, \"last_updated\", (rec.get(\"last_counted\") or \"\").strip(), d, 1, cur_file, i)\nissue(\"inventory.json\", None, \"warning\", \"product_id\", f\"Inconsistent ID key names across records: {sorted(k for k in seen_keys if k)}; all normalized\")\n\n# --- pricing.txt (rank 1) ---\ncur_file = \"pricing.txt\"\npat = re.compile(r'^(\\S+)\\s+(.*?)\\s+(\\d+\\.\\d{2})\\s+(\\d+)\\s+(\\d{4}-\\d{2}-\\d{2})\\s*$')\npricing = {}\nwith open(\"/app/data/pricing.txt\", encoding=\"utf-8\") as f:\n    for i, line in enumerate(f, start=1):\n        cur_line = i\n        line = line.rstrip('\\n')\n        if not line.strip():\n            continue\n        m = pat.match(line)\n        if not m:\n            issue(cur_file, i, \"error\", None, f\"Corrupt/unparseable fixed-width row skipped: '{line}'\")\n            continue\n        pid_raw, pname, price, qty, dt = m.groups()\n        if not line.startswith(pid_raw + '  '):\n            issue(cur_file, i, \"warning\", None, f\"Misaligned fixed-width row (multibyte chars / short padding) recovered via regex parsing: '{line[:30]}...'\")\n        pid = norm_id(pid_raw)\n        d = parse_date(dt, cur_file, i)\n        pricing.setdefault(pid, []).append({\"price\": price, \"qty\": int(qty), \"date\": dt, \"d\": d})\n        set_field(pid, \"price_tier_qty_break\", qty, d, 1, cur_file, i)\n\n# --- suppliers.csv.gz (rank 2) ---\ncur_file = \"suppliers.csv.gz\"\nwith gzip.open(\"/app/data/suppliers.csv.gz\", \"rt\", encoding=\"utf-8\") as f:\n    rdr = csv.DictReader(f)\n    for i, row in enumerate(rdr, start=2):\n        cur_line = i\n        pid = norm_id(row[\"prod_ref\"])\n        if row.get(\"discontinued\",\"\").strip().lower() == \"yes\":\n            issue(cur_file, i, \"warning\", None, f\"Product {pid} flagged as discontinued; included with available data\")\n        set_field(pid, \"supplier\", row.get(\"primary_supplier\",\"\"), None, 2, cur_file, i)\n        set_field(pid, \"category\", row.get(\"alternate_category\",\"\"), None, 2, cur_file, i)\n\n# --- product_details.xml (check only) ---\nimport xml.etree.ElementTree as ET\ntry:\n    tree = ET.parse(\"/app/data/product_details.xml\")\n    xml_ids = [p.findtext(\"id\").strip() for p in tree.getroot().findall(\"product\")]\nexcept Exception as e:\n    issue(\"product_details.xml\", None, \"error\", None, f\"XML parse error: {e}\")\n    xml_ids = []\n\n# --- write catalog.csv ---\ncols = [\"product_id\",\"name\",\"category\",\"price\",\"cost\",\"supplier\",\"stock\",\"warehouse\",\"price_tier_qty_break\",\"last_updated\"]\nwith open(\"/app/output/catalog.csv\", \"w\", newline='', encoding=\"utf-8\") as f:\n    w = csv.writer(f)\n    w.writerow(cols)\n    for pid in sorted(products):\n        p = products[pid]\n        row = []\n        for c in cols:\n            if c == \"product_id\":\n                row.append(pid); continue\n            v = p.get(c)\n            val = v[0] if v else \"\"\n            if c == \"category\" and val in CAT_MAP:\n                val = CAT_MAP[val]\n            if c == \"last_updated\" and v and v[1]:\n                val = v[1].strftime(\"%Y-%m-%d\")\n            row.append(val)\n        w.writerow(row)\n\n# --- price_discrepancies.csv ---\nwith open(\"/app/output/price_discrepancies.csv\", \"w\", newline='', encoding=\"utf-8\") as f:\n    w = csv.writer(f)\n    w.writerow([\"product_id\",\"catalog_price\",\"tier1_price\",\"difference_pct\"])\n    main_ids = set()\n    with open(\"/app/data/products_main.csv\", encoding=\"utf-8-sig\", newline='') as mf:\n        rdr = csv.reader(mf); next(rdr)\n        for row in rdr:\n            if len(row) >= 7:\n                main_ids.add((norm_id(row[0]), row[3].strip()))\n    main_prices = dict(main_ids)\n    for pid in sorted(set(main_prices) & set(pricing)):\n        cat = main_prices[pid]\n        tiers = pricing[pid]\n        t1 = [t for t in tiers if t[\"qty\"] == 1]\n        if t1:\n            tp = t1[0][\"price\"]\n            diff = abs(float(cat) - float(tp)) / float(tp) * 100\n            w.writerow([pid, cat, tp, f\"{diff:.1f}\"])\n        else:\n            issue(\"pricing.txt\", None, \"warning\", \"price\", f\"{pid} has no tier-1 (qty_break=1) price; tier1_price and difference_pct marked N/A\")\n            w.writerow([pid, cat, \"N/A\", \"N/A\"])\n\nwith open(\"/app/output/issues.json\", \"w\", encoding=\"utf-8\") as f:\n    json.dump(issues, f, indent=2, ensure_ascii=False)\nprint(\"done\", len(products), \"products,\", len(issues), \"issues\")\nEOF\npython3 /app/merge.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 1.5,
+    "keystrokes": "cat /app/output/catalog.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 1.5,
+    "keystrokes": "cat /app/output/price_discrepancies.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 1.5,
+    "keystrokes": "python3 -m json.tool /app/output/issues.json | head -60\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 1.8,
+    "keystrokes": "cat /app/output/catalog.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 1.8,
+    "keystrokes": "cat /app/output/price_discrepancies.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 2.0,
+    "keystrokes": "python3 - << 'EOF'\nimport re\nsrc = open('/app/merge.py').read()\nold = '''    value = value.strip() if isinstance(value, str) else value\n'''\nnew = '''    if isinstance(value, str):\n        nv = ' '.join(value.split())\n        if '\\\\\"\"' in nv or ('\"\"' in nv):\n            nv2 = nv.replace('\"\"', '\"')\n            issue(file, line, \"warning\", field, f\"Malformed doubled quotes in value '{nv}' corrected to '{nv2}'\")\n            nv = nv2\n        if nv != value.strip():\n            issue(file, line, \"warning\", field, f\"Whitespace/newlines in value '{value.strip()}' normalized to '{nv}'\")\n        value = nv\n'''\nassert old in src\nsrc = src.replace(old, new)\nopen('/app/merge.py','w').write(src)\nprint(\"patched\")\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 2.0,
+    "keystrokes": "python3 /app/merge.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 2.0,
+    "keystrokes": "cat /app/output/catalog.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 2.3,
+    "keystrokes": "python3 -c \"\nimport json, csv\niss = json.load(open('/app/output/issues.json'))\nassert all(set(i) == {'file','line','severity','field','description'} for i in iss)\nassert all(i['severity'] in ('warning','error') for i in iss)\nprint('issues.json OK:', len(iss), 'issues')\nrows = list(csv.reader(open('/app/output/catalog.csv')))\nassert rows[0] == ['product_id','name','category','price','cost','supplier','stock','warehouse','price_tier_qty_break','last_updated']\nprint('catalog OK:', len(rows)-1, 'rows')\nprint(list(csv.reader(open('/app/output/price_discrepancies.csv')))[0])\n\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 2.3,
+    "keystrokes": "python3 -m json.tool /app/output/issues.json > /dev/null && echo VALID && ls -la /app/output\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 2.5,
+    "keystrokes": "echo done\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 2.6,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 2.6,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

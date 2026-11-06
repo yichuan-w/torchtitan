@@ -1,0 +1,338 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "which gcc make wget tar && gcc --version | head -1\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "mkdir -p /app/build && cd /app/build\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "wget -q https://github.com/tmux/tmux/releases/download/3.4/tmux-3.4.tar.gz https://github.com/libevent/libevent/releases/download/release-2.1.12-stable/libevent-2.1.12-stable.tar.gz https://ftp.gnu.org/gnu/ncurses/ncurses-6.5.tar.gz && ls -la\n",
+    "duration": 30.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 30.2,
+    "keystrokes": "tar xzf tmux-3.4.tar.gz; tar xzf libevent-2.1.12-stable.tar.gz; tar xzf ncurses-6.5.tar.gz; ls\n",
+    "duration": 5.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 30.2,
+    "keystrokes": "cd /app/build/ncurses-6.5\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 30.2,
+    "keystrokes": "./configure --prefix=/opt/tmux-static --enable-static --disable-shared --without-debug --without-tests --without-manpages --without-cxx-binding --with-terminfo-dirs=/usr/share/terminfo --with-default-terminfo-dir=/usr/share/terminfo > /tmp/nc-conf.log 2>&1; tail -3 /tmp/nc-conf.log\n",
+    "duration": 30.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 30.2,
+    "keystrokes": "make -j$(nproc) > /tmp/nc-make.log 2>&1 && make install > /tmp/nc-inst.log 2>&1; echo EXIT=$?\n",
+    "duration": 60.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 125.3,
+    "keystrokes": "cd /app/build/libevent-2.1.12-stable\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 125.3,
+    "keystrokes": "./configure --prefix=/opt/tmux-static --enable-static --disable-shared > /tmp/le-conf.log 2>&1; tail -3 /tmp/le-conf.log\n",
+    "duration": 30.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 125.3,
+    "keystrokes": "make -j$(nproc) > /tmp/le-make.log 2>&1 && make install > /tmp/le-inst.log 2>&1; echo EXIT=$?\n",
+    "duration": 60.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 215.4,
+    "keystrokes": "./configure --prefix=/opt/tmux-static --enable-static --disable-shared --disable-openssl > /tmp/le-conf.log 2>&1; echo CONF=$?\n",
+    "duration": 30.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 215.4,
+    "keystrokes": "make -j$(nproc) > /tmp/le-make.log 2>&1 && make install > /tmp/le-inst.log 2>&1; echo EXIT=$?\n",
+    "duration": 60.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 305.4,
+    "keystrokes": "cd /app/build/tmux-3.4\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 305.4,
+    "keystrokes": "PKG_CONFIG_PATH=/opt/tmux-static/lib/pkgconfig ./configure --prefix=/opt/tmux-static --enable-static CFLAGS=\"-I/opt/tmux-static/include -I/opt/tmux-static/include/ncurses\" LDFLAGS=\"-static -L/opt/tmux-static/lib\" > /tmp/tmux-conf.log 2>&1; echo CONF=$?; tail -3 /tmp/tmux-conf.log\n",
+    "duration": 30.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 305.4,
+    "keystrokes": "make -j$(nproc) > /tmp/tmux-make.log 2>&1; echo MAKE=$?\n",
+    "duration": 60.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 395.5,
+    "keystrokes": "apt-get update -qq > /tmp/apt.log 2>&1; apt-get install -y -qq bison >> /tmp/apt.log 2>&1; echo APT=$?\n",
+    "duration": 30.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 395.5,
+    "keystrokes": "PKG_CONFIG_PATH=/opt/tmux-static/lib/pkgconfig ./configure --prefix=/opt/tmux-static --enable-static CFLAGS=\"-I/opt/tmux-static/include -I/opt/tmux-static/include/ncurses\" LDFLAGS=\"-static -L/opt/tmux-static/lib\" > /tmp/tmux-conf.log 2>&1; echo CONF=$?; tail -3 /tmp/tmux-conf.log\n",
+    "duration": 30.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 395.5,
+    "keystrokes": "make -j$(nproc) > /tmp/tmux-make.log 2>&1; echo MAKE=$?\n",
+    "duration": 60.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 515.5,
+    "keystrokes": "ls /opt/tmux-static/include/ | head -20; ls /opt/tmux-static/lib/*.a; ls /opt/tmux-static/lib/pkgconfig 2>/dev/null\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 515.6,
+    "keystrokes": "PKG_CONFIG_PATH=/opt/tmux-static/lib/pkgconfig ./configure --prefix=/opt/tmux-static --enable-static CFLAGS=\"-I/opt/tmux-static/include\" LDFLAGS=\"-static -L/opt/tmux-static/lib\" LIBNCURSES_CFLAGS=\"-I/opt/tmux-static/include/ncursesw\" LIBNCURSES_LIBS=\"-L/opt/tmux-static/lib -lncursesw\" > /tmp/tmux-conf.log 2>&1; echo CONF=$?; tail -3 /tmp/tmux-conf.log\n",
+    "duration": 30.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 515.6,
+    "keystrokes": "make -j$(nproc) > /tmp/tmux-make.log 2>&1; echo MAKE=$?; tail -5 /tmp/tmux-make.log\n",
+    "duration": 60.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 605.6,
+    "keystrokes": "make install > /tmp/tmux-inst.log 2>&1; echo INST=$?\n",
+    "duration": 10.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 605.6,
+    "keystrokes": "strip /opt/tmux-static/bin/tmux && ls -la /opt/tmux-static/bin/tmux\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 605.6,
+    "keystrokes": "ldd /opt/tmux-static/bin/tmux; file /opt/tmux-static/bin/tmux; /opt/tmux-static/bin/tmux -V\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 615.8,
+    "keystrokes": "cd /app/build/ncurses-6.5 && make distclean > /dev/null 2>&1; echo done\n",
+    "duration": 10.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 615.8,
+    "keystrokes": "CFLAGS=\"-Os\" ./configure --prefix=/opt/tmux-static --enable-static --disable-shared --disable-widec --without-debug --without-tests --without-manpages --without-cxx-binding --without-ada --without-progs --without-tack --with-terminfo-dirs=/usr/share/terminfo --with-default-terminfo-dir=/usr/share/terminfo > /tmp/nc-conf.log 2>&1; echo CONF=$?\n",
+    "duration": 30.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 615.8,
+    "keystrokes": "make -j$(nproc) > /tmp/nc-make.log 2>&1 && make install > /tmp/nc-inst.log 2>&1; echo EXIT=$?; ls /opt/tmux-static/lib/*.a\n",
+    "duration": 60.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 715.8,
+    "keystrokes": "ls /opt/tmux-static/include/\n",
+    "duration": 10.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 715.8,
+    "keystrokes": "cd /app/build/libevent-2.1.12-stable && make clean > /dev/null 2>&1; CFLAGS=\"-Os\" ./configure --prefix=/opt/tmux-static --enable-static --disable-shared --disable-openssl > /tmp/le-conf.log 2>&1; echo CONF=$?\n",
+    "duration": 30.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 715.8,
+    "keystrokes": "make -j$(nproc) > /tmp/le-make.log 2>&1 && make install > /tmp/le-inst.log 2>&1; echo EXIT=$?\n",
+    "duration": 60.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 715.8,
+    "keystrokes": "cd /app/build/tmux-3.4 && make distclean > /dev/null 2>&1; PKG_CONFIG_PATH=/opt/tmux-static/lib/pkgconfig ./configure --prefix=/opt/tmux-static --enable-static CFLAGS=\"-Os -I/opt/tmux-static/include\" LDFLAGS=\"-static -L/opt/tmux-static/lib\" LIBNCURSES_CFLAGS=\"-I/opt/tmux-static/include/ncurses\" LIBNCURSES_LIBS=\"-L/opt/tmux-static/lib -lncurses\" > /tmp/tmux-conf.log 2>&1; echo CONF=$?; tail -2 /tmp/tmux-conf.log\n",
+    "duration": 30.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 715.8,
+    "keystrokes": "make -j$(nproc) > /tmp/tmux-make.log 2>&1; echo MAKE=$?\n",
+    "duration": 60.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 13,
+    "offset_sec": 905.8,
+    "keystrokes": "make install > /tmp/tmux-inst.log 2>&1 && strip /opt/tmux-static/bin/tmux; ls -la /opt/tmux-static/bin/tmux\n",
+    "duration": 10.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 13,
+    "offset_sec": 905.8,
+    "keystrokes": "ldd /opt/tmux-static/bin/tmux; /opt/tmux-static/bin/tmux -V\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 915.9,
+    "keystrokes": "apt-get install -y -qq musl-tools > /tmp/musl.log 2>&1; echo APT=$?; which musl-gcc\n",
+    "duration": 30.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 15,
+    "offset_sec": 945.9,
+    "keystrokes": "cd /app/build/ncurses-6.5 && make distclean > /dev/null 2>&1; echo done\n",
+    "duration": 10.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 15,
+    "offset_sec": 945.9,
+    "keystrokes": "CC=musl-gcc CFLAGS=\"-Os\" ./configure --prefix=/opt/tmux-static --enable-static --disable-shared --disable-widec --without-debug --without-tests --without-manpages --without-cxx-binding --without-ada --without-progs --without-tack --with-terminfo-dirs=/usr/share/terminfo --with-default-terminfo-dir=/usr/share/terminfo > /tmp/nc-conf.log 2>&1; echo CONF=$?\n",
+    "duration": 30.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 15,
+    "offset_sec": 945.9,
+    "keystrokes": "make -j$(nproc) > /tmp/nc-make.log 2>&1 && make install > /tmp/nc-inst.log 2>&1; echo EXIT=$?\n",
+    "duration": 60.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 15,
+    "offset_sec": 945.9,
+    "keystrokes": "cd /app/build/libevent-2.1.12-stable && make distclean > /dev/null 2>&1; echo done\n",
+    "duration": 10.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 15,
+    "offset_sec": 945.9,
+    "keystrokes": "CC=musl-gcc CFLAGS=\"-Os\" ./configure --prefix=/opt/tmux-static --enable-static --disable-shared --disable-openssl > /tmp/le-conf.log 2>&1; echo CONF=$?\n",
+    "duration": 30.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 15,
+    "offset_sec": 945.9,
+    "keystrokes": "make -j$(nproc) > /tmp/le-make.log 2>&1 && make install > /tmp/le-inst.log 2>&1; echo EXIT=$?\n",
+    "duration": 60.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 16,
+    "offset_sec": 1145.9,
+    "keystrokes": "cd /app/build/tmux-3.4 && make distclean > /dev/null 2>&1; PKG_CONFIG_PATH=/opt/tmux-static/lib/pkgconfig CC=musl-gcc ./configure --prefix=/opt/tmux-static --enable-static CFLAGS=\"-Os -I/opt/tmux-static/include\" LDFLAGS=\"-static -L/opt/tmux-static/lib\" LIBNCURSES_CFLAGS=\"-I/opt/tmux-static/include/ncurses\" LIBNCURSES_LIBS=\"-L/opt/tmux-static/lib -lncurses\" > /tmp/tmux-conf.log 2>&1; echo CONF=$?; tail -2 /tmp/tmux-conf.log\n",
+    "duration": 30.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 16,
+    "offset_sec": 1145.9,
+    "keystrokes": "make -j$(nproc) > /tmp/tmux-make.log 2>&1; echo MAKE=$?; tail -3 /tmp/tmux-make.log\n",
+    "duration": 60.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 16,
+    "offset_sec": 1145.9,
+    "keystrokes": "make install > /tmp/tmux-inst.log 2>&1 && strip /opt/tmux-static/bin/tmux; ls -la /opt/tmux-static/bin/tmux\n",
+    "duration": 10.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 16,
+    "offset_sec": 1145.9,
+    "keystrokes": "ldd /opt/tmux-static/bin/tmux; file /opt/tmux-static/bin/tmux; /opt/tmux-static/bin/tmux -V\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 17,
+    "offset_sec": 1246.0,
+    "keystrokes": "echo \"Build complete: $(/opt/tmux-static/bin/tmux -V), size $(stat -c%s /opt/tmux-static/bin/tmux) bytes\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 17,
+    "offset_sec": 1246.1,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 18,
+    "offset_sec": 1246.1,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

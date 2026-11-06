@@ -1,0 +1,71 @@
+{
+  "retained_skill": "Use Expect/Tcl to synchronize with an interactive Python program and drive its terminal selection widget to choose the requested value while capturing the complete session.",
+  "bottleneck": "Eleven attempts eventually produced the requested Fox transcript, but the verifier reran their scripts in a zero-width pseudo-terminal where InquirerPy crashes before showing the animal prompt; those same correct navigation scripts were also rejected for not containing the literal source text Fox, which the public result contract does not require.",
+  "change": "Repair two grading defects only: configure the supplied InquirerPy prompt not to calculate wrapped-message height from a zero terminal width, and remove the source-text check for a literal Fox while retaining execution and transcript checks. This environment repair preserves the terminal widget and leaves selecting Fox through Expect entirely to the student; it makes the original crash signal reachable under grading instead of adding a solution hint.",
+  "restore": "A later hardening can restore terminal-width sensitivity only by providing a reliably sized PTY contract, but must not restore the unstated literal-source restriction. The interactive select widget, Expect synchronization, navigation decision, required inputs, output path, and full-session capture all remain.",
+  "prediction": "Attempts that already reached a correct Fox transcript will no longer be changed into failures when the grader reruns them without terminal dimensions, and equivalent navigation implementations will no longer fail merely because Fox is absent as source text. This is refuted if replaying one of those scripts still crashes before the animal prompt or if its full transcript still fails grading.",
+  "expected": "11 of 12",
+  "previous": "The prior hardening changed the ordinary animal input into an InquirerPy select widget and predicted a mixed result, but training moved from 12/12 to 0/12. Current attempts do get past the intended new decision: attempts 02-12 all eventually display the correct Fox result. They fail later because the verifier's detached rerun has a zero-width terminal and because it imposes a literal-source requirement absent from the instruction, so the earlier difficulty reached the student but its setup and check were defective.",
+  "evidence": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turn": 4,
+      "observation": "First widget-navigation run fails with Tcl missing close-bracket; repeated shell and quoting repairs continue through turn 133 and the attempt hits its time budget without a Fox transcript. This is the sole measured approach not expected to pass after defect repair."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turn": 74,
+      "observation": "After the same initial Tcl bracket error at turn 5, the attempt reaches the requested Fox transcript at turn 74."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turn": 25,
+      "observation": "The attempt reaches the requested Fox transcript at turn 25 after early file-writing errors."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turn": 43,
+      "observation": "The attempt reaches the requested Fox transcript at turn 43 after early file-writing errors."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turn": 22,
+      "observation": "The attempt reaches the requested Fox transcript at turn 22 after its first arrow-sequence Tcl bracket error."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turn": 25,
+      "observation": "The attempt reaches the requested Fox transcript at turn 25 after early file-writing errors."
+    },
+    {
+      "attempt": "attempt-07.jsonl",
+      "turn": 32,
+      "observation": "The attempt reaches the requested Fox transcript at turn 32 after its first arrow-sequence Tcl bracket error."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turn": 26,
+      "observation": "The attempt reaches the requested Fox transcript at turn 26; its first recorded error is shell contamination from the terminal widget at turn 5."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turn": 23,
+      "observation": "The attempt reaches the requested Fox transcript at turn 23 after its first arrow-sequence Tcl bracket error."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turn": 28,
+      "observation": "The attempt reaches the requested Fox transcript at turn 28. Replaying its final approach before editing produced ZeroDivisionError in InquirerPy under the detached sandbox execution; grading failed the literal-Fox source check, the transcript check because the rerun replaced the prior good result with the crash, and the full-session execution check."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turn": 26,
+      "observation": "The attempt reaches the requested Fox transcript at turn 26. Replaying its final format-based arrow approach before editing likewise crashed with ZeroDivisionError under detached execution; grading reported the literal-Fox source check and full-session execution check (and in the first replay, the overwritten transcript check) as failures. After editing, a fresh-reset replay of this approach reached and captured the Fox response without ZeroDivisionError, and sandbox grade passed all five checks."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turn": 28,
+      "observation": "The attempt reaches the requested Fox transcript at turn 28, and its final script navigates with octal byte escapes rather than containing the literal Fox; the recorded grader rejects that legal representation at the source-content check and also rejects detached re-execution."
+    }
+  ]
+}

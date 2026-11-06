@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The verifier recognizes the required Flask API only when the process command contains the absolute path `/app/services/api.py`, although launching `python3 api.py` from `/app/services` is a reasonable and working way to satisfy the instruction.",
+    "evidence": "tests/test.sh service probe conflicts with instruction.md's requirement to start the API on port 5000; attempt-01.jsonl turns 11 and 23 and attempt-09.jsonl turns 9 and 22 show relative-path launches that remain responsive, while every attempt's verifier output fails the same service-ready assertion.",
+    "change": "Broaden the process probe to recognize Python running api.py by either relative or absolute path while retaining the Redis database-0 ping and live port-5000 checks.",
+    "kind": "other"
+  }
+]

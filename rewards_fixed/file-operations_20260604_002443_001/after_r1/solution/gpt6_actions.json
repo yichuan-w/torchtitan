@@ -1,0 +1,44 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "cat /app/README.txt\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.2,
+    "keystrokes": "cat > /tmp/recover.py << 'EOF'\nimport csv, io, json, os, struct\n\nraw = open('/app/data.bin', 'rb').read()\n\ndef ror(value, count):\n    return ((value >> count) | (value << (8 - count))) & 0xff\n\ndecoded = None\nfor rotation in range(8):\n    for xor_key in range(256):\n        candidate = bytes(ror(byte ^ xor_key, rotation) for byte in raw)\n        if candidate[:4] == b'ARC\\x01':\n            decoded = candidate\n            break\n    if decoded is not None:\n        break\nassert decoded is not None, 'unable to identify byte transform'\n\nfile_count, index_offset, reserved = struct.unpack_from('<III', decoded, 4)\nassert file_count == 5 and index_offset == 16 and reserved == 0\nentries = []\nfor entry_number in range(file_count):\n    entry = decoded[index_offset + entry_number * 40:index_offset + (entry_number + 1) * 40]\n    name = entry[:32].split(b'\\0', 1)[0].decode('utf-8')\n    offset, length = struct.unpack_from('<II', entry, 32)\n    entries.append((name, offset, length))\nassert [name for name, _, _ in entries] == sorted(name for name, _, _ in entries)\n\nos.makedirs('/app/recovered', exist_ok=True)\nfor name, offset, length in entries:\n    content = decoded[offset:offset + length]\n    content.decode('utf-8')\n    if name == 'config.json':\n        json.loads(content)\n    elif name == 'data.csv':\n        rows = list(csv.reader(io.StringIO(content.decode('utf-8'))))\n        assert rows and len(rows[0]) == 6\n    with open('/app/recovered/' + name, 'wb') as output:\n        output.write(content)\nEOF\npython3 /tmp/recover.py\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 1.4,
+    "keystrokes": "ls -l /app/recovered; python3 -c \"import json; json.load(open('/app/recovered/config.json')); print('validated')\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 1.5,
+    "keystrokes": "\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 1.6,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 1.6,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

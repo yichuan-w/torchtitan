@@ -1,0 +1,212 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 3.0,
+    "keystrokes": "ls -laR /var/www/repo | head -50\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 3.0,
+    "keystrokes": "cat /etc/apt/sources.list; ls /etc/apt/sources.list.d/; cat /etc/apt/sources.list.d/* 2>/dev/null\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 3.0,
+    "keystrokes": "ls -la /app/packages/\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 3.0,
+    "keystrokes": "apt-get update 2>&1 | tail -20\n",
+    "duration": 5.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 3.0,
+    "keystrokes": "service nginx status; ps aux | grep nginx | grep -v grep\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 11.4,
+    "keystrokes": "",
+    "duration": 15.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 11.4,
+    "keystrokes": "cat /var/www/repo/dists/stable/main/binary-amd64/Packages\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 11.4,
+    "keystrokes": "cat /var/www/repo/dists/stable/Release\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 11.4,
+    "keystrokes": "cat /var/www/repo/dists/stable/InRelease\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 11.4,
+    "keystrokes": "which dpkg-scanpackages apt-ftparchive gpg; dpkg -l | grep -E 'dpkg-dev|apt-utils|gnupg' | head\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 29.8,
+    "keystrokes": "cp /app/packages/*.deb /var/www/repo/pool/ && ls -la /var/www/repo/pool/\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 29.8,
+    "keystrokes": "gpg --list-secret-keys --keyid-format long; ls -la /etc/apt/trusted.gpg.d/; ls /usr/share/keyrings/\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 29.8,
+    "keystrokes": "nginx -t; ls /etc/nginx/sites-enabled/ /etc/nginx/conf.d/ 2>/dev/null\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 33.1,
+    "keystrokes": "gpg --show-keys --keyid-format long /usr/share/keyrings/local-repo.gpg\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 33.1,
+    "keystrokes": "find / -xdev \\( -name \"secring.gpg\" -o -name \"private-keys-v1.d\" -o -name \"*.asc\" \\) 2>/dev/null | grep -v -E '^/(proc|sys|usr/share/doc)'; ls -la /root/.gnupg 2>/dev/null\n",
+    "duration": 5.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 33.1,
+    "keystrokes": "cat /etc/nginx/sites-enabled/repo\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 41.3,
+    "keystrokes": "gpg --batch --gen-key <<'EOF'\nKey-Type: RSA\nKey-Length: 2048\nName-Real: Local Repo\nName-Email: repo@localhost\nExpire-Date: 0\n%no-protection\n%commit\nEOF\n",
+    "duration": 20.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 41.3,
+    "keystrokes": "KEY=$(gpg --list-secret-keys --with-colons | awk -F: '/^sec/{print $5; exit}'); echo \"KEY=$KEY\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 41.3,
+    "keystrokes": "cd /var/www/repo && rm -f dists/stable/InRelease dists/stable/Release.gpg && dpkg-scanpackages pool /dev/null > dists/stable/main/binary-amd64/Packages && cat dists/stable/main/binary-amd64/Packages\n",
+    "duration": 2.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 41.3,
+    "keystrokes": "apt-ftparchive -o APT::FTPArchive::Release::Origin=\"Local Repo\" -o APT::FTPArchive::Release::Label=\"Local Repo\" -o APT::FTPArchive::Release::Suite=\"stable\" -o APT::FTPArchive::Release::Codename=\"stable\" -o APT::FTPArchive::Release::Architectures=\"amd64\" -o APT::FTPArchive::Release::Components=\"main\" -o APT::FTPArchive::Release::Description=\"Local APT Repository\" release dists/stable > dists/stable/Release && cat dists/stable/Release\n",
+    "duration": 3.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 41.3,
+    "keystrokes": "gpg --batch --yes --default-key $KEY --clearsign -o dists/stable/InRelease dists/stable/Release && gpg --batch --yes --default-key $KEY -abs -o dists/stable/Release.gpg dists/stable/Release && ls -la dists/stable/\n",
+    "duration": 3.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 41.3,
+    "keystrokes": "gpg --export $KEY > /etc/apt/trusted.gpg.d/local-repo.gpg && gpg --export $KEY > /usr/share/keyrings/local-repo.gpg && ls -la /etc/apt/trusted.gpg.d/\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 41.3,
+    "keystrokes": "service nginx start && service nginx status\n",
+    "duration": 3.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 41.3,
+    "keystrokes": "apt-get update\n",
+    "duration": 20.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 93.4,
+    "keystrokes": "apt-get install -y hello-deb useful-util hello-app\n",
+    "duration": 30.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 93.4,
+    "keystrokes": "dpkg -l hello-deb useful-util hello-app\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 125.653815,
+    "keystrokes": "apt-get update 2>&1 | tee /tmp/aptcheck; echo \"---\"; grep -E '^(W:|E:|Err:|Ign:)' /tmp/aptcheck && echo \"PROBLEMS FOUND\" || echo \"CLEAN: no warnings or errors\"\n",
+    "duration": 20.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 145.653815,
+    "keystrokes": "echo \"Task complete: repo fixed, nginx running, all packages installed\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 145.753815,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 148.753815,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

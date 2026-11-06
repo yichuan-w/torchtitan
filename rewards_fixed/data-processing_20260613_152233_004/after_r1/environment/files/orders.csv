@@ -1,0 +1,19 @@
+﻿OrderID|CustomerName|OrderDate|ShipAddress|TotalAmount|Status|Notes
+
+1001|Acme Corp|2024-01-15|123 Main St, Suite 100|250.00|Shipped|First time customer
+1002|"GlobalTech, Ltd."|01/15/2024|"456 Oak Ave
+Building B, Floor 3"|1250.50|Pending|Urgent order
+1003|Beta Industries|2024-02-28|789 Pine Rd|75.00|Delivered|
+1004|"River\|Side Co"|2024-03-10|321 Elm St|500.00|Processing|Backslash in name
+1005|Smith & Sons|2024-01-20|555 Maple Dr   |1500.00|Shipped|   Has extra spaces   
+
+1006|Data Corp|03/15/2024|777 Tech Blvd||Cancelled|
+1007|"A \"Better\" Company"|2024-04-01|888 Park Ave|320.50|Shipped|Embedded quote in name
+1008|North LLC|2024-02-14|999 Lake Rd|1100.00|Shipped|Normal order||
+1009|East Trading|2024-05-01||450.75|Pending|Missing address
+1010|"West\\Corp"|2024-06-15|"100 Desert Rd
+Suite 5"|2200.00|Shipped|Escaped backslash1011|Alpha Co|06/20/2024|"\"Main\" Street"|175.25|Processing|Quoted street name
+1012|Zenith LLC|2024-07-04|"400 Lake View
+Apt #12"|890.00|Delivered|"Multi-line
+notes field"
+1013|""|2024-08-01|500 Empty Name Rd|99.99|Shipped|Empty quoted customer

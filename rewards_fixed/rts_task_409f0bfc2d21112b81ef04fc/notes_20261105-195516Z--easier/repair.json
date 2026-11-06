@@ -1,0 +1,20 @@
+[
+  {
+    "defect": "The required directory for changelog.md and diff_report.md is ambiguous: setup.sh changes into exercise, every attempt writes there, but grading reads the kata root.",
+    "evidence": "instruction.md says only 'same directory'; tests/test_state.py defines both report paths in /root/git-katas/rebase-branch; attempts 01-12 first write a relative report path at turns 6,7,9,8,7,8,6,8,9,7,8,11 respectively.",
+    "change": "State the two kata-root deliverable paths explicitly.",
+    "kind": "hidden_requirement"
+  },
+  {
+    "defect": "The requested phrase 'pre-rebase ancestor' suggests pre-rebase master, while grading requires the former uppercase branch tip, which is deliberately not an ancestor of final master.",
+    "evidence": "instruction.md conflicts with tests/test_state.py get_reflog_old_commit and test_diff_report_pre_rebase_not_ancestor_of_master; attempts 01,03,04,05,06,08,09,10 capture pre-rebase master and attempts 11-12 report pre-rebase master.",
+    "change": "Define the comparison endpoint as the pre-rebase tip of uppercase recovered from the uppercase reflog.",
+    "kind": "hidden_requirement"
+  },
+  {
+    "defect": "The verifier requires exact changelog field representations and the exact unified patch in a fenced diff block, but neither representation is stated by the instruction or changelog specification.",
+    "evidence": "environment/Dockerfile's CHANGELOG_SPEC.md text names only columns, while tests/test_state.py compares exact full-hash/short-date rows and an exact fenced patch; attempts 01-12 use varied reasonable dates and report summaries.",
+    "change": "Add representation requirements to CHANGELOG_SPEC.md and state that diff_report.md includes the exact unified patch in a fenced diff block.",
+    "kind": "hidden_requirement"
+  }
+]

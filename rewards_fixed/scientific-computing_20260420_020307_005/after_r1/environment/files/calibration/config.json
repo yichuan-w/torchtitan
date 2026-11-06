@@ -1,0 +1,8 @@
+{
+    "data_file": "sensor_data.csv",
+    "description": "Sensor calibration configuration",
+    "expected_accuracy": {
+        "tau_relative_error": 0.05,
+        "temperature_error_celsius": 0.5
+    }
+}

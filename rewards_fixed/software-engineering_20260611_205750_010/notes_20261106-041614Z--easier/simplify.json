@@ -1,0 +1,169 @@
+{
+  "retained_skill": "Implement a compact standalone C decoder for zlib-wrapped DEFLATE, including stored, fixed-Huffman, and dynamic-Huffman blocks.",
+  "bottleneck": "Broken compiler setup is the common first failure: all 12 scored attempts reach gcc and get a fatal stdio.h-not-found error, after which they spend turns installing libc development files or attempting custom headers and linker workarounds; all then exhaust time or context while repeatedly rewriting and debugging the decoder.",
+  "change": "Environment repair: install libc6-dev alongside gcc, removing the package-install/custom-toolchain stage and exposing the same compiler diagnostics and decompression behavior the original task uses. No DEFLATE implementation, starter code, algorithm decision, output, or instruction hint is supplied.",
+  "restore": "A later version can restore the original image package line by removing libc6-dev once the student reliably budgets for environment diagnosis, without changing the decompressor contract.",
+  "prediction": "Attempts will no longer react to the first gcc invocation by installing libc headers or inventing a replacement C runtime; they can immediately act on decoder compile/runtime feedback instead. This is refuted if the next group still sees missing standard headers on the stated compile command, or if none reaches functional decompression earlier than its corresponding current trace.",
+  "expected": "2 of 12",
+  "previous": "This is the first rewrite of r0; history reports no earlier accepted simplification. The current 0/12 group therefore identifies the initial obstacle directly rather than testing prior help.",
+  "evidence": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turn": 7,
+      "observation": "First compile fails because stdio.h is absent; turns 8-10 install build packages before decoder debugging can resume."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turn": 5,
+      "observation": "First compile fails on stdio.h; turns 6-9 investigate and install libc6-dev."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turn": 6,
+      "observation": "First compile fails on stdio.h; turns 8-9 install libc6-dev; the attempt later reaches the context limit during repeated decoder rewrites."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turn": 13,
+      "observation": "First compile fails on stdio.h; turns 15-17 diagnose and install libc6-dev."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turn": 4,
+      "observation": "First compile fails on stdio.h. Replayed final turn-24 source after a fresh reset and graded it: size passed; compile, repeated-pattern, highly-compressible, randomish, short, binary, sample, and larger-payload checks all failed (runtime checks could not start because compilation produced no a.out). After the image repair, replaying that same source from a fresh reset passes the former missing-header point and receives source-level compiler diagnostics; grading now passes size, compilation, and the randomish-data case; six decompression checks still fail, so the attempt reaches the targeted compiler-feedback stage but does not become a pass."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turn": 7,
+      "observation": "First compile fails on stdio.h; turns 9-12 install libc6-dev and return to compilation; turn 28 later reports a successful sample-oriented run."
+    },
+    {
+      "attempt": "attempt-07.jsonl",
+      "turn": 38,
+      "observation": "After extensive source drafting, the first compile fails on stdio.h; turns 39 onward divert into package installation and compiler/linker recovery before further rewrites."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turn": 10,
+      "observation": "First compile fails on stdio.h; turns 12-17 install libc6-dev and retry compilation."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turn": 14,
+      "observation": "First compile fails on stdio.h. Replayed final turn-46 source after a fresh reset and graded it: size passed; compile, repeated-pattern, highly-compressible, randomish, short, binary, sample, and larger-payload checks all failed (runtime checks could not start because compilation produced no a.out). The trace nevertheless reaches recognizable sample output at turn 27 after setup recovery."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turn": 5,
+      "observation": "First compile fails on stdio.h; turns 6-8 install libc6-dev and retry; the trace later produces recognizable sample output at turn 33 but continues rewriting until timeout."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turn": 6,
+      "observation": "First compile fails on stdio.h; unlike most attempts it never completes the package repair and spends the remainder attempting freestanding/custom-runtime workarounds and decoder rewrites."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turn": 23,
+      "observation": "First compile fails on stdio.h; turns 26-30 verify gcc, install libc6-dev, and retry compilation."
+    }
+  ],
+  "budget": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turns": [
+        7,
+        10
+      ],
+      "stage": "Diagnosing and installing missing libc development files; the image repair removes this stage."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turns": [
+        5,
+        9
+      ],
+      "stage": "Diagnosing and installing missing libc development files; the image repair removes this stage."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turns": [
+        6,
+        9
+      ],
+      "stage": "Diagnosing and installing missing libc development files; the image repair removes this stage."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turns": [
+        13,
+        17
+      ],
+      "stage": "Diagnosing and installing missing libc development files; the image repair removes this stage."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turns": [
+        4,
+        9
+      ],
+      "stage": "Diagnosing and installing missing libc development files; the image repair removes this stage."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turns": [
+        7,
+        12
+      ],
+      "stage": "Diagnosing and installing missing libc development files; the image repair removes this stage."
+    },
+    {
+      "attempt": "attempt-07.jsonl",
+      "turns": [
+        38,
+        43
+      ],
+      "stage": "Diagnosing and installing missing libc development files before useful compiler feedback; the image repair removes this stage."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turns": [
+        10,
+        17
+      ],
+      "stage": "Diagnosing and installing missing libc development files; the image repair removes this stage."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turns": [
+        14,
+        17
+      ],
+      "stage": "Diagnosing and installing missing libc development files; the image repair removes this stage."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turns": [
+        5,
+        8
+      ],
+      "stage": "Diagnosing and installing missing libc development files; the image repair removes this stage."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turns": [
+        6,
+        69
+      ],
+      "stage": "Attempting to replace missing standard headers and runtime/linker support; the image repair removes this diversion."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turns": [
+        23,
+        30
+      ],
+      "stage": "Diagnosing and installing missing libc development files; the image repair removes this stage."
+    }
+  ]
+}

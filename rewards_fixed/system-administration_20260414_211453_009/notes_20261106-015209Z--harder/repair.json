@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The verifier requires the Redis-backed jobs endpoint to return a pending_jobs result, but the original instruction only states an acceptance condition for /health.",
+    "evidence": "attempt-11.jsonl turn 37 and attempt-12.jsonl turn 40 validate only /health before submitting, while both were rewarded.",
+    "change": "State that the Redis-backed jobs endpoint must return a pending_jobs count as part of the healthy-stack result, allowing this inherited behavior to be checked publicly.",
+    "kind": "hidden_requirement"
+  }
+]

@@ -1,0 +1,548 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "cd /app/repo && ls -laR\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "cat config/keyloc.txt\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "file data/project_photo.jpg data/noise.bin; ls -la data\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.3,
+    "keystrokes": "cat README.md main.py src/params.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.3,
+    "keystrokes": "git log --oneline --all; git status\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.3,
+    "keystrokes": "git ls-tree -r HEAD\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 0.6,
+    "keystrokes": "git ls-tree -r 3b4fe2b; git show 3b4fe2b:config/keyloc.txt 2>/dev/null\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 0.6,
+    "keystrokes": "dd if=data/noise.bin bs=1 skip=512 count=25 2>/dev/null | xxd\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 0.6,
+    "keystrokes": "xxd data/project_photo.jpg | tail -20\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 0.9,
+    "keystrokes": "python3 -c \"\nd=open('data/noise.bin','rb').read()\nprint(repr(d[512:537]))\nj=open('data/project_photo.jpg','rb').read()\ni=j.rfind(b'\\xff\\xd9')\nprint('eoi at',i,'len',len(j))\nprint(j[i+2:i+200])\n\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 1.0,
+    "keystrokes": "python3 -c \"\nj=open('data/project_photo.jpg','rb').read()\ni=j.find(b'Salted__')\nprint('salted at',i)\nimport re\nfor m in re.finditer(rb'\\xff[\\xfe\\xe0-\\xef]', j):\n    print(hex(m.start()), hex(j[m.start()+1]), int.from_bytes(j[m.start()+2:m.start()+4],'big'))\n\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 1.1,
+    "keystrokes": "strings -n 8 data/project_photo.jpg | head -40\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 1.1,
+    "keystrokes": "python3 -c \"\nj=open('data/project_photo.jpg','rb').read()\nimport re\nfor m in re.finditer(rb'[A-Za-z0-9+/=]{32,}', j):\n    print(m.start(), m.group()[:100])\nprint(j[-64:].hex())\n\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 1.3,
+    "keystrokes": "python3 -c \"\nj=open('data/project_photo.jpg','rb').read()\ni=2\nwhile i<len(j)-1:\n    if j[i]!=0xff: i+=1; continue\n    m=j[i+1]\n    if m in (0xd8,0x01) or 0xd0<=m<=0xd7: i+=2; continue\n    if m==0xda:\n        ln=int.from_bytes(j[i+2:i+4],'big')\n        print(hex(i),'SOS len',ln); break\n    ln=int.from_bytes(j[i+2:i+4],'big')\n    print(hex(i),hex(m),'len',ln)\n    i+=2+ln\nprint('scan start', hex(i+2+ln))\nprint(j[i+2+ln:i+2+ln+64])\n\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 1.4,
+    "keystrokes": "python3 -c \"\nj=open('data/project_photo.jpg','rb').read()\nscan=j[0x26f:-2]\ndef lsb_bytes(data):\n    out=bytearray()\n    for k in range(0,len(data)-7,8):\n        b=0\n        for n in range(8): b=(b<<1)|(data[k+n]&1)\n        out.append(b)\n    return bytes(out)\nr=lsb_bytes(scan)\ni=r.find(b'Salted__')\nprint('salted at',i, r[:60])\nopen('/tmp/lsb.bin','wb').write(r)\n\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 1.5,
+    "keystrokes": "python3 -c \"\nj=open('data/project_photo.jpg','rb').read()\nscan=j[0x26f:-2]\npat=scan[:4]\nprint('pattern',pat.hex(),'scanlen',len(scan))\nanom=[k for k in range(len(scan)) if scan[k]!=pat[k%4]]\nprint('anomalies',len(anom), anom[:20])\nif anom: print(anom[-20:])\n\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 1.6,
+    "keystrokes": "python3 -c \"\nj=open('data/project_photo.jpg','rb').read()\nscan=j[0x26f:-2]\ndef lsb_bytes(data,rev):\n    out=bytearray()\n    for k in range(0,len(data)-7,8):\n        b=0\n        for n in range(8):\n            bit=data[k+n]&1\n            b=(b|(bit<<n)) if rev else ((b<<1)|bit)\n        out.append(b)\n    return bytes(out)\nfor rev in (True,False):\n    r=lsb_bytes(scan,rev)\n    print(rev, r.find(b'Salted__'), r[:32])\n    open('/tmp/lsb_%s.bin'%rev,'wb').write(r)\n\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 15,
+    "offset_sec": 1.7,
+    "keystrokes": "python3 -c \"\nd=open('data/noise.bin','rb').read()\nprint(d.find(b'Salted__'))\nprint('head',d[:64])\nprint('tail',d[537:])\n\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 15,
+    "offset_sec": 1.7,
+    "keystrokes": "for o in $(git cat-file --batch-all-objects --batch-check | awk '{print $1}'); do echo \\\"== $o $(git cat-file -t $o)\\\"; done\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 16,
+    "offset_sec": 1.9,
+    "keystrokes": "python3 -c \"\nj=open('data/project_photo.jpg','rb').read()\nscan=j[0x26f:-2]\nfrom collections import Counter\nc=Counter(scan[k:k+4] for k in range(0,len(scan)-4,1))\nprint(c.most_common(5))\npat=bytes.fromhex('28a28a00')\n# find runs matching pattern with each phase\nok=[False]*len(scan)\nfor k in range(len(scan)):\n    if scan[k]==pat[k%4]: ok[k]=True\n# print ranges of non-ok\nruns=[]\nk=0\nwhile k<len(scan):\n    if not ok[k]:\n        s=k\n        while k<len(scan) and not ok[k]: k+=1\n        runs.append((s,k))\n    else: k+=1\nprint(runs)\n\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 17,
+    "offset_sec": 2.0,
+    "keystrokes": "python3 -c \"\nj=open('data/project_photo.jpg','rb').read()\nimport re\nprint('ffd9 at',[m.start() for m in re.finditer(rb'\\xff\\xd9',j)])\nprint('b64 salted at', j.find(b'U2FsdGVkX1'))\ni=j.find(b'\\xff\\xd9')\nprint(j[i:i+64])\n\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 19,
+    "offset_sec": 2.1,
+    "keystrokes": "which openssl steghide binwalk outguess exiftool python3\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 19,
+    "offset_sec": 2.1,
+    "keystrokes": "python3 -c \"import PIL; print('PIL ok')\" 2>&1; python3 -c \"import numpy; print('numpy ok')\" 2>&1\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 21,
+    "offset_sec": 2.3,
+    "keystrokes": "python3 -c \"\nd=open('data/noise.bin','rb').read()\nopen('/tmp/head.bin','wb').write(d[:512])\nopen('/tmp/tail.bin','wb').write(d[537:])\nprint(len(d[:512]), len(d[537:]))\n\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 21,
+    "offset_sec": 2.3,
+    "keystrokes": "openssl enc -d -aes-256-cbc -pbkdf2 -pass pass:s3cur3-k3y-2024-d0nt-l34k -in /tmp/tail.bin 2>&1 | head -c 200; echo\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 21,
+    "offset_sec": 2.3,
+    "keystrokes": "openssl enc -d -aes-256-cbc -nosalt -pass pass:s3cur3-k3y-2024-d0nt-l34k -in /tmp/tail.bin 2>&1 | head -c 200; echo\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 22,
+    "offset_sec": 2.6,
+    "keystrokes": "python3 -c \"\nj=open('data/project_photo.jpg','rb').read()\ndef extr(data,nbits):\n    mask=(1<<nbits)-1\n    bits=[]\n    for by in data:\n        for n in range(nbits):\n            bits.append((by>>n)&1)\n    out=bytearray()\n    for k in range(0,len(bits)-7,8):\n        b=0\n        for n in range(8): b=(b<<1)|bits[k+n]\n        out.append(b)\n    return bytes(out)\nfor nb in (1,2,4):\n    r=extr(j,nb)\n    print(nb, r.find(b'Salted__'), r.find(b'U2FsdGVk'))\n\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 22,
+    "offset_sec": 2.6,
+    "keystrokes": "pip install pillow 2>&1 | tail -2\n",
+    "duration": 30.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 24,
+    "offset_sec": 32.7,
+    "keystrokes": "python3 -c \"\nj=open('data/project_photo.jpg','rb').read()\nsig=b'Salted__'\nsigbits=[(by>>(7-n))&1 for by in sig for n in range(8)]\nlsb=[by&1 for by in j]\nimport sys\nfound=[]\nls=len(lsb); lg=len(sigbits)\ns=''.join(map(str,lsb))\nt=''.join(map(str,sigbits))\nprint('bit-offset', s.find(t))\n\"\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 24,
+    "offset_sec": 32.7,
+    "keystrokes": "python3 -m pip install pillow 2>&1 | tail -3\n",
+    "duration": 30.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 25,
+    "offset_sec": 63.7,
+    "keystrokes": "ls /usr/bin /usr/local/bin /bin 2>/dev/null | grep -i -E 'jpeg|jpg|png|magick|convert|ffmpeg|netpbm|steg|pip|apt'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 25,
+    "offset_sec": 63.7,
+    "keystrokes": "ls /opt/verifier/bin/; which apt-get curl wget gcc cc\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 26,
+    "offset_sec": 63.9,
+    "keystrokes": "apt-get update 2>&1 | tail -2\n",
+    "duration": 30.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 26,
+    "offset_sec": 63.9,
+    "keystrokes": "apt-get install -y libjpeg-turbo-progs 2>&1 | tail -3\n",
+    "duration": 30.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 27,
+    "offset_sec": 123.9,
+    "keystrokes": "djpeg -ppm data/project_photo.jpg > /tmp/img.ppm && head -c 32 /tmp/img.ppm; echo; ls -la /tmp/img.ppm\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 27,
+    "offset_sec": 123.9,
+    "keystrokes": "python3 -c \"\nd=open('/tmp/img.ppm','rb').read()\n# skip header: P6 whitespace width height maxval\nparts=d.split(None,4)\npix=parts[4]\nprint('pix len',len(pix))\nlsb=[b&1 for b in pix]\ns=''.join(map(str,lsb))\nsig=b'Salted__'\nt=''.join(str((by>>(7-n))&1) for by in sig for n in range(8))\nprint('bit find', s.find(t))\n# byte aligned, msb-first\nout=bytearray()\nfor k in range(0,len(lsb)-7,8):\n    b=0\n    for n in range(8): b=(b<<1)|lsb[k+n]\n    out.append(b)\nprint('byte find', out.find(b'Salted__'), out[:48])\nopen('/tmp/pixlsb.bin','wb').write(out)\n\"\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 29,
+    "offset_sec": 125.9,
+    "keystrokes": "python3 -c \"\nj=open('data/project_photo.jpg','rb').read()\nimport re\nprint('ffd8 at',[m.start() for m in re.finditer(rb'\\xff\\xd8',j)])\nd=open('/tmp/img.ppm','rb').read().split(None,4)[4]\nfrom collections import Counter\nc=Counter(d)\nprint('distinct',len(c), c.most_common(10))\n\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 30,
+    "offset_sec": 126.0,
+    "keystrokes": "python3 -c \"\nd=open('/tmp/img.ppm','rb').read().split(None,4)[4]\nbase=(81,40,20)\ndev=[d[i]-base[i%3] for i in range(len(d))]\nfrom collections import Counter\nprint(Counter(dev))\n# rows: 800px*3=2400 bytes per row\nrows=[sum(1 for k in range(r*2400,(r+1)*2400) if dev[k]!=0) for r in range(600)]\nprint('rows with dev>0:', sum(1 for r in rows if r>0))\nprint('first 30 rows dev counts:', rows[:30])\nprint('max row dev', max(rows))\n\"\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 31,
+    "offset_sec": 127.0,
+    "keystrokes": "python3 -c \"\nd=open('/tmp/img.ppm','rb').read().split(None,4)[4]\nbase=(81,20,40)\ndev=[d[i]-base[i%3] for i in range(len(d))]\nfrom collections import Counter\nprint(Counter(dev).most_common(8))\nbits=[]\nfor v in dev:\n    if v==0: bits.append(0)\n    elif v==1: bits.append(1)\n    else: bits.append(-1)\nprint('counts', bits.count(0), bits.count(1), bits.count(-1))\ns=[b for b in bits if b>=0]\nout=bytearray()\nfor k in range(0,len(s)-7,8):\n    b=0\n    for n in range(8): b=(b<<1)|s[k+n]\n    out.append(b)\nprint('find', bytes(out).find(b'Salted__'), bytes(out)[:40])\n\"\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 32,
+    "offset_sec": 128.0,
+    "keystrokes": "cat > /tmp/try.py <<'EOF'\nd=open('/tmp/img.ppm','rb').read().split(None,4)[4]\nbase=(20,81,40)\nsig=b'Salted__'\ndef pack(bits,rev=False):\n    out=bytearray()\n    for k in range(0,len(bits)-7,8):\n        b=0\n        for n in range(8):\n            bit=bits[k+n]\n            b=(b|(bit<<n)) if rev else ((b<<1)|bit)\n        out.append(b)\n    return bytes(out)\ndef report(name,bits):\n    for rev in (False,True):\n        r=pack(bits,rev)\n        i=r.find(sig)\n        if i>=0: print('FOUND',name,'rev' if rev else 'fwd','at',i)\n    print(name,'len',len(bits))\n# variant A: all bytes, dev 0->0, +1->1, skip others\nbitsA=[0 if d[i]==base[i%3] else (1 if d[i]==base[i%3]+1 else -1) for i in range(len(d))]\nreport('A', [b for b in bitsA if b>=0])\n# variant B: parity of value\nreport('B', [v&1 for v in d])\n# variant C: per channel dev mapping\nfor ch in range(3):\n    bb=[0 if d[i]==base[ch] else (1 if d[i]==base[ch]+1 else -1) for i in range(ch,len(d),3)]\n    report('C%d'%ch,[b for b in bb if b>=0])\n# variant D: dev 0->0,+1->1,-1->skip but keep order including -1 as 1?\nbitsD=[0 if d[i]==base[i%3] else 1 for i in range(len(d))]\nreport('D',bitsD)\nEOF\npython3 /tmp/try.py\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 33,
+    "offset_sec": 129.0,
+    "keystrokes": "python3 -c \"\nd=open('/tmp/img.ppm','rb').read().split(None,4)[4]\nbase=(20,81,40)\nW,H=800,600\n# build dev map (R channel dev as proxy, use max abs dev across channels)\nimport sys\nout=[]\nfor y in range(0,H,4):\n    row=''\n    for x in range(0,W,2):\n        m=0\n        for yy in range(y,min(y+4,H)):\n            for xx in range(x,min(x+2,W)):\n                i=(yy*W+xx)*3\n                for c in range(3):\n                    dv=abs(d[i+c]-base[c])\n                    if dv>m: m=dv\n        row+= '#' if m>2 else ('.' if m>0 else ' ')\n    out.append(row)\nprint('\\n'.join(out[:75]))\n\"\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 35,
+    "offset_sec": 130.0,
+    "keystrokes": "python3 -c \"\nd=open('/tmp/img.ppm','rb').read().split(None,4)[4]\nbase=(20,81,40)\nW,H=800,600\npts=[]\nfor y in range(H):\n    for x in range(W):\n        i=(y*W+x)*3\n        if any(abs(d[i+c]-base[c])>2 for c in range(3)):\n            pts.append((x,y))\nxs=[p[0] for p in pts]; ys=[p[1] for p in pts]\nprint(len(pts), min(xs),max(xs),min(ys),max(ys))\n\"\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 36,
+    "offset_sec": 131.0,
+    "keystrokes": "python3 -c \"\nd=open('/tmp/img.ppm','rb').read().split(None,4)[4]\nbase=(20,81,40)\nW,H=800,600\nfor y in range(0,H,10):\n    row=''\n    for x in range(0,W,8):\n        hit=False\n        for yy in range(y,min(y+10,H)):\n            for xx in range(x,min(x+8,W)):\n                i=(yy*W+xx)*3\n                if any(abs(d[i+c]-base[c])>2 for c in range(3)): hit=True\n        row+='#' if hit else ' '\n    print(row)\n\"\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 37,
+    "offset_sec": 132.0,
+    "keystrokes": "python3 -c \"\nd=open('/tmp/img.ppm','rb').read().split(None,4)[4]\nbase=(20,81,40)\nsig=b'Salted__'\nsigbits=[(by>>(7-n))&1 for by in sig for n in range(8)]\ndef fuzzy(bits,name):\n    L=len(sigbits)\n    best=(L+1,-1)\n    for off in range(0,len(bits)-L):\n        m=sum(1 for k in range(L) if bits[off+k]!=sigbits[k])\n        if m<best[0]: best=(m,off)\n        if m<=3:\n            print(name,'offset',off,'mismatches',m)\n    print(name,'best',best)\nbits=[1 if d[i]>base[i%3] else 0 for i in range(len(d))]\nfuzzy(bits,'all')\nfor ch in range(3):\n    fuzzy([1 if d[i]>base[ch] else 0 for i in range(ch,len(d),3)],'ch%d'%ch)\n\"\n",
+    "duration": 2.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 38,
+    "offset_sec": 134.0,
+    "keystrokes": "",
+    "duration": 30.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 39,
+    "offset_sec": 164.0,
+    "keystrokes": "jpegtran -copy none data/project_photo.jpg > /tmp/clean.jpg; ls -la /tmp/clean.jpg data/project_photo.jpg\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 39,
+    "offset_sec": 164.0,
+    "keystrokes": "python3 -c \"\nj=open('data/project_photo.jpg','rb').read()\ni=0x9e\nprint('SOF data:', j[i+4:i+4+13].hex())\n\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 41,
+    "offset_sec": 165.1,
+    "keystrokes": "python3 -c \"\nd=open('/tmp/img.ppm','rb').read().split(None,4)[4]\nbase=(20,81,40)\nW,H=800,600\npts={}\nfor y in range(H):\n    for x in range(W):\n        i=(y*W+x)*3\n        if any(abs(d[i+c]-base[c])>2 for c in range(3)):\n            pts[(x,y)]=tuple(d[i+c] for c in range(3))\nfrom collections import Counter\nyc=Counter(y for x,y in pts)\nprint('y histogram:', sorted(yc.items()))\n\"\n",
+    "duration": 2.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 42,
+    "offset_sec": 167.1,
+    "keystrokes": "apt-get install -y steghide 2>&1 | tail -2\n",
+    "duration": 30.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 42,
+    "offset_sec": 167.1,
+    "keystrokes": "cd /tmp && steghide extract -sf /app/repo/data/project_photo.jpg -p 's3cur3-k3y-2024-d0nt-l34k' -f 2>&1; ls -la /tmp\n",
+    "duration": 5.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 43,
+    "offset_sec": 202.1,
+    "keystrokes": "steghide extract -sf /app/repo/data/project_photo.jpg -p '' -f 2>&1; ls -la /tmp/*.txt /tmp/*.bin 2>/dev/null\n",
+    "duration": 5.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 43,
+    "offset_sec": 202.1,
+    "keystrokes": "echo | steghide info /app/repo/data/project_photo.jpg 2>&1\n",
+    "duration": 5.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 46,
+    "offset_sec": 212.1,
+    "keystrokes": "python3 -c \"\nd=open('/tmp/img.ppm','rb').read().split(None,4)[4]\nbase=(20,81,40)\nW,H=800,600\nfor y0,y1 in [(48,56),(288,304)]:\n    print('=== band',y0,y1)\n    for y in range(y0,y1):\n        row=[]\n        for x in range(W):\n            i=(y*W+x)*3\n            if any(abs(d[i+c]-base[c])>2 for c in range(3)):\n                row.append((x,tuple(d[i+c] for c in range(3))))\n        print(y, row[:8], 'total', len(row))\n\"\n",
+    "duration": 2.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 47,
+    "offset_sec": 214.1,
+    "keystrokes": "python3 -c \"\nd=open('/tmp/img.ppm','rb').read().split(None,4)[4]\nW,H=800,600\n# find bright pixels\npts=[(x,y) for y in range(H) for x in range(W) if d[(y*W+x)*3]>100]\nxs=[p[0] for p in pts]; ys=[p[1] for p in pts]\nprint(len(pts), min(xs),max(xs),min(ys),max(ys))\ns=set(pts)\nfor y in range(min(ys),max(ys)+1):\n    print(''.join('#' if (x,y) in s else ' ' for x in range(min(xs),max(xs)+1)))\n\"\n",
+    "duration": 2.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 48,
+    "offset_sec": 216.1,
+    "keystrokes": "python3 -c \"\nd=open('/tmp/img.ppm','rb').read().split(None,4)[4]\nW,H=800,600\ns=set((x,y) for y in range(H) for x in range(W) if d[(y*W+x)*3]>60)\nxs=[p[0] for p in s]; ys=[p[1] for p in s]\nprint(min(xs),max(xs),min(ys),max(ys))\nfor y in range(min(ys),max(ys)+1):\n    print(''.join('#' if (x,y) in s else ' ' for x in range(min(xs),max(xs)+1)))\n\"\n",
+    "duration": 2.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 49,
+    "offset_sec": 218.1,
+    "keystrokes": "cat > /tmp/dct.py <<'EOF'\nimport sys\nj=open('/app/repo/data/project_photo.jpg','rb').read()\n# parse\ni=2\ndht={}; sof=None; sos=None; scan=None\nwhile i<len(j)-1:\n    assert j[i]==0xff, hex(i)\n    m=j[i+1]\n    if m==0xd8: i+=2; continue\n    ln=int.from_bytes(j[i+2:i+4],'big')\n    seg=j[i+4:i+2+ln]\n    if m==0xc4:\n        k=0\n        while k<len(seg):\n            tc_th=seg[k]; k+=1\n            counts=seg[k:k+16]; k+=16\n            n=sum(counts)\n            syms=seg[k:k+n]; k+=n\n            dht[tc_th]=(list(counts),list(syms))\n    elif m in (0xc0,0xc1):\n        sof=seg\n    elif m==0xda:\n        sos=seg\n        scan=j[i+2+ln:]\n        break\n    i+=2+ln\n# build huffman decode tables: dict (len,code)->sym\ndec={}\nfor tid,(counts,syms) in dht.items():\n    t={}; code=0; p=0\n    for l in range(1,17):\n        for _ in range(counts[l-1]):\n            t[(l,code)]=syms[p]; p+=1; code+=1\n        code<<=1\n    dec[tid]=t\n# sof\nprec=sof[0]; H=int.from_bytes(sof[1:3],'big'); W=int.from_bytes(sof[3:5],'big')\nncomp=sof[5]\ncomps=[]\nfor c in range(ncomp):\n    cid=sof[6+3*c]; samp=sof[7+3*c]\n    comps.append({'id':cid,'h':samp>>4,'v':samp&15})\n# sos\nns=sos[0]\nctab=[]\nfor c in range(ns):\n    cid=sos[1+2*c]; tt=sos[2+2*c]\n    ctab.append((cid, tt>>4, tt&15))\n# bit reader with FF00 unstuffing, skip restart markers\ndata=scan\npos=0; bitbuf=0; bitcnt=0\ndef nextbyte():\n    global pos\n    b=data[pos]; pos+=1\n    if b==0xff:\n        n=data[pos]\n        if n==0x00: pos+=1; return b\n        elif 0xd0<=n<=0xd7: pos+=1; return nextbyte()\n        else: raise Exception('marker in scan %x'%n)\n    return b\ndef getbit():\n    global bitbuf,bitcnt\n    if bitcnt==0:\n        bitbuf=nextbyte(); bitcnt=8\n    bitcnt-=1\n    return (bitbuf>>bitcnt)&1\ndef getbits(n):\n    v=0\n    for _ in range(n): v=(v<<1)|getbit()\n    return v\ndef huff(tid):\n    code=0; l=0\n    t=dec[tid]\n    while l<16:\n        code=(code<<1)|getbit(); l+=1\n        if (l,code) in t: return t[(l,code)]\n    raise Exception('bad huff')\ndef receive_extend(s):\n    if s==0: return 0\n    v=getbits(s)\n    if v < (1<<(s-1)): v -= (1<<s)-1\n    return v\n# mcus\nmx=max(c['h'] for c in comps); my=max(c['v'] for c in comps)\nmcux=(W+8*mx-1)//(8*mx); mcuy=(H+8*my-1)//(8*my)\ndc=[0]*ncomp\ncoefs=[]  # list per block: [dc] + ac in zigzag scan order\nfor myy in range(mcuy):\n    for mxx in range(mcux):\n        for ci,(cid,td,ta) in enumerate(ctab):\n            c=comps[cid-1]\n            for by in range(c['v']):\n                for bx in range(c['h']):\n                    s=huff(td<<4 | td)  # dc table id = td (tc=0 -> tid = td)\n                    # actually dht keys: tc<<4|th; DC tc=0\n                    blk=[]\n                    diff=receive_extend(s)\n                    dc[cid-1]+=diff\n                    blk.append(dc[cid-1])\n                    k=1\n                    while k<64:\n                        rs=huff((1<<4)|ta)\n                        r=rs>>4; ss=rs&15\n                        if ss==0:\n                            if r==15: \n                                blk.extend([0]*16); k+=16; continue\n                            else:\n                                break\n                        k+=r\n                        v=receive_extend(ss)\n                        blk.append(v); k+=1\n                    coefs.append(blk)\nprint('blocks',len(coefs),'first blk',coefs[0][:10], file=sys.stderr)\nimport pickle\npickle.dump(coefs, open('/tmp/coefs.pkl','wb'))\nEOF\npython3 /tmp/dct.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 50,
+    "offset_sec": 218.2,
+    "keystrokes": "sed -i 's/s=huff(td<<4 | td).*/s=huff(td)/' /tmp/dct.py && python3 /tmp/dct.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 51,
+    "offset_sec": 218.3,
+    "keystrokes": "cat > /tmp/jsteg.py <<'EOF'\nimport pickle\ncoefs=pickle.load(open('/tmp/coefs.pkl','rb'))\nsig=b'Salted__'\ndef pack(bits,rev=False):\n    out=bytearray()\n    for k in range(0,len(bits)-7,8):\n        b=0\n        for n in range(8):\n            bit=bits[k+n]\n            b=(b|(bit<<n)) if rev else ((b<<1)|bit)\n        out.append(b)\n    return bytes(out)\ndef tryv(name,vals,skip):\n    bits=[v&1 for v in vals if v not in skip]\n    for rev in (False,True):\n        r=pack(bits,rev)\n        i=r.find(sig); j=r.find(b'U2FsdGVk')\n        if i>=0 or j>=0:\n            print('FOUND',name,'rev' if rev else 'fwd',i,j)\n            open('/tmp/payload.bin','wb').write(r[i:])\n    print(name,'bits',len(bits))\nallc=[v for blk in coefs for v in blk]\nac=[v for blk in coefs for v in blk[1:]]\ndc=[blk[0] for blk in coefs]\ntryv('all_skip01',allc,{0,1})\ntryv('all_skip01m',allc,{0,1,-1})\ntryv('all_skip0',allc,{0})\ntryv('ac_skip01',ac,{0,1})\ntryv('ac_skip01m',ac,{0,1,-1})\ntryv('ac_skip0',ac,{0})\ntryv('dc_only',dc,{0,1})\ntryv('dc_skip0',dc,{0})\nEOF\npython3 /tmp/jsteg.py\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 52,
+    "offset_sec": 219.3,
+    "keystrokes": "python3 -c \"\nimport pickle\nfrom collections import Counter\ncoefs=pickle.load(open('/tmp/coefs.pkl','rb'))\ndc=[blk[0] for blk in coefs]\nprint(Counter(dc).most_common(15))\nprint('first 40 dc:', dc[:40])\n\"\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 55,
+    "offset_sec": 220.3,
+    "keystrokes": "echo \"print('pos',pos,'scanlen',len(scan),'tail',scan[pos:pos+40].hex())\" >> /tmp/dct.py && python3 /tmp/dct.py\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 56,
+    "offset_sec": 221.3,
+    "keystrokes": "cat > /tmp/jsteg2.py <<'EOF'\nimport pickle\ncoefs=pickle.load(open('/tmp/coefs.pkl','rb'))\ndef pack(bits):\n    out=bytearray()\n    for k in range(0,len(bits)-7,8):\n        b=0\n        for n in range(8): b=(b<<1)|bits[k+n]\n        out.append(b)\n    return bytes(out)\nallc=[v for blk in coefs for v in blk]\nac=[v for blk in coefs for v in blk[1:]]\nvariants={\n 'a01':[v&1 for v in allc if v not in (0,1)],\n 'a01m':[v&1 for v in allc if v not in (0,1,-1)],\n 'ac01':[v&1 for v in ac if v not in (0,1)],\n 'ac01m':[v&1 for v in ac if v not in (0,1,-1)],\n 'dc':[blk[0]&1 for blk in coefs],\n}\nfor n,b in variants.items():\n    open('/tmp/p_%s.bin'%n,'wb').write(pack(b))\n    print(n,len(b)//8)\nEOF\npython3 /tmp/jsteg2.py\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 56,
+    "offset_sec": 221.3,
+    "keystrokes": "for f in /tmp/p_*.bin; do for c in aes-256-cbc aes-128-cbc; do echo \"== $f $c\"; openssl enc -d -$c -nosalt -pass pass:s3cur3-k3y-2024-d0nt-l34k -in $f 2>/dev/null | head -c 80 | od -c | head -3; done; done\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 57,
+    "offset_sec": 223.3,
+    "keystrokes": "cat > /tmp/jsteg3.py <<'EOF'\nimport pickle\ncoefs=pickle.load(open('/tmp/coefs.pkl','rb'))\nsig=b'Salted__'\ndef pack(bits,rev=False):\n    out=bytearray()\n    for k in range(0,len(bits)-7,8):\n        b=0\n        for n in range(8):\n            bit=bits[k+n]\n            b=(b|(bit<<n)) if rev else ((b<<1)|bit)\n        out.append(b)\n    return bytes(out)\ndef srch(name,vals,skip=None):\n    bits=[v&1 for v in vals if (skip is None or v not in skip)]\n    for rev in (False,True):\n        r=pack(bits,rev)\n        i=r.find(sig)\n        if i>=0: print('FOUND',name,'rev' if rev else 'fwd',i)\n    print(name,len(bits))\n# blocks per MCU: 4 Y,1 Cb,1 Cr\nallv=[v for blk in coefs for v in blk]\nsrch('all_noskip',allv)\nyv=[];cv=[]\nfor m in range(0,len(coefs),6):\n    grp=coefs[m:m+6]\n    if len(grp)<6: break\n    for b in grp[:4]: yv.extend(b)\n    for b in grp[4:]: cv.extend(b)\nsrch('y_skip01',yv,{0,1})\nsrch('y_noskip',yv)\nsrch('c_skip01',cv,{0,1})\nsrch('c_noskip',cv)\n# natural (zigzag-decoded) order? skip for now\nEOF\npython3 /tmp/jsteg3.py\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 58,
+    "offset_sec": 224.3,
+    "keystrokes": "python3 -c \"\nj=open('/app/repo/data/project_photo.jpg','rb').read()\nfor off in (0x14,0x59):\n    seg=j[off+4:off+4+65]\n    print(hex(off), seg.hex())\n\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 59,
+    "offset_sec": 224.4,
+    "keystrokes": "cat > /tmp/brute.sh <<'EOF'\n#!/bin/bash\nP='s3cur3-k3y-2024-d0nt-l34k'\nfor f in /tmp/head.bin /tmp/tail.bin; do\n for c in aes-256-cbc aes-128-cbc aes-192-cbc aes-256-ecb des3 bf-cbc rc4; do\n  for kdf in \"-nosalt\" \"-nosalt -md sha256\" \"-pbkdf2\"; do\n   out=$(openssl enc -d -$c $kdf -nopad -pass pass:\"$P\" -in $f 2>/dev/null | head -c 64)\n   # check printable\n   if echo \"$out\" | grep -qP '^[\\x20-\\x7e]{20,}'; then\n     echo \"HIT $f $c $kdf: $out\"\n   fi\n  done\n done\ndone\necho done\nEOF\nbash /tmp/brute.sh\n",
+    "duration": 2.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 60,
+    "offset_sec": 226.4,
+    "keystrokes": "python3 -c \"\nd=open('/tmp/img.ppm','rb').read().split(None,4)[4]\nW,H=800,600\nfor y in range(288,306):\n    row=''\n    for x in range(195,242):\n        i=(y*W+x)*3\n        v=d[i]\n        row+=('##' if v>100 else ('++' if v>45 else '  '))\n    print(row)\n\"\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 62,
+    "offset_sec": 227.4,
+    "keystrokes": "cd /app/repo && git show c091e3d | head -80\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 62,
+    "offset_sec": 227.4,
+    "keystrokes": "git show 3b4fe2b:README.md\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 63,
+    "offset_sec": 228.4,
+    "keystrokes": "cat > /tmp/jsteg4.py <<'EOF'\nimport pickle\ncoefs=pickle.load(open('/tmp/coefs.pkl','rb'))\nsig=b'Salted__'\nZZ=[0,1,8,16,9,2,3,10,17,24,32,25,18,11,4,5,12,19,26,33,40,48,41,34,27,20,13,6,7,14,21,28,35,42,49,56,57,50,43,36,29,22,15,23,30,37,44,51,58,59,52,45,38,31,39,46,53,60,61,54,47,55,62,63]\ndef pack(bits,rev=False):\n    out=bytearray()\n    for k in range(0,len(bits)-7,8):\n        b=0\n        for n in range(8):\n            bit=bits[k+n]\n            b=(b|(bit<<n)) if rev else ((b<<1)|bit)\n        out.append(b)\n    return bytes(out)\ndef srch(name,vals,skip=None):\n    bits=[v&1 for v in vals if (skip is None or v not in skip)]\n    for rev in (False,True):\n        r=pack(bits,rev)\n        i=r.find(sig)\n        if i>=0:\n            print('FOUND',name,'rev' if rev else 'fwd',i)\n            open('/tmp/found.bin','wb').write(r[i:])\n    print(name,len(bits))\n# natural order per block\nnat=[]\nfor blk in coefs:\n    m=[0]*64\n    m[0]=blk[0]\n    for idx,v in enumerate(blk[1:],1):\n        m[ZZ[idx]]=v\n    nat.append(m)\nallnat=[v for b in nat for v in b]\nsrch('nat_skip01',allnat,{0,1})\nsrch('nat_skip01m',allnat,{0,1,-1})\nsrch('nat_noskip',allnat)\nsrch('nat_ac_skip01',[v for b in nat for v in b[1:]],{0,1})\nEOF\npython3 /tmp/jsteg4.py\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 64,
+    "offset_sec": 229.4,
+    "keystrokes": "apt-get install -y outguess 2>&1 | tail -2\n",
+    "duration": 30.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 64,
+    "offset_sec": 229.4,
+    "keystrokes": "cd /tmp && outguess -k 's3cur3-k3y-2024-d0nt-l34k' -r /app/repo/data/project_photo.jpg /tmp/og1.bin 2>&1; ls -la /tmp/og1.bin 2>/dev/null; outguess -k '' -r /app/repo/data/project_photo.jpg /tmp/og2.bin 2>&1; ls -la /tmp/og2.bin 2>/dev/null\n",
+    "duration": 5.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 67,
+    "offset_sec": 264.4,
+    "keystrokes": "od -c /tmp/og1.bin | head -8\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 70,
+    "offset_sec": 264.9,
+    "keystrokes": "openssl enc -d -aes-256-cbc -pass pass:s3cur3-k3y-2024-d0nt-l34k -in /tmp/og1.bin -out /tmp/plain.txt 2>&1; cat /tmp/plain.txt\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 73,
+    "offset_sec": 265.9,
+    "keystrokes": "for c in aes-256-cbc aes-128-cbc aes-192-cbc des3 aes-256-ecb; do for k in \"-pbkdf2\" \"-md md5\" \"-md sha256\"; do echo \"== $c $k\"; openssl enc -d -$c $k -pass pass:s3cur3-k3y-2024-d0nt-l34k -in /tmp/og1.bin 2>/dev/null && echo; done; done\n",
+    "duration": 2.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 74,
+    "offset_sec": 267.9,
+    "keystrokes": "openssl enc -d -aes-256-cbc -pbkdf2 -pass pass:s3cur3-k3y-2024-d0nt-l34k -in /tmp/og1.bin -out /app/solution.txt && cat /app/solution.txt\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 75,
+    "offset_sec": 268.9,
+    "keystrokes": "ls -la /app/solution.txt\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 75,
+    "offset_sec": 269.0,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 76,
+    "offset_sec": 269.0,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

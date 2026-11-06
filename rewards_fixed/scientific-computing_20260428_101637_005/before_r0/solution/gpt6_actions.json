@@ -1,0 +1,513 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 3.0,
+    "keystrokes": "cat /app/spectral_analyzer.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 3.0,
+    "keystrokes": "head -20 /app/data/spectrum.csv; wc -l /app/data/spectrum.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 6.2,
+    "keystrokes": "python3 -c \"\nimport numpy as np\nfrom scipy.signal import medfilt, find_peaks\nd = np.loadtxt('/app/data/spectrum.csv', delimiter=',', skiprows=1)\nwl, inten = d[:,0], d[:,1]\nprint('range', wl.min(), wl.max(), 'n', len(wl), 'step', np.diff(wl).mean())\nbg = medfilt(inten, 151)\nres = bg - inten\npk, props = find_peaks(res, prominence=5)\nprom = props['prominences']\norder = np.argsort(prom)[::-1]\nfor i in order[:10]:\n    print(f'wl={wl[pk[i]]:.1f} prom={prom[i]:.1f}')\n\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 9.3,
+    "keystrokes": "cat > /tmp/explore.py << 'EOF'\nimport numpy as np\nd = np.loadtxt('/app/data/spectrum.csv', delimiter=',', skiprows=1)\nwl, inten = d[:,0], d[:,1]\nfor i in range(0, len(wl), 20):\n    bar = int((inten[i]-150)/5)\n    print('%6.1f %7.1f %s' % (wl[i], inten[i], '#'*max(0,bar)))\nEOF\npython3 /tmp/explore.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 12.4,
+    "keystrokes": "cat > /tmp/e2.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 12.4,
+    "keystrokes": "import numpy as np\nd = np.loadtxt('/app/data/spectrum.csv', delimiter=',', skiprows=1)\nwl, inten = d[:,0], d[:,1]\nstep = wl[1]-wl[0]\ni0 = int((580-wl[0])/step)\ni1 = int((700-wl[0])/step)\nw2, i2 = wl[i0:i1], inten[i0:i1]\nfor j in range(0, len(w2), 4):\n    bar = int((i2[j]-120)/3)\n    print('%6.1f %7.1f %s' % (w2[j], i2[j], '#'*max(0,bar)))\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 12.4,
+    "keystrokes": "C-d",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 12.4,
+    "keystrokes": "python3 /tmp/e2.py\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 16.7,
+    "keystrokes": "cat > /tmp/e3.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 16.7,
+    "keystrokes": "import numpy as np\nfrom scipy.ndimage import gaussian_filter1d\nd = np.loadtxt('/app/data/spectrum.csv', delimiter=',', skiprows=1)\nwl, inten = d[:,0], d[:,1]\nstep = wl[1]-wl[0]\nbg = gaussian_filter1d(inten, 20.0/step)\nres = bg - inten\nfor j in range(0, len(wl), 8):\n    bar = int(res[j]/2)\n    print('%6.1f %7.2f %s' % (wl[j], res[j], '*'*max(0,bar)))\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 16.7,
+    "keystrokes": "C-d",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 16.7,
+    "keystrokes": "python3 /tmp/e3.py\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 21.0,
+    "keystrokes": "cat > /tmp/e4.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 21.0,
+    "keystrokes": "import numpy as np\nfrom scipy.ndimage import gaussian_filter1d\nfrom scipy.signal import find_peaks\nd = np.loadtxt('/app/data/spectrum.csv', delimiter=',', skiprows=1)\nwl, inten = d[:,0], d[:,1]\nstep = wl[1]-wl[0]\nbg = gaussian_filter1d(inten, 20.0/step)\nres = bg - inten\npk, props = find_peaks(res, prominence=3, distance=8)\nfor i, p in enumerate(pk):\n    print('%7.2f  prom %6.2f  res %6.2f' % (wl[p], props['prominences'][i], res[p]))\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 21.0,
+    "keystrokes": "C-d",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 21.0,
+    "keystrokes": "python3 /tmp/e4.py\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 25.3,
+    "keystrokes": "cat > /tmp/e5.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 25.3,
+    "keystrokes": "import numpy as np\nd = np.loadtxt('/app/data/spectrum.csv', delimiter=',', skiprows=1)\nwl, inten = d[:,0], d[:,1]\nstep = wl[1]-wl[0]\ni0 = int((505-wl[0])/step)\ni1 = int((560-wl[0])/step)\nfor j in range(i0, i1, 2):\n    bar = int((inten[j]-40)/2)\n    print('%7.2f %7.1f %s' % (wl[j], inten[j], '#'*max(0,bar)))\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 25.3,
+    "keystrokes": "C-d\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 25.3,
+    "keystrokes": "python3 /tmp/e5.py\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 15,
+    "offset_sec": 29.6,
+    "keystrokes": "C-d",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 15,
+    "offset_sec": 29.6,
+    "keystrokes": "cat > /tmp/e5.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 15,
+    "offset_sec": 29.6,
+    "keystrokes": "import numpy as np\nd = np.loadtxt('/app/data/spectrum.csv', delimiter=',', skiprows=1)\nwl, inten = d[:,0], d[:,1]\nstep = wl[1]-wl[0]\ni0 = int((505-wl[0])/step)\ni1 = int((560-wl[0])/step)\nfor j in range(i0, i1, 2):\n    bar = int((inten[j]-40)/2)\n    print('%7.2f %7.1f %s' % (wl[j], inten[j], '#'*max(0,bar)))\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 15,
+    "offset_sec": 29.6,
+    "keystrokes": "C-d",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 15,
+    "offset_sec": 29.6,
+    "keystrokes": "python3 /tmp/e5.py\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 17,
+    "offset_sec": 34.0,
+    "keystrokes": "cat > /tmp/e6.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 17,
+    "offset_sec": 34.0,
+    "keystrokes": "import numpy as np\nd = np.loadtxt('/app/data/spectrum.csv', delimiter=',', skiprows=1)\nwl, inten = d[:,0], d[:,1]\nstep = wl[1]-wl[0]\ni0 = int((505-wl[0])/step)\ni1 = int((542-wl[0])/step)\nfor j in range(i0, i1, 2):\n    bar = int((inten[j]-40)/2)\n    print('%7.2f %7.1f %s' % (wl[j], inten[j], '#'*max(0,bar)))\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 17,
+    "offset_sec": 34.0,
+    "keystrokes": "C-d",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 17,
+    "offset_sec": 34.0,
+    "keystrokes": "python3 /tmp/e6.py\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 18,
+    "offset_sec": 38.3,
+    "keystrokes": "cat > /app/spectral_analyzer.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 18,
+    "offset_sec": 38.3,
+    "keystrokes": "\"\"\"Spectral Peak Analyzer: finds absorption dips, fits Gaussians.\"\"\"\nimport json\nimport math\nimport os\nimport numpy as np\nfrom scipy.optimize import curve_fit\nfrom scipy.signal import find_peaks\nfrom scipy.ndimage import gaussian_filter1d\n\ndata = np.loadtxt('/app/data/spectrum.csv', delimiter=',', skiprows=1)\nwl = data[:, 0]\ninten = data[:, 1]\nstep = float(np.median(np.diff(wl)))\nn = len(wl)\nidx = np.arange(n)\n\ndef smooth(y, nm):\n    return gaussian_filter1d(y, nm / step, mode='nearest')\n\nbg = smooth(inten, 15.0)\nfor it in range(6):\n    res = bg - inten\n    mask = np.greater(res, 6.0)\n    if not mask.any():\n        break\n    keep = np.logical_not(mask)\n    bgi = np.interp(idx, idx[keep], bg[keep])\n    bg = smooth(bgi, 15.0)\n\nres = bg - inten\n\ndef gauss(x, c, a, w):\n    return a * np.exp(-(x - c) ** 2 / (2.0 * w * w))\n\ndef gauss2(x, c1, a1, w1, c2, a2, w2):\n    return gauss(x, c1, a1, w1) + gauss(x, c2, a2, w2)\n\ndist = max(1, int(4.0 / step))\npk, props = find_peaks(res, prominence=12.0, distance=dist)\nprint('detected %d candidate peaks' % len(pk))\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 18,
+    "offset_sec": 38.3,
+    "keystrokes": "thr = 3.0\ngroups = []\nfor p in pk:\n    s = p\n    while np.greater(s, 0) and np.greater(res[s - 1], thr):\n        s -= 1\n    e = p\n    while np.less(e, n - 1) and np.greater(res[e + 1], thr):\n        e += 1\n    groups.append([s, e])\n\nmerged = []\nfor g in sorted(groups):\n    if merged and np.less_equal(g[0], merged[-1][1]):\n        merged[-1][1] = max(merged[-1][1], g[1])\n    else:\n        merged.append(list(g))\n\ndef clean(v):\n    if not math.isfinite(v):\n        return 1.0\n    v = abs(v)\n    if np.less_equal(v, 1e-9):\n        return 1e-6\n    return v\n\npeaks = []\nfor (s, e) in merged:\n    pad = int(8.0 / step)\n    ws = max(0, s - pad)\n    we = min(n - 1, e + pad)\n    x = wl[ws:we + 1]\n    y = res[ws:we + 1]\n    j = s + int(np.argmax(res[s:e + 1]))\n    c0 = float(wl[j])\n    a0 = float(res[j])\n    width_nm = (e - s) * step\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 18,
+    "offset_sec": 38.3,
+    "keystrokes": "    if np.greater(width_nm, 18.0):\n        p0 = [c0 - 5.0, a0 * 0.7, 5.0, c0 + 5.0, a0 * 0.7, 5.0]\n        try:\n            popt, pcov = curve_fit(gauss2, x, y, p0=p0, maxfev=40000)\n            perr = np.sqrt(np.diag(pcov))\n            for k in range(2):\n                o = k * 3\n                peaks.append(dict(center_nm=float(popt[o]),\n                                  amplitude=abs(float(popt[o + 1])),\n                                  width_nm=abs(float(popt[o + 2])),\n                                  center_uncertainty=clean(float(perr[o])),\n                                  amplitude_uncertainty=clean(float(perr[o + 1])),\n                                  width_uncertainty=clean(float(perr[o + 2]))))\n            print('doublet fit near %.1f' % c0)\n        except Exception as ex:\n            print('double fit failed near %.1f: %s' % (c0, ex))\n    else:\n        p0 = [c0, a0, 6.0]\n        try:\n            popt, pcov = curve_fit(gauss, x, y, p0=p0, maxfev=40000)\n            perr = np.sqrt(np.diag(pcov))\n            peaks.append(dict(center_nm=float(popt[0]),\n                              amplitude=abs(float(popt[1])),\n                              width_nm=abs(float(popt[2])),\n                              center_uncertainty=clean(float(perr[0])),\n                              amplitude_uncertainty=clean(float(perr[1])),\n                              width_uncertainty=clean(float(perr[2]))))\n            print('peak fit near %.1f' % c0)\n        except Exception as ex:\n            print('fit failed near %.1f: %s' % (c0, ex))\n\npeaks.sort(key=lambda d: d['center_nm'])\nos.makedirs('/app/results', exist_ok=True)\nwith open('/app/results/peaks.json', 'w') as f:\n    json.dump(dict(peaks=peaks), f, indent=2)\nfor p in peaks:\n    print('center %.2f amp %.2f width %.2f' % (p['center_nm'], p['amplitude'], p['width_nm']))\nprint('saved %d peaks' % len(peaks))\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 18,
+    "offset_sec": 38.3,
+    "keystrokes": "C-d",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 18,
+    "offset_sec": 38.3,
+    "keystrokes": "python3 /app/spectral_analyzer.py\n",
+    "duration": 5.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 20,
+    "offset_sec": 46.8,
+    "keystrokes": "cat > /app/spectral_analyzer.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 20,
+    "offset_sec": 46.8,
+    "keystrokes": "\"\"\"Spectral Peak Analyzer: finds absorption dips, fits Gaussians.\"\"\"\nimport json\nimport math\nimport os\nimport numpy as np\nfrom scipy.optimize import curve_fit\nfrom scipy.signal import find_peaks\nfrom scipy.ndimage import gaussian_filter1d\n\ndata = np.loadtxt('/app/data/spectrum.csv', delimiter=',', skiprows=1)\nwl = data[:, 0]\ninten = data[:, 1]\nstep = float(np.median(np.diff(wl)))\nn = len(wl)\nidx = np.arange(n)\n\ndef smooth(y, nm):\n    return gaussian_filter1d(y, nm / step, mode='nearest')\n\nbg = smooth(inten, 15.0)\nfor it in range(6):\n    res = bg - inten\n    mask = np.greater(res, 6.0)\n    if not mask.any():\n        break\n    keep = np.logical_not(mask)\n    bgi = np.interp(idx, idx[keep], bg[keep])\n    bg = smooth(bgi, 15.0)\n\nres = bg - inten\n\ndef gauss(x, c, a, w):\n    return a * np.exp(-(x - c) ** 2 / (2.0 * w * w))\n\ndef gauss2(x, c1, a1, w1, c2, a2, w2):\n    return gauss(x, c1, a1, w1) + gauss(x, c2, a2, w2)\n\ndist = max(1, int(4.0 / step))\npk, props = find_peaks(res, prominence=10.0, distance=dist)\nkeep_idx = [i for i, p in enumerate(pk) if np.greater_equal(res[p], 15.0)]\npk = pk[keep_idx]\nprint('detected %d candidate peaks' % len(pk))\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 20,
+    "offset_sec": 46.8,
+    "keystrokes": "thr = 3.0\ngroups = []\nfor p in pk:\n    s = p\n    while np.greater(s, 0) and np.greater(res[s - 1], thr):\n        s -= 1\n    e = p\n    while np.less(e, n - 1) and np.greater(res[e + 1], thr):\n        e += 1\n    groups.append([s, e])\n\nmerged = []\nfor g in sorted(groups):\n    if merged and np.less_equal(g[0], merged[-1][1]):\n        merged[-1][1] = max(merged[-1][1], g[1])\n    else:\n        merged.append(list(g))\n\ndef clean(v):\n    if not math.isfinite(v):\n        return 1.0\n    v = abs(v)\n    if np.less_equal(v, 1e-9):\n        return 1e-6\n    return v\n\ndef add_peak(peaks, c, a, w, uc, ua, uw):\n    peaks.append(dict(center_nm=float(c),\n                      amplitude=abs(float(a)),\n                      width_nm=abs(float(w)),\n                      center_uncertainty=clean(float(uc)),\n                      amplitude_uncertainty=clean(float(ua)),\n                      width_uncertainty=clean(float(uw))))\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 20,
+    "offset_sec": 46.8,
+    "keystrokes": "peaks = []\nfor (s, e) in merged:\n    pad = int(6.0 / step)\n    ws = max(0, s - pad)\n    we = min(n - 1, e + pad)\n    x = wl[ws:we + 1]\n    y = res[ws:we + 1]\n    j = s + int(np.argmax(res[s:e + 1]))\n    c0 = float(wl[j])\n    a0 = float(res[j])\n    lb1 = [wl[ws], 0.0, 0.5]\n    ub1 = [wl[we], np.inf, 40.0]\n    bic1 = np.inf\n    fit1 = None\n    try:\n        popt, pcov = curve_fit(gauss, x, y, p0=[c0, a0, 6.0],\n                               bounds=(lb1, ub1), maxfev=40000)\n        rss = float(np.sum((y - gauss(x, *popt)) ** 2))\n        bic1 = len(x) * math.log(max(rss, 1e-12) / len(x)) + 3 * math.log(len(x))\n        fit1 = (popt, np.sqrt(np.diag(pcov)))\n    except Exception as ex:\n        print('single fit failed near %.1f: %s' % (c0, ex))\n    seg = res[s:e + 1]\n    lp, lprops = find_peaks(seg, prominence=2.0, distance=max(1, int(3.0 / step)))\n    if len(lp) >= 2:\n        order = np.argsort(seg[lp])[::-1]\n        top = sorted([int(lp[k]) for k in order[:2]])\n        c1 = float(wl[s + top[0]])\n        c2 = float(wl[s + top[1]])\n        a1 = float(seg[top[0]])\n        a2 = float(seg[top[1]])\n    else:\n        c1, c2, a1, a2 = c0 - 5.0, c0 + 5.0, a0 * 0.7, a0 * 0.7\n    lb2 = [wl[s], 0.0, 0.5, wl[s], 0.0, 0.5]\n    ub2 = [wl[e], np.inf, 40.0, wl[e], np.inf, 40.0]\n    bic2 = np.inf\n    fit2 = None\n    try:\n        popt, pcov = curve_fit(gauss2, x, y, p0=[c1, a1, 5.0, c2, a2, 5.0],\n                               bounds=(lb2, ub2), maxfev=60000)\n        rss = float(np.sum((y - gauss2(x, *popt)) ** 2))\n        bic2 = len(x) * math.log(max(rss, 1e-12) / len(x)) + 6 * math.log(len(x))\n        fit2 = (popt, np.sqrt(np.diag(pcov)))\n    except Exception as ex:\n        print('double fit failed near %.1f: %s' % (c0, ex))\n    if fit2 is not None and np.less(bic2, bic1 - 20.0):\n        popt, perr = fit2\n        for k in range(2):\n            o = k * 3\n            add_peak(peaks, popt[o], popt[o + 1], popt[o + 2],\n                     perr[o], perr[o + 1], perr[o + 2])\n        print('doublet near %.1f: %.2f and %.2f' % (c0, popt[0], popt[3]))\n    elif fit1 is not None:\n        popt, perr = fit1\n        add_peak(peaks, popt[0], popt[1], popt[2],\n                 perr[0], perr[1], perr[2])\n        print('single near %.1f: %.2f' % (c0, popt[0]))\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 20,
+    "offset_sec": 46.8,
+    "keystrokes": "peaks.sort(key=lambda d: d['center_nm'])\nos.makedirs('/app/results', exist_ok=True)\nwith open('/app/results/peaks.json', 'w') as f:\n    json.dump(dict(peaks=peaks), f, indent=2)\nfor p in peaks:\n    print('center %.2f amp %.2f width %.2f' % (p['center_nm'], p['amplitude'], p['width_nm']))\nprint('saved %d peaks' % len(peaks))\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 20,
+    "offset_sec": 46.8,
+    "keystrokes": "C-d",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 20,
+    "offset_sec": 46.8,
+    "keystrokes": "python3 /app/spectral_analyzer.py\n",
+    "duration": 10.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 21,
+    "offset_sec": 60.4,
+    "keystrokes": "cat > /tmp/e7.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 21,
+    "offset_sec": 60.4,
+    "keystrokes": "import numpy as np\nimport math\nfrom scipy.optimize import curve_fit\nfrom scipy.ndimage import gaussian_filter1d\nd = np.loadtxt('/app/data/spectrum.csv', delimiter=',', skiprows=1)\nwl = d[:,0]\ninten = d[:,1]\nstep = float(np.median(np.diff(wl)))\nn = len(wl)\nidx = np.arange(n)\ndef smooth(y, nm):\n    return gaussian_filter1d(y, nm/step, mode='nearest')\nbg = smooth(inten, 15.0)\nfor it in range(6):\n    res = bg - inten\n    mask = np.greater(res, 6.0)\n    keep = np.logical_not(mask)\n    bg = smooth(np.interp(idx, idx[keep], bg[keep]), 15.0)\nres = bg - inten\ndef g1(x, c, a, w):\n    return a*np.exp(-(x-c)**2/(2*w*w))\ndef g2(x, c1, a1, w1, c2, a2, w2):\n    return g1(x,c1,a1,w1)+g1(x,c2,a2,w2)\ndef trial(lo, hi, inits2):\n    i0 = int((lo-wl[0])/step)\n    i1 = int((hi-wl[0])/step)\n    x = wl[i0:i1]\n    y = res[i0:i1]\n    m = len(x)\n    j = i0 + int(np.argmax(y))\n    p1, pc1 = curve_fit(g1, x, y, p0=[wl[j], y[j-i0], 6.0], maxfev=40000)\n    r1 = np.sum((y-g1(x,*p1))**2)\n    b1 = m*math.log(max(r1,1e-12)/m)+3*math.log(m)\n    print('  single: c=%.2f a=%.1f w=%.2f rss=%.1f bic=%.1f' % (p1[0], p1[1], abs(p1[2]), r1, b1))\n    for (c1, c2) in inits2:\n        try:\n            p2, pc2 = curve_fit(g2, x, y, p0=[c1, y[j-i0]*0.7, 5.0, c2, y[j-i0]*0.7, 5.0], maxfev=80000)\n            r2 = np.sum((y-g2(x,*p2))**2)\n            b2 = m*math.log(max(r2,1e-12)/m)+6*math.log(m)\n            print('  double init %.0f/%.0f: c=%.2f a=%.1f w=%.2f | c=%.2f a=%.1f w=%.2f rss=%.1f bic=%.1f' % (c1, c2, p2[0], p2[1], abs(p2[2]), p2[3], p2[4], abs(p2[5]), r2, b2))\n        except Exception as ex:\n            print('  double init %.0f/%.0f failed: %s' % (c1, c2, ex))\nprint('region 425-475:')\ntrial(425.0, 475.0, [(443.0, 453.0), (447.0, 455.0)])\nprint('region 505-560:')\ntrial(505.0, 560.0, [(525.0, 538.0), (529.0, 537.0), (531.0, 541.0)])\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 21,
+    "offset_sec": 60.4,
+    "keystrokes": "C-d",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 21,
+    "offset_sec": 60.4,
+    "keystrokes": "python3 /tmp/e7.py\n",
+    "duration": 15.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 22,
+    "offset_sec": 78.7,
+    "keystrokes": "cat > /tmp/e8.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 22,
+    "offset_sec": 78.7,
+    "keystrokes": "import numpy as np\nimport math\nfrom scipy.optimize import curve_fit\nd = np.loadtxt('/app/data/spectrum.csv', delimiter=',', skiprows=1)\nwl = d[:,0]\ninten = d[:,1]\nstep = float(np.median(np.diff(wl)))\ndef gm(x, c, a, w):\n    return a*np.exp(-(x-c)**2/(2*w*w))\ndef m1(x, b0, b1, b2, c, a, w):\n    xc = x - x.mean()\n    return b0 + b1*xc + b2*xc*xc - gm(x, c, a, w)\ndef m2(x, b0, b1, b2, c1, a1, w1, c2, a2, w2):\n    xc = x - x.mean()\n    return b0 + b1*xc + b2*xc*xc - gm(x, c1, a1, w1) - gm(x, c2, a2, w2)\ndef trial(lo, hi, inits2):\n    i0 = int((lo-wl[0])/step)\n    i1 = int((hi-wl[0])/step)\n    x = wl[i0:i1]\n    y = inten[i0:i1]\n    m = len(x)\n    j = int(np.argmin(y))\n    b = np.polyfit(x-x.mean(), y, 2)\n    p1, _ = curve_fit(m1, x, y, p0=[b[2], b[1], b[0], x[j], 30.0, 6.0], maxfev=60000)\n    r1 = np.sum((y-m1(x,*p1))**2)\n    b1v = m*math.log(max(r1,1e-12)/m)+6*math.log(m)\n    print('  single: c=%.2f a=%.1f w=%.2f rss=%.1f bic=%.1f' % (p1[3], p1[4], abs(p1[5]), r1, b1v))\n    for (c1, c2) in inits2:\n        try:\n            p0 = [b[2], b[1], b[0], c1, 25.0, 5.0, c2, 25.0, 5.0]\n            p2, _ = curve_fit(m2, x, y, p0=p0, maxfev=100000)\n            r2 = np.sum((y-m2(x,*p2))**2)\n            b2v = m*math.log(max(r2,1e-12)/m)+9*math.log(m)\n            print('  double %.0f/%.0f: c=%.2f a=%.1f w=%.2f | c=%.2f a=%.1f w=%.2f rss=%.1f bic=%.1f' % (c1, c2, p2[3], p2[4], abs(p2[5]), p2[6], p2[7], abs(p2[8]), r2, b2v))\n        except Exception as ex:\n            print('  double %.0f/%.0f failed: %s' % (c1, c2, ex))\nprint('region 425-475:')\ntrial(425.0, 475.0, [(446.0, 455.0)])\nprint('region 505-560:')\ntrial(505.0, 560.0, [(525.0, 538.0), (529.0, 538.0)])\nprint('region 512-552:')\ntrial(512.0, 552.0, [(525.0, 538.0), (529.0, 538.0)])\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 22,
+    "offset_sec": 78.7,
+    "keystrokes": "C-d",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 22,
+    "offset_sec": 78.7,
+    "keystrokes": "python3 /tmp/e8.py\n",
+    "duration": 15.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 23,
+    "offset_sec": 97.0,
+    "keystrokes": "cat > /tmp/e9.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 23,
+    "offset_sec": 97.0,
+    "keystrokes": "import numpy as np\nimport math\nfrom scipy.optimize import curve_fit\nd = np.loadtxt('/app/data/spectrum.csv', delimiter=',', skiprows=1)\nwl = d[:,0]\ninten = d[:,1]\nstep = float(np.median(np.diff(wl)))\ndef gm(x, c, a, w):\n    return a*np.exp(-(x-c)**2/(2*w*w))\ndef m1(x, b0, b1, b2, c, a, w):\n    xc = x - x.mean()\n    return b0 + b1*xc + b2*xc*xc - gm(x, c, a, w)\ndef m2(x, b0, b1, b2, c1, a1, w1, c2, a2, w2):\n    xc = x - x.mean()\n    return b0 + b1*xc + b2*xc*xc - gm(x, c1, a1, w1) - gm(x, c2, a2, w2)\ndef trial(lo, hi, inits2):\n    i0 = int((lo-wl[0])/step)\n    i1 = int((hi-wl[0])/step)\n    x = wl[i0:i1]\n    y = inten[i0:i1]\n    m = len(x)\n    j = int(np.argmin(y))\n    b = np.polyfit(x-x.mean(), y, 2)\n    p1, _ = curve_fit(m1, x, y, p0=[b[2], b[1], b[0], x[j], 30.0, 6.0], maxfev=60000)\n    r1 = np.sum((y-m1(x,*p1))**2)\n    b1v = m*math.log(max(r1,1e-12)/m)+6*math.log(m)\n    print('  single: c=%.2f a=%.1f w=%.2f rss=%.1f bic=%.1f' % (p1[3], p1[4], abs(p1[5]), r1, b1v))\n    for (c1, c2) in inits2:\n        try:\n            p0 = [b[2], b[1], b[0], c1, 20.0, 5.0, c2, 20.0, 5.0]\n            lb = [-np.inf, -np.inf, -np.inf, lo, 0.0, 1.0, lo, 0.0, 1.0]\n            ub = [np.inf, np.inf, np.inf, hi, np.inf, 30.0, hi, np.inf, 30.0]\n            p2, _ = curve_fit(m2, x, y, p0=p0, bounds=(lb, ub), maxfev=100000)\n            r2 = np.sum((y-m2(x,*p2))**2)\n            b2v = m*math.log(max(r2,1e-12)/m)+9*math.log(m)\n            print('  double %.0f/%.0f: c=%.2f a=%.1f w=%.2f | c=%.2f a=%.1f w=%.2f rss=%.1f bic=%.1f' % (c1, c2, p2[3], p2[4], abs(p2[5]), p2[6], p2[7], abs(p2[8]), r2, b2v))\n        except Exception as ex:\n            print('  double %.0f/%.0f failed: %s' % (c1, c2, ex))\nprint('region 610-648:')\ntrial(610.0, 648.0, [(624.0, 633.0), (622.0, 634.0)])\nprint('region 425-475:')\ntrial(425.0, 475.0, [(446.0, 455.0)])\nprint('region 505-560:')\ntrial(505.0, 560.0, [(525.0, 538.0)])\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 23,
+    "offset_sec": 97.0,
+    "keystrokes": "C-d",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 23,
+    "offset_sec": 97.0,
+    "keystrokes": "python3 /tmp/e9.py\n",
+    "duration": 15.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 24,
+    "offset_sec": 115.3,
+    "keystrokes": "cat > /app/spectral_analyzer.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 24,
+    "offset_sec": 115.3,
+    "keystrokes": "\"\"\"Spectral Peak Analyzer.\n\nIdentifies absorption dips on a complex background, fits Gaussian\nprofiles with a local quadratic background, and reports peak\nparameters with uncertainties.\n\"\"\"\nimport json\nimport math\nimport os\nimport numpy as np\nfrom scipy.optimize import curve_fit\nfrom scipy.signal import find_peaks\nfrom scipy.ndimage import gaussian_filter1d\n\ndata = np.loadtxt('/app/data/spectrum.csv', delimiter=',', skiprows=1)\nwl = data[:, 0]\ninten = data[:, 1]\nstep = float(np.median(np.diff(wl)))\nn = len(wl)\nidx = np.arange(n)\n\ndef smooth(y, nm):\n    return gaussian_filter1d(y, nm / step, mode='nearest')\n\nbg = smooth(inten, 15.0)\nfor it in range(6):\n    res = bg - inten\n    mask = np.greater(res, 6.0)\n    if not mask.any():\n        break\n    keep = np.logical_not(mask)\n    bg = smooth(np.interp(idx, idx[keep], bg[keep]), 15.0)\n\nres = bg - inten\n\ndist = max(1, int(4.0 / step))\npk, props = find_peaks(res, prominence=10.0, distance=dist)\npk = pk[[i for i, p in enumerate(pk) if np.greater_equal(res[p], 15.0)]]\nprint('detected %d dip candidates' % len(pk))\n\nthr = 3.0\ngroups = []\nfor p in pk:\n    s = p\n    while np.greater(s, 0) and np.greater(res[s - 1], thr):\n        s -= 1\n    e = p\n    while np.less(e, n - 1) and np.greater(res[e + 1], thr):\n        e += 1\n    groups.append([s, e])\n\nmerged = []\nfor g in sorted(groups):\n    if merged and np.less_equal(g[0], merged[-1][1] + int(10.0 / step)):\n        merged[-1][1] = max(merged[-1][1], g[1])\n    else:\n        merged.append(list(g))\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 24,
+    "offset_sec": 115.3,
+    "keystrokes": "def gm(x, c, a, w):\n    return a * np.exp(-(x - c) ** 2 / (2.0 * w * w))\n\ndef m1(x, b0, b1, b2, c, a, w):\n    xc = x - x.mean()\n    return b0 + b1 * xc + b2 * xc * xc - gm(x, c, a, w)\n\ndef m2(x, b0, b1, b2, c1, a1, w1, c2, a2, w2):\n    xc = x - x.mean()\n    return b0 + b1 * xc + b2 * xc * xc - gm(x, c1, a1, w1) - gm(x, c2, a2, w2)\n\ndef clean(v):\n    if not math.isfinite(v):\n        return 1.0\n    v = abs(v)\n    if np.less_equal(v, 1e-9):\n        return 1e-6\n    return v\n\npeaks = []\nfor (s, e) in merged:\n    pad = int(12.0 / step)\n    ws = max(0, s - pad)\n    we = min(n - 1, e + pad)\n    x = wl[ws:we + 1]\n    y = inten[ws:we + 1]\n    m = len(x)\n    b = np.polyfit(x - x.mean(), y, 2)\n    j = int(np.argmin(y))\n    c0 = float(x[j])\n    bic1 = np.inf\n    fit1 = None\n    try:\n        lb = [-np.inf, -np.inf, -np.inf, wl[ws], 0.0, 1.0]\n        ub = [np.inf, np.inf, np.inf, wl[we], np.inf, 40.0]\n        p0 = [b[2], b[1], b[0], c0, 30.0, 6.0]\n        popt, pcov = curve_fit(m1, x, y, p0=p0, bounds=(lb, ub), maxfev=80000)\n        rss = float(np.sum((y - m1(x, *popt)) ** 2))\n        bic1 = m * math.log(max(rss, 1e-12) / m) + 6 * math.log(m)\n        fit1 = (popt, np.sqrt(np.diag(pcov)))\n    except Exception as ex:\n        print('single fit failed near %.1f: %s' % (c0, ex))\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 24,
+    "offset_sec": 115.3,
+    "keystrokes": "    bic2 = np.inf\n    fit2 = None\n    try:\n        lb = [-np.inf, -np.inf, -np.inf, wl[s], 0.0, 1.0, wl[s], 0.0, 1.0]\n        ub = [np.inf, np.inf, np.inf, wl[e], np.inf, 40.0, wl[e], np.inf, 40.0]\n        p0 = [b[2], b[1], b[0], c0 - 4.5, 20.0, 5.0, c0 + 4.5, 20.0, 5.0]\n        popt, pcov = curve_fit(m2, x, y, p0=p0, bounds=(lb, ub), maxfev=120000)\n        rss = float(np.sum((y - m2(x, *popt)) ** 2))\n        bic2 = m * math.log(max(rss, 1e-12) / m) + 9 * math.log(m)\n        fit2 = (popt, np.sqrt(np.diag(pcov)))\n    except Exception as ex:\n        print('double fit failed near %.1f: %s' % (c0, ex))\n    if fit2 is not None and np.less(bic2, bic1):\n        popt, perr = fit2\n        for k in range(2):\n            o = 3 + k * 3\n            peaks.append(dict(center_nm=float(popt[o]),\n                              amplitude=abs(float(popt[o + 1])),\n                              width_nm=abs(float(popt[o + 2])),\n                              center_uncertainty=clean(float(perr[o])),\n                              amplitude_uncertainty=clean(float(perr[o + 1])),\n                              width_uncertainty=clean(float(perr[o + 2]))))\n        print('doublet: %.2f and %.2f' % (popt[3], popt[6]))\n    elif fit1 is not None:\n        popt, perr = fit1\n        peaks.append(dict(center_nm=float(popt[3]),\n                          amplitude=abs(float(popt[4])),\n                          width_nm=abs(float(popt[5])),\n                          center_uncertainty=clean(float(perr[3])),\n                          amplitude_uncertainty=clean(float(perr[4])),\n                          width_uncertainty=clean(float(perr[5]))))\n        print('single: %.2f' % popt[3])\n\npeaks.sort(key=lambda d: d['center_nm'])\nos.makedirs('/app/results', exist_ok=True)\nwith open('/app/results/peaks.json', 'w') as f:\n    json.dump(dict(peaks=peaks), f, indent=2)\nfor p in peaks:\n    print('center %.2f amp %.2f width %.2f' % (p['center_nm'], p['amplitude'], p['width_nm']))\nprint('saved %d peaks to /app/results/peaks.json' % len(peaks))\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 24,
+    "offset_sec": 115.3,
+    "keystrokes": "C-d",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 24,
+    "offset_sec": 115.3,
+    "keystrokes": "python3 /app/spectral_analyzer.py\n",
+    "duration": 15.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 25,
+    "offset_sec": 133.8,
+    "keystrokes": "cat > /tmp/patch.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 25,
+    "offset_sec": 133.8,
+    "keystrokes": "import re\nsrc = open('/app/spectral_analyzer.py').read()\nsrc = src.replace(\"\"\"thr = 3.0\ngroups = []\nfor p in pk:\n    s = p\n    while np.greater(s, 0) and np.greater(res[s - 1], thr):\n        s -= 1\n    e = p\n    while np.less(e, n - 1) and np.greater(res[e + 1], thr):\n        e += 1\n    groups.append([s, e])\"\"\", \"\"\"groups = []\nfor p in pk:\n    thr = max(3.0, 0.15 * float(res[p]))\n    s = p\n    while np.greater(s, 0) and np.greater(res[s - 1], thr):\n        s -= 1\n    e = p\n    while np.less(e, n - 1) and np.greater(res[e + 1], thr):\n        e += 1\n    groups.append([s, e])\"\"\")\nsrc = src.replace(\"pad = int(12.0 / step)\", \"pad = int(10.0 / step)\")\nopen('/app/spectral_analyzer.py', 'w').write(src)\nprint('patched')\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 25,
+    "offset_sec": 133.8,
+    "keystrokes": "C-d",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 25,
+    "offset_sec": 133.8,
+    "keystrokes": "python3 /tmp/patch.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 25,
+    "offset_sec": 133.8,
+    "keystrokes": "python3 /app/spectral_analyzer.py\n",
+    "duration": 15.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 27,
+    "offset_sec": 152.2,
+    "keystrokes": "cat /app/results/peaks.json\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 27,
+    "offset_sec": 152.2,
+    "keystrokes": "cat > /tmp/val.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 27,
+    "offset_sec": 152.2,
+    "keystrokes": "import json, math\nd = json.load(open('/app/results/peaks.json'))\nps = d['peaks']\nprint(len(ps), 'peaks')\nok = True\nfor p in ps:\n    for k, v in p.items():\n        if not math.isfinite(v):\n            ok = False\n        if not math.isfinite(v) or abs(v) == 0:\n            ok = False\nprint('all finite:', all(math.isfinite(v) for p in ps for v in p.values()))\nprint('all positive:', all(math.isfinite(v) and math.copysign(1.0, v) == 1.0 for p in ps for v in p.values()))\nfor p in ps:\n    print(p)\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 27,
+    "offset_sec": 152.2,
+    "keystrokes": "C-d",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 27,
+    "offset_sec": 152.2,
+    "keystrokes": "python3 /tmp/val.py\n",
+    "duration": 2.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 28,
+    "offset_sec": 157.6,
+    "keystrokes": "echo done\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 28,
+    "offset_sec": 157.7,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 29,
+    "offset_sec": 160.7,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

@@ -1,0 +1,177 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "ls -la /app /app/corrupted; file /app/corrupted/*\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "for f in /app/corrupted/*; do echo \"== $f\"; xxd \"$f\" | head -5; done\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.2,
+    "keystrokes": "od -A x -t x1z /app/corrupted/img_01_alley.png | head -8\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.2,
+    "keystrokes": "find / -name \"*.git*\" -not -path \"/proc/*\" -not -path \"/sys/*\" 2>/dev/null | head -20\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.2,
+    "keystrokes": "od -A x -t x1z /app/corrupted/img_01_alley.png | tail -8\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.9,
+    "keystrokes": "",
+    "duration": 5.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.9,
+    "keystrokes": "which python3; od -A x -t x1z /app/corrupted/img_01_alley.png | tail -6\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 6.0,
+    "keystrokes": "python3 -c \"import PIL; print('PIL ok')\" ; python3 -c \"import zlib; print('zlib ok')\"\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 6.0,
+    "keystrokes": "cat > /app/recover.py << 'EOF'\nimport os, sys, zlib, itertools\n\nSRC='/app/corrupted'; DST='/app/recovered'\nos.makedirs(DST, exist_ok=True)\nPOLY=0xEDB88320\nTABLE=[]\nfor i in range(256):\n    c=i\n    for _ in range(8):\n        c=(c>>1)^(POLY if c&1 else 0)\n    TABLE.append(c)\n\ndef rev_step(sp,b):\n    for j in range(256):\n        hi=sp^TABLE[j]\n        if hi>>24==0:\n            st=((hi<<8)|(j^b))&0xffffffff\n            if ((st>>8)^TABLE[(st^b)&0xff])&0xffffffff==sp:\n                return st\n    raise ValueError('norev')\n\ndef fwd(state,bs):\n    for b in bs:\n        state=((state>>8)^TABLE[(state^b)&0xff])&0xffffffff\n    return state\n\ndef rev(state,bs):\n    for b in reversed(bs):\n        state=rev_step(state,b)\n    return state\n\nALPHA=set(b'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz')\ndef is_type(t): return len(t)==4 and all(b in ALPHA for b in t)\n\ndef crc_cands(r):\n    res=set(); need=4-len(r)\n    pos=[i for i,b in enumerate(r) if b==0x0a]\n    if need<0 or need>len(pos): return res\n    for combo in itertools.combinations(pos,need):\n        out=bytearray(); cs=set(combo)\n        for i,b in enumerate(r):\n            if i in cs: out.append(0x0d)\n            out.append(b)\n        res.add(bytes(out))\n    return res\n\ndef solve_data(seg,k,ctype,targets):\n    pos=[i for i,b in enumerate(seg) if b==0x0a]\n    n=len(pos)\n    if k<0 or k>n: return None\n    tint={int.from_bytes(t,'big')^0xffffffff for t in targets}\n    segs=[]; last=0\n    for p in pos:\n        segs.append(bytes(seg[last:p])); last=p\n    segs.append(bytes(seg[last:]))\n    if k==0:\n        d=bytes(seg)\n        st=fwd(fwd(0xffffffff,ctype),d)\n        if (st^0xffffffff) in tint: return d\n        return None\n    half=n//2\n    start=fwd(0xffffffff,ctype); start=fwd(start,segs[0])\n    fwdmap={}\n    for bits in range(1<<half):\n        if bin(bits).count('1')>k: continue\n        s=start\n        for j in range(half):\n            if bits>>j&1: s=fwd(s,b'\\x0d')\n            s=fwd(s,b'\\x0a')\n            if j!=half-1: s=fwd(s,segs[j+1])\n        if s not in fwdmap: fwdmap[s]=bits\n    nb=n-half\n    for bits2 in range(1<<nb):\n        if bin(bits2).count('1')>k: continue\n        for tf in tint:\n            s=tf\n            s=rev(s,segs[n])\n            for j in range(n-1,half-1,-1):\n                s=rev(s,b'\\x0a')\n                if bits2>>(j-half)&1: s=rev(s,b'\\x0d')\n                s=rev(s,segs[j])\n            if s in fwdmap:\n                b1=fwdmap[s]\n                if bin(b1).count('1')+bin(bits2).count('1')!=k: continue\n                out=bytearray(segs[0])\n                for j in range(n):\n                    bit=(b1>>j&1) if j<half else (bits2>>(j-half)&1)\n                    if bit: out.append(0x0d)\n                    out.append(0x0a); out+=segs[j+1]\n                return bytes(out)\n    return None\n\ndef recover(data):\n    if data[:4]!=b'\\x89PNG': return None\n    def dfs(c,chunks,depth):\n        if c==len(data):\n            return chunks if (chunks and chunks[-1][0]==b'IEND') else None\n        if depth>50 or c+8>len(data): return None\n        L=int.from_bytes(data[c:c+4],'big')\n        ctype=bytes(data[c+4:c+8])\n        if not is_type(ctype) or L>20000000: return None\n        dstart=c+8\n        for dend in range(min(dstart+L,len(data)),dstart-1,-1):\n            seg=data[dstart:dend]\n            k=L-len(seg)\n            if k<0 or k>seg.count(0x0a): continue\n            for crclen in range(4,1,-1):\n                q=dend+crclen\n                if q>len(data): break\n                if q==len(data):\n                    if ctype!=b'IEND': continue\n                elif not (q+8<=len(data) and is_type(data[q+4:q+8])):\n                    continue\n                targets=crc_cands(bytes(data[dend:q]))\n                if not targets: continue\n                sol=solve_data(seg,k,ctype,targets)\n                if sol is None: continue\n                crc=zlib.crc32(ctype+sol)&0xffffffff\n                r=dfs(q,chunks+[(ctype,sol,crc)],depth+1)\n                if r is not None: return r\n        return None\n    res=dfs(7,[],0)\n    if res is None: return None\n    out=bytearray(b'\\x89PNG\\r\\n\\x1a\\n')\n    idat=b''\n    ihdr=None\n    for ctype,sol,crc in res:\n        out+=len(sol).to_bytes(4,'big')+ctype+sol+crc.to_bytes(4,'big')\n        if ctype==b'IHDR': ihdr=sol\n        if ctype==b'IDAT': idat+=sol\n    # verify\n    w,h,bd,ct=ihdr[0:4].hex(),ihdr[4:8],ihdr[8],ihdr[9]\n    w=int.from_bytes(bytes.fromhex(w),'big'); h=int.from_bytes(ihdr[4:8],'big')\n    raw=zlib.decompress(idat)\n    return bytes(out), (w,h,len(raw))\n\nfor fn in sorted(os.listdir(SRC)):\n    data=open(os.path.join(SRC,fn),'rb').read()\n    r=recover(data)\n    if r is None:\n        print(fn,'FAILED')\n    else:\n        out,info=r\n        open(os.path.join(DST,fn),'wb').write(out)\n        print(fn,'OK',info,'orig_size',len(out))\nEOF\necho written\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 6.0,
+    "keystrokes": "python3 /app/recover.py\n",
+    "duration": 10.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 17.0,
+    "keystrokes": "cat > /app/dbg.py << 'EOF'\nimport sys, zlib\nsys.path.insert(0,'/app')\nimport importlib.util\nspec=importlib.util.spec_from_file_location('rec','/app/recover.py')\n# avoid running main loop: read functions manually by exec with guard\nsrc=open('/app/recover.py').read().split('for fn in sorted')[0]\nns={}\nexec(src,ns)\nfwd=ns['fwd']; rev=ns['rev']; solve_data=ns['solve_data']; crc_cands=ns['crc_cands']; is_type=ns['is_type']\ndata=open('/app/corrupted/img_01_alley.png','rb').read()\nprint('sig',data[:8].hex())\nc=7\nL=int.from_bytes(data[c:c+4],'big'); ct=data[c+4:c+8]\nprint('IHDR L',L,ct)\nseg=data[15:28]\nprint('ihdr data',seg.hex(),'crc stored',data[28:32].hex())\nprint('crc calc',hex(zlib.crc32(ct+seg)&0xffffffff))\nprint('solve IHDR:', solve_data(seg,0,ct,crc_cands(bytes(data[28:32]))))\n# IDAT at 32\nc=32\nL=int.from_bytes(data[c:c+4],'big'); ct=bytes(data[c+4:c+8])\nprint('IDAT L',L,ct)\ndstart=40\nfor dend in range(dstart+L, dstart-1,-1):\n    seg=data[dstart:dend]\n    k=L-len(seg)\n    if k<0 or k>seg.count(0x0a): continue\n    for crclen in (4,3,2):\n        q=dend+crclen\n        if q>len(data): continue\n        nxt = data[q+4:q+8] if q+8<=len(data) else b''\n        ok = is_type(nxt) or q==len(data)\n        if not ok: continue\n        tg=crc_cands(bytes(data[dend:q]))\n        sol=solve_data(seg,k,ct,tg)\n        print('dend',dend,'k',k,'crclen',crclen,'next',nxt,'ntargets',len(tg),'sol',sol is not None)\n        if sol:\n            print('decompressed len', len(zlib.decompress(sol)))\n            sys.exit(0)\nEOF\npython3 /app/dbg.py\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 17.5,
+    "keystrokes": "python3 - << 'EOF'\ns=open('/app/recover.py').read()\nold=\"\"\"    if k==0:\n        d=bytes(seg)\n        st=fwd(fwd(0xffffffff,ctype),d)\n        if (st^0xffffffff) in tint: return d\n        return None\"\"\"\nnew=\"\"\"    if k==0:\n        d=bytes(seg)\n        traw={int.from_bytes(t,'big') for t in targets}\n        if (zlib.crc32(ctype+d)&0xffffffff) in traw: return d\n        return None\"\"\"\nassert old in s\nopen('/app/recover.py','w').write(s.replace(old,new))\nprint('patched')\nEOF\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 17.5,
+    "keystrokes": "python3 /app/recover.py\n",
+    "duration": 30.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 48.0,
+    "keystrokes": "python3 /app/dbg.py\n",
+    "duration": 10.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 58.0,
+    "keystrokes": "cat > /app/dbg2.py << 'EOF'\nimport sys, zlib, traceback\nsrc=open('/app/recover.py').read().split('for fn in sorted')[0]\nns={}\nexec(src,ns)\ndata=open('/app/corrupted/img_01_alley.png','rb').read()\ntry:\n    r=ns['recover'](data)\n    print('result:', None if r is None else (len(r[0]), r[1]))\nexcept Exception:\n    traceback.print_exc()\nEOF\npython3 /app/dbg2.py\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 58.5,
+    "keystrokes": "cat > /app/dbg3.py << 'EOF'\nimport zlib\nsrc=open('/app/recover.py').read().split('for fn in sorted')[0]\nns={}\nexec(src,ns)\nsolve_data=ns['solve_data']; crc_cands=ns['crc_cands']\ndata=open('/app/corrupted/img_01_alley.png','rb').read()\nseg=data[256:291]\nprint('seg len',len(seg),'num 0a',seg.count(0x0a))\ntg=crc_cands(bytes(data[291:295]))\nprint('targets',tg)\nsol=solve_data(seg,2,b'tEXt',tg)\nprint('sol',sol)\nif sol: print('crc ok', hex(zlib.crc32(b'tEXt'+sol)&0xffffffff))\n# test MITM internals on a toy: original b'ab\\r\\ncd\\r\\nef', corrupted b'ab\\ncd\\nef'\ncor=b'ab\\ncd\\nef'\nprint('toy', solve_data(cor,2,b'tEXt',{b'XXXX'}))\nEOF\npython3 /app/dbg3.py\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 59.0,
+    "keystrokes": "cat > /app/dbg4.py << 'EOF'\nimport zlib\nsrc=open('/app/recover.py').read().split('for fn in sorted')[0]\nns={}\nexec(src,ns)\nfwd=ns['fwd']; rev=ns['rev']\ns=0xffffffff\ns2=fwd(s,b'hello')\nprint('fwd crc', hex(s2^0xffffffff), 'zlib', hex(zlib.crc32(b'hello')&0xffffffff))\ntry:\n    s3=rev(s2,b'hello')\n    print('rev roundtrip', hex(s3), 'expect', hex(s))\nexcept Exception as e:\n    print('rev failed', e)\nEOF\npython3 /app/dbg4.py\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 13,
+    "offset_sec": 59.5,
+    "keystrokes": "cat > /app/dbg5.py << 'EOF'\nimport zlib\nsrc=open('/app/recover.py').read().split('for fn in sorted')[0]\nns={}\nexec(src,ns)\nfwd=ns['fwd']; rev=ns['rev']\ndata=open('/app/corrupted/img_01_alley.png','rb').read()\nseg=data[256:291]\nctype=b'tEXt'\npos=[i for i,b in enumerate(seg) if b==0x0a]\nprint('0a positions',pos)\nsegs=[]; last=0\nfor p in pos:\n    segs.append(bytes(seg[last:p])); last=p\nsegs.append(bytes(seg[last:]))\nprint('segs',segs)\nn=len(pos); half=n//2\nstart=fwd(0xffffffff,ctype); start=fwd(start,segs[0])\nfwdmap={}\nfor bits in range(1<<half):\n    s=start\n    for j in range(half):\n        if bits>>j&1: s=fwd(s,b'\\x0d')\n        s=fwd(s,b'\\x0a')\n        if j!=half-1: s=fwd(s,segs[j+1])\n    fwdmap[s]=bits\n    print('fwd bits',bits,'state',hex(s))\ntarget=int.from_bytes(bytes(data[291:295]),'big')^0xffffffff\nprint('target internal final',hex(target))\nfor bits2 in range(1<<(n-half)):\n    s=target\n    s=rev(s,segs[n])\n    for j in range(n-1,half-1,-1):\n        s=rev(s,b'\\x0a')\n        if bits2>>(j-half)&1: s=rev(s,b'\\x0d')\n        s=rev(s,segs[j])\n    print('bwd bits2',bits2,'req state',hex(s), 'match', s in fwdmap)\n# ground truth: full reconstruction both 0d inserted\ntruth=segs[0]+b'\\x0d\\x0a'+segs[1]+b'\\x0d\\x0a'+segs[2]\nprint('truth crc', hex(zlib.crc32(ctype+truth)&0xffffffff), 'stored', data[291:295].hex())\nEOF\npython3 /app/dbg5.py\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 15,
+    "offset_sec": 60.0,
+    "keystrokes": "sed -i 's/last=p$/last=p+1/' /app/recover.py && grep -n \"last=\" /app/recover.py\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 15,
+    "offset_sec": 60.0,
+    "keystrokes": "python3 /app/recover.py\n",
+    "duration": 30.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 16,
+    "offset_sec": 90.5,
+    "keystrokes": "file /app/recovered/* | head -25\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 16,
+    "offset_sec": 90.5,
+    "keystrokes": "python3 - << 'EOF'\nimport os, zlib, struct\nok=True\nfor fn in sorted(os.listdir('/app/recovered')):\n    d=open('/app/recovered/'+fn,'rb').read()\n    assert d[:8]==b'\\x89PNG\\r\\n\\x1a\\n', fn\n    p=8; idat=b''\n    while p<len(d):\n        L=int.from_bytes(d[p:p+4],'big'); t=d[p+4:p+8]\n        data=d[p+8:p+8+L]; crc=int.from_bytes(d[p+8+L:p+12+L],'big')\n        assert zlib.crc32(t+data)&0xffffffff==crc, (fn,t)\n        if t==b'IDAT': idat+=data\n        p+=12+L\n    zlib.decompress(idat)\n    print(fn,'valid, size',len(d))\nprint('ALL VALID' if ok else 'FAIL')\nEOF\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 17,
+    "offset_sec": 91.5,
+    "keystrokes": "ls /app/recovered/ | wc -l\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 17,
+    "offset_sec": 91.6,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 18,
+    "offset_sec": 91.6,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

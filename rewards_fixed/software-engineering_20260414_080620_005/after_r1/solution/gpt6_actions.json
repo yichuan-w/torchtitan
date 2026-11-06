@@ -1,0 +1,170 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "ls -la\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "cat api_framework.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "cat server.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.3,
+    "keystrokes": "cat README.md\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.3,
+    "keystrokes": "sed -n '120,220p' api_framework.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.3,
+    "keystrokes": "sed -n '1,80p' server.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.6,
+    "keystrokes": "wc -l api_framework.py server.py README.md\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.6,
+    "keystrokes": "sed -n '155,230p' api_framework.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 0.8,
+    "keystrokes": "sed -n '230,320p' api_framework.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 0.8,
+    "keystrokes": "head -60 server.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 0.8,
+    "keystrokes": "head -40 README.md\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 1.1,
+    "keystrokes": "tail -n +230 api_framework.py | head -50\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 1.2,
+    "keystrokes": "sed -n '1,55p' server.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 1.2,
+    "keystrokes": "python server.py --requests 5000 --profile\n",
+    "duration": 30.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 31.3,
+    "keystrokes": "grep -n \"\" api_framework.py | sed -n '28,48p'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 31.3,
+    "keystrokes": "sed -n '95,102p;158,170p' api_framework.py | cat -n\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 31.5,
+    "keystrokes": "python3 - <<'EOF'\nimport re\n\nwith open('api_framework.py') as f:\n    src = f.read()\n\nold_block = '''class Errors:\n    \"\"\"\n    Pre-defined error instances for common API error cases.\n    These are created once and reused throughout the application.\n    \"\"\"\n    user_not_found = APIError(\"User not found\", code=404)\n    invalid_token = APIError(\"Invalid or expired token\", code=401)\n    permission_denied = APIError(\"Permission denied\", code=403)\n    validation_failed = APIError(\"Validation failed\", code=400)\n    rate_limit_exceeded = APIError(\"Rate limit exceeded\", code=429)\n    internal_error = APIError(\"Internal server error\", code=500)\n    resource_not_found = APIError(\"Resource not found\", code=404)\n    duplicate_entry = APIError(\"Duplicate entry exists\", code=409)\n'''\n\nnew_block = '''class _ErrorsMeta(type):\n    \"\"\"\n    Metaclass for Errors.\n\n    Each attribute access creates and returns a NEW APIError instance.\n    This is intentional: reusing a single exception instance across many\n    `raise` statements causes its __traceback__ to grow without bound\n    (each raise links the new traceback to the exception's existing one),\n    which pins every frame's locals in memory and leaks memory over time.\n    Returning a fresh instance per access keeps error type, message and\n    code identical while eliminating the leak.\n    \"\"\"\n\n    def __getattr__(cls, name):\n        if name.startswith(\"_\"):\n            raise AttributeError(name)\n        try:\n            message, code = cls._ERROR_DEFINITIONS[name]\n        except KeyError:\n            raise AttributeError(\n                f\"{cls.__name__!r} has no error {name!r}\"\n            ) from None\n        return APIError(message, code=code)\n\n\nclass Errors(metaclass=_ErrorsMeta):\n    \"\"\"\n    Pre-defined errors for common API error cases.\n\n    Accessing an attribute (e.g. ``Errors.invalid_token``) returns a fresh\n    APIError instance with the same message and code as before, so raised\n    exceptions never share (and accumulate) traceback state.\n    \"\"\"\n\n    _ERROR_DEFINITIONS = {\n        \"user_not_found\": (\"User not found\", 404),\n        \"invalid_token\": (\"Invalid or expired token\", 401),\n        \"permission_denied\": (\"Permission denied\", 403),\n        \"validation_failed\": (\"Validation failed\", 400),\n        \"rate_limit_exceeded\": (\"Rate limit exceeded\", 429),\n        \"internal_error\": (\"Internal server error\", 500),\n        \"resource_not_found\": (\"Resource not found\", 404),\n        \"duplicate_entry\": (\"Duplicate entry exists\", 409),\n    }\n'''\n\nassert old_block in src, \"old Errors block not found\"\nsrc = src.replace(old_block, new_block)\n\nwith open('api_framework.py', 'w') as f:\n    f.write(src)\n\nprint(\"patched OK\")\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 31.5,
+    "keystrokes": "sed -n '24,80p' api_framework.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 31.7,
+    "keystrokes": "python server.py --requests 5000 --profile\n",
+    "duration": 30.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 61.7,
+    "keystrokes": "python3 - <<'EOF'\nfrom api_framework import APIError, Errors, Request, run_pipeline\n\n# 1) Check Errors attributes: same type, message, code; fresh instance each access\nexpected = {\n    \"user_not_found\": (\"User not found\", 404),\n    \"invalid_token\": (\"Invalid or expired token\", 401),\n    \"permission_denied\": (\"Permission denied\", 403),\n    \"validation_failed\": (\"Validation failed\", 400),\n    \"rate_limit_exceeded\": (\"Rate limit exceeded\", 429),\n    \"internal_error\": (\"Internal server error\", 500),\n    \"resource_not_found\": (\"Resource not found\", 404),\n    \"duplicate_entry\": (\"Duplicate entry exists\", 409),\n}\nfor name, (msg, code) in expected.items():\n    e1 = getattr(Errors, name)\n    e2 = getattr(Errors, name)\n    assert type(e1) is APIError, name\n    assert e1.message == msg, (name, e1.message)\n    assert e1.code == code, (name, e1.code)\n    assert str(e1) == msg, (name, str(e1))\n    assert e1 is not e2, name  # fresh instance each time -> no shared traceback\n    assert e1.to_dict() == {\"error\": msg, \"code\": code}, name\nprint(\"Errors attribute checks: OK\")\n\n# 2) End-to-end pipeline checks\ncases = [\n    (Request(data={\"action\": \"read\"}, headers={\"Authorization\": \"Bearer short\"}),\n     \"Invalid or expired token\", 401),\n    (Request(data={\"action\": \"read\"}, headers={}),\n     \"Invalid or expired token\", 401),\n    (Request(data={\"action\": \"admin_delete\", \"target\": \"system\"},\n             headers={\"Authorization\": \"Bearer validtoken12345678\"}),\n     \"Permission denied\", 403),\n    (Request(data={\"action\": \"lookup_user\", \"user_id\": \"nonexistent_user\"},\n             headers={\"Authorization\": \"Bearer validtoken12345678\"}),\n     \"User not found\", 404),\n    (Request(data={\"action\": \"access_resource\", \"resource_id\": \"nonexistent\"},\n             headers={\"Authorization\": \"Bearer validtoken12345678\"}),\n     \"Resource not found\", 404),\n    (Request(data={\"action\": \"create_entry\", \"entry_name\": \"entry_1\"},\n             headers={\"Authorization\": \"Bearer validtoken12345678\"}),\n     \"Duplicate entry exists\", 409),\n    (Request(data={\"action\": \"read\"},\n             headers={\"Authorization\": \"Bearer validtoken12345678\",\n                      \"X-Request-Count\": \"150\"}),\n     \"Rate limit exceeded\", 429),\n]\nfor req, msg, code in cases:\n    resp = run_pipeline(req)\n    assert resp.error is not None, (req.data, req.headers)\n    assert type(resp.error) is APIError, type(resp.error)\n    assert resp.error.message == msg, (resp.error.message, msg)\n    assert resp.error.code == code, (resp.error.code, code)\n    assert resp.status == code, (resp.status, code)\n\n# success case\nresp = run_pipeline(Request(data={\"action\": \"read\"},\n                            headers={\"Authorization\": \"Bearer validtoken12345678\"}))\nassert resp.error is None and resp.status == 200, resp.status\nprint(\"Pipeline behavior checks: OK\")\nEOF\n",
+    "duration": 10.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 61.7,
+    "keystrokes": "python3 - <<'EOF'\nimport gc\nfrom server import run_server, get_memory_usage_mb\n\ngc.collect()\nres = run_server(20000, profile=True)\nsamples = res[\"memory_samples\"]\nhalf = len(samples) // 2\nfirst = sum(samples[:half]) / half\nsecond = sum(samples[half:]) / (len(samples) - half)\nprint(f\"samples[0]={samples[0]:.2f}MB samples[-1]={samples[-1]:.2f}MB\")\nprint(f\"avg first half={first:.2f}MB avg second half={second:.2f}MB\")\nprint(f\"final={res['final_memory_mb']:.2f}MB peak={res['peak_memory_mb']:.2f}MB\")\nprint(\"growth (second half - first half): %.2f MB\" % (second - first))\nEOF\n",
+    "duration": 30.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 13,
+    "offset_sec": 101.7,
+    "keystrokes": "echo \"Task complete - memory leak fixed\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 13,
+    "offset_sec": 101.8,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 101.8,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

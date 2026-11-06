@@ -1,0 +1,21 @@
+--- a/src/mistune/renderers/html.py
++++ b/src/mistune/renderers/html.py
+@@ -2,7 +2,7 @@
+ from markupsafe import escape as escape_attr
+ from ..core import BaseRenderer, BlockState
+ from ..util import escape as escape_text
+-from ..util import safe_entity, striptags
++from ..util import safe_entity, striptags, unescape
+ 
+ 
+ class HTMLRenderer(BaseRenderer):
+@@ -129,7 +129,8 @@
+         """TODO: Implement this function"""
+         html = '<pre><code'
+         if info:
+-            lang = str(escape_attr(info.strip().split(None, 1)[0]))
++            lang = unescape(info.strip()).split(None, 1)[0]
++            lang = str(escape_attr(lang)).replace('&#34;', '&quot;').replace('&#39;', '&#x27;').replace('`', '&#x60;')
+             if lang:
+                 html += ' class="language-' + lang + '"'
+         html += '>' + escape_text(code) + '</code></pre>\n'

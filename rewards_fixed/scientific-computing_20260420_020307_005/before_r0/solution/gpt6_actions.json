@@ -1,0 +1,121 @@
+[
+  {
+    "step_id": 3,
+    "offset_sec": 0.0,
+    "keystrokes": "pwd\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.0,
+    "keystrokes": "ls -la /app\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.0,
+    "keystrokes": "ls -la /app/calibration\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.0,
+    "keystrokes": "sed -n '1,260p' /app/calibration/calibrate.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 0.4,
+    "keystrokes": "sed -n '1,220p' /app/calibration/data_utils.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 0.4,
+    "keystrokes": "cat /app/calibration/config.json\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 0.4,
+    "keystrokes": "cat /app/calibration/sensor_data.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 0.4,
+    "keystrokes": "cd /app/calibration && python3 calibrate.py\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 1.7,
+    "keystrokes": "python3 - <<'PY'\nimport pandas as pd\nimport numpy as np\nfrom scipy.optimize import curve_fit\n\ndef exponential_response(t, T_initial, T_final, tau):\n    return T_final + (T_initial - T_final) * np.exp(-t / tau)\n\ndf = pd.read_csv('/app/calibration/sensor_data.csv')\nfor sid in sorted(df['sensor_id'].unique()):\n    data = df[df['sensor_id'] == sid]\n    t = data['time_sec'].astype(np.float64).values\n    temp = data['temperature'].astype(np.float64).values\n    p0 = [temp[0], temp[-1], 8.0]\n    bounds = ([-50.0, -50.0, 0.5], [150.0, 150.0, 50.0])\n    popt, pcov = curve_fit(exponential_response, t, temp, p0=p0, bounds=bounds, maxfev=10000)\n    print(f\"Sensor {sid}: T_initial={popt[0]:.4f}, T_final={popt[1]:.4f}, tau={popt[2]:.4f}\")\nPY\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 1.7,
+    "keystrokes": "sed -i \"s/np.float32/np.float64/g\" /app/calibration/data_utils.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 1.7,
+    "keystrokes": "cd /app/calibration && python3 calibrate.py\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 1.7,
+    "keystrokes": "cat /app/calibration/calibration_results.json\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 3.9,
+    "keystrokes": "grep -n \"float\" /app/calibration/data_utils.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 3.9,
+    "keystrokes": "cat /app/calibration/calibration_results.json\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 3.9,
+    "keystrokes": "python3 - <<'PY'\nimport json\nwith open('/app/calibration/calibration_results.json') as f:\n    results = json.load(f)\ntaus = {int(k): v['tau'] for k, v in results.items()}\nprint('Tau values:', taus)\nassert len(set(round(t, 3) for t in taus.values())) == len(taus), 'Tau values are not sensor-specific'\nassert all(0 < t < 50 for t in taus.values()), 'Tau outside expected bounds'\nprint('Validation passed')\nPY\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 5.1,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 5.1,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

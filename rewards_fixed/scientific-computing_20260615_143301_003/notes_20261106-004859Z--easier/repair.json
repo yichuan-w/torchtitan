@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "RDKit is installed for /usr/bin/python3, but the default python3 resolves to /opt/verifier/bin/python3 and cannot import RDKit, so the environment does not expose its installed task dependency through the ordinary interpreter.",
+    "evidence": "environment/Dockerfile installs python3-rdkit while traces/attempt-03.jsonl turn 3 and every other attempt show default-python or package-installer failures; /usr/bin/python3 succeeds in later trace turns.",
+    "change": "Prepend /usr/bin to PATH in environment/Dockerfile so python3 uses the interpreter for which RDKit was installed.",
+    "kind": "broken_setup"
+  }
+]

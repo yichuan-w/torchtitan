@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The verifier requires the deployment prompt to be captured when standard input is redirected, but the instruction only required an interactive prompt; Bash read -p is reasonable for the stated requirement and suppresses its prompt in the verifier's non-terminal execution.",
+    "evidence": "instruction.md interactive-prompt requirement conflicts with tests/test.sh test_run_script_and_validate_output; attempt-01.jsonl turn 1 through attempt-12.jsonl turn 1 all use read -p or read -rp and all verifier summaries fail only when capturing the prompt under redirected input.",
+    "change": "State that the prompt must remain visible when the tier is supplied through redirected standard input.",
+    "kind": "hidden_requirement"
+  }
+]

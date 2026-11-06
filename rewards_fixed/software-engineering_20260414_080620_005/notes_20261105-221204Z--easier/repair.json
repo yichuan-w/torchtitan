@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The verifier requires every Errors attribute access and handler result to use a fresh exception object, although the task permits any fix that preserves error type, message, code, and stable memory.",
+    "evidence": "instruction.md requires preserved error types/messages/codes and stable memory, while tests/test_outputs.py lines 15-49, 88-97, 100-127, and 130-160 impose object-identity freshness; all attempt-01.jsonl through attempt-12.jsonl verifier summaries show the memory check passing and freshness checks rejecting their fixes.",
+    "change": "Remove object-identity/fresh-instance assertions and retain semantic API behavior plus measured memory stability checks.",
+    "kind": "hidden_requirement"
+  }
+]

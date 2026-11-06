@@ -1,0 +1,14 @@
+[
+  {
+    "defect": "The verifier requires the RFC 6455 magic GUID ending in B11, but the public task only says the handshake must be RFC-compliant while the supplied implementation labels and uses a B12 constant; this causes otherwise reasonable fixes to retain the misleading value.",
+    "evidence": "environment/files/ws_server.py:22-26 conflicts with tests/test_outputs.py:19 and test_handshake_accept_key_correct; attempt-01.jsonl turn 9 retained B12 in its independent handshake expectation and then submitted.",
+    "change": "Add a vague instruction direction to validate the handshake against the RFC published example so the hidden required correction becomes discoverable without supplying the value.",
+    "kind": "hidden_requirement"
+  },
+  {
+    "defect": "The binary-echo check uses 256 bytes, which enters the same 16-bit extended-length parsing path as the separately stated large-message requirement; a correct basic binary echo can fail for the unrelated framing-length bug.",
+    "evidence": "tests/test_outputs.py:test_handshake_and_echo_binary uses bytes(range(256)), while tests/test_outputs.py:test_large_message separately checks extended length; sandbox replay of attempt-01-style fixes plus the required GUID correction passed six checks but failed binary echo because 256 enters payload-length marker 126.",
+    "change": "Use a short binary payload in the binary-echo check, leaving extended-length coverage to the dedicated large-message check.",
+    "kind": "other"
+  }
+]

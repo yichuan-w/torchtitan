@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The grader requires the benchmark's embedded evaluation caveat to affect the comparison, but the public instruction only asks for the best model overall and never states that embedded caveats must be honored; averaging all supplied ROC AUC rows is therefore a reasonable interpretation that every attempt followed.",
+    "evidence": "instruction.md asks only which model performs best overall, while solution/gpt6_actions.json reads Parquet NOTE metadata and tests/test_outputs.py expects the resulting LightGBM answer; attempt-01.jsonl turn 12 is representative of all 12 attempts averaging all rows and selecting XGBoost.",
+    "change": "State in instruction.md that evaluation caveats embedded in the benchmark file must be honored, while leaving the student to discover and interpret the caveat.",
+    "kind": "hidden_requirement"
+  }
+]

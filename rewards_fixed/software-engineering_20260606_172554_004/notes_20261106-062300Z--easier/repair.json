@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The grader requires empty CSV fields to preserve their cell position and evaluate as zero, but the public instruction does not say empty cells are valid or define their value.",
+    "evidence": "instruction.md cell-type list conflicts with tests/test_outputs.py TestCsvParsing; attempt-01.jsonl turn 28 and attempt-12.jsonl turn 40 submitted after all stated sample behaviors passed, while replay grading failed every empty-cell check.",
+    "change": "State in instruction.md that an empty CSV field is an empty cell whose value is zero.",
+    "kind": "hidden_requirement"
+  }
+]

@@ -1,0 +1,338 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 3.0,
+    "keystrokes": "ls -la\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 3.0,
+    "keystrokes": "python3 - <<'PY'\nimport cv2, numpy as np, os\np='/app/example_video.mp4'\ncap=cv2.VideoCapture(p)\nprint('opened', cap.isOpened())\nprint('fps', cap.get(cv2.CAP_PROP_FPS))\nprint('frames', cap.get(cv2.CAP_PROP_FRAME_COUNT))\nprint('w', cap.get(cv2.CAP_PROP_FRAME_WIDTH), 'h', cap.get(cv2.CAP_PROP_FRAME_HEIGHT))\nprev=None\nvals=[]\ni=0\nwhile True:\n    ok, frame=cap.read()\n    if not ok: break\n    # small gray, maybe hist\n    g=cv2.cvtColor(cv2.resize(frame,(64,48)), cv2.COLOR_BGR2GRAY).astype(np.float32)\n    if prev is not None:\n        vals.append((i, float(np.mean(np.abs(g-prev))), float(np.mean(np.abs(cv2.absdiff(frame, frame)))))\n    prev=g\n    i+=1\ncap.release()\nprint('read',i)\n# print top differences\ns=sorted(vals, key=lambda x:x[1], reverse=True)\nprint('top mad')\nfor x in s[:40]: print(x)\nPY\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 7.1,
+    "keystrokes": "python3 - <<'PY'\nimport cv2, numpy as np\np='/app/example_video.mp4'\ncap=cv2.VideoCapture(p)\nprint('opened', cap.isOpened())\nprint('fps', cap.get(cv2.CAP_PROP_FPS))\nprint('frames', cap.get(cv2.CAP_PROP_FRAME_COUNT))\nprint('w', cap.get(cv2.CAP_PROP_FRAME_WIDTH), 'h', cap.get(cv2.CAP_PROP_FRAME_HEIGHT))\nprev=None\nvals=[]\ni=0\nwhile True:\n    ok, frame=cap.read()\n    if not ok: break\n    small=cv2.resize(frame,(64,48))\n    g=cv2.cvtColor(small, cv2.COLOR_BGR2GRAY).astype(np.float32)\n    hsv=cv2.cvtColor(small, cv2.COLOR_BGR2HSV)\n    hist=cv2.calcHist([hsv],[0,1],None,[32,32],[0,180,0,256])\n    cv2.normalize(hist,hist)\n    lap=cv2.Laplacian(g,cv2.CV_32F).var()\n    if prev is not None:\n        pg, ph = prev\n        mad=float(np.mean(np.abs(g-pg)))\n        corr=float(cv2.compareHist(ph,hist,cv2.HISTCMP_CORREL))\n        vals.append((i,mad,corr,lap,float(g.mean())))\n    prev=(g,hist)\n    i+=1\ncap.release()\nprint('read',i)\nprint('top MAD: frame, mad, histcorr, lapvar, mean_bright')\nfor x in sorted(vals, key=lambda x:x[1], reverse=True)[:60]:\n    print(x)\nprint('lowest histcorr: frame, mad, histcorr, lapvar, mean_bright')\nfor x in sorted(vals, key=lambda x:x[2])[:60]:\n    print(x)\nPY\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 11.1,
+    "keystrokes": "python3 - <<'PY'\nimport cv2, numpy as np\ncap=cv2.VideoCapture('/app/example_video.mp4')\nprev=None\nmetrics={}\ni=0\nwhile True:\n    ok, frame=cap.read()\n    if not ok: break\n    small=cv2.resize(frame,(64,48))\n    g=cv2.cvtColor(small,cv2.COLOR_BGR2GRAY).astype(np.float32)\n    hsv=cv2.cvtColor(small,cv2.COLOR_BGR2HSV)\n    hist=cv2.calcHist([hsv],[0,1],None,[32,32],[0,180,0,256])\n    cv2.normalize(hist,hist)\n    if prev is not None:\n        pg,ph=prev\n        mad=float(np.mean(np.abs(g-pg)))\n        corr=float(cv2.compareHist(ph,hist,cv2.HISTCMP_CORREL))\n        metrics[i]=(mad,corr,float(g.mean()))\n    prev=(g,hist)\n    i+=1\ncap.release()\nfor rng in [(80,100),(170,190),(230,280),(350,370)]:\n    print('range',rng)\n    for i in range(*rng):\n        if i in metrics:\n            print(i, 'mad=%.3f corr=%.4f mean=%.2f'%metrics[i])\nprint('--- around 237-273 concise')\nfor i in range(235,276):\n    print(i, 'mad=%.3f corr=%.4f mean=%.2f'%metrics[i])\nPY\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 15.1,
+    "keystrokes": "python3 - <<'PY'\nimport cv2, numpy as np\ncap=cv2.VideoCapture('/app/example_video.mp4')\nprev=None\nmetrics={}\ni=0\nwhile True:\n    ok, frame=cap.read()\n    if not ok: break\n    small=cv2.resize(frame,(64,48))\n    g=cv2.cvtColor(small,cv2.COLOR_BGR2GRAY).astype(np.float32)\n    hsv=cv2.cvtColor(small,cv2.COLOR_BGR2HSV)\n    hist=cv2.calcHist([hsv],[0,1],None,[32,32],[0,180,0,256])\n    cv2.normalize(hist,hist)\n    if prev is not None:\n        pg,ph=prev\n        metrics[i]=(float(np.mean(np.abs(g-pg))), float(cv2.compareHist(ph,hist,cv2.HISTCMP_CORREL)))\n    prev=(g,hist)\n    i+=1\ncap.release()\nranges=[(85,95),(175,185),(235,275),(355,365)]\nfor a,b in ranges:\n    print('---',a,b)\n    for f in range(a,b+1):\n        if f in metrics:\n            d,c=metrics[f]\n            print(f'{f}: mad={d:7.3f} corr={c:7.4f}')\nPY\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 19.1,
+    "keystrokes": "python3 - <<'PY'\nimport cv2, numpy as np\ncap=cv2.VideoCapture('/app/example_video.mp4')\nprev=None\nrows=[]\ni=0\nwhile True:\n    ok, frame=cap.read()\n    if not ok: break\n    small=cv2.resize(frame,(64,48))\n    g=cv2.cvtColor(small,cv2.COLOR_BGR2GRAY).astype(np.float32)\n    hsv=cv2.cvtColor(small,cv2.COLOR_BGR2HSV)\n    h=cv2.calcHist([hsv],[0,1],None,[32,32],[0,180,0,256])\n    cv2.normalize(h,h)\n    if prev is not None:\n        pg,ph=prev\n        rows.append((i,float(np.mean(np.abs(g-pg))),float(cv2.compareHist(ph,h,cv2.HISTCMP_CORREL)),float(g.mean())))\n    prev=(g,h)\n    i+=1\ncap.release()\nranges=[(80,95),(175,185),(235,275),(355,365)]\nfor a,b in ranges:\n    print(f'range {a}-{b}')\n    for f,mad,corr,mean in rows:\n        if a<=f<=b:\n            print(f'{f:3d} mad={mad:7.3f} corr={corr:7.4f} mean={mean:7.2f}')\nPY\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 23.1,
+    "keystrokes": "python3 - <<'PY'\nimport cv2, numpy as np\ncap=cv2.VideoCapture('/app/example_video.mp4')\nframes={0,45,89,90,100,135,179,180,200,239,240,241,250,260,269,270,300,359,360,400,450,500,539}\ni=0\nwhile True:\n    ok, frame=cap.read()\n    if not ok: break\n    if i in frames:\n        b,g,r=cv2.split(frame)\n        gray=cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY)\n        print(i, 'BGRmean', [round(float(x.mean()),2) for x in (b,g,r)], 'std', [round(float(x.std()),2) for x in (b,g,r)],\n              'graylap', round(float(cv2.Laplacian(gray,cv2.CV_32F).var()),2), 'grayrange', int(gray.min()), int(gray.max()))\n    i+=1\ncap.release()\nPY\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 27.1,
+    "keystrokes": "python3 - <<'PY'\nimport cv2, numpy as np\ncap=cv2.VideoCapture('/app/example_video.mp4')\nprev=None\nout=[]\ni=0\nwhile True:\n    ok, frame=cap.read()\n    if not ok: break\n    if 395 <= i <= 465:\n        small=cv2.resize(frame,(64,48))\n        g=cv2.cvtColor(small,cv2.COLOR_BGR2GRAY).astype(np.float32)\n        hsv=cv2.cvtColor(small,cv2.COLOR_BGR2HSV)\n        h=cv2.calcHist([hsv],[0,1],None,[32,32],[0,180,0,256])\n        cv2.normalize(h,h)\n        out.append((i,float(g.mean())))\n        if i==395:\n            prev_g,prev_h=g,h\n        else:\n            pass\n    i+=1\ncap.release()\n# second pass properly\ncap=cv2.VideoCapture('/app/example_video.mp4')\nprev=None\ni=0\nwhile True:\n    ok, frame=cap.read()\n    if not ok: break\n    if 395 <= i <= 465:\n        small=cv2.resize(frame,(64,48))\n        g=cv2.cvtColor(small,cv2.COLOR_BGR2GRAY).astype(np.float32)\n        hsv=cv2.cvtColor(small,cv2.COLOR_BGR2HSV)\n        h=cv2.calcHist([hsv],[0,1],None,[32,32],[0,180,0,256])\n        cv2.normalize(h,h)\n        if prev is not None:\n            pg,ph=prev\n            print(f'{i:3d} mad={np.mean(np.abs(g-pg)):7.3f} corr={cv2.compareHist(ph,h,cv2.HISTCMP_CORREL):7.4f} mean={g.mean():7.2f}')\n        prev=(g,h)\n    i+=1\ncap.release()\nPY\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 31.1,
+    "keystrokes": "python3 - <<'PY'\nimport cv2, numpy as np\ncap=cv2.VideoCapture('/app/example_video.mp4')\nprev=None\nrows=[]\ni=0\nwhile True:\n    ok, frame=cap.read()\n    if not ok: break\n    small=cv2.resize(frame,(64,48))\n    g=cv2.cvtColor(small,cv2.COLOR_BGR2GRAY).astype(np.float32)\n    hsv=cv2.cvtColor(small,cv2.COLOR_BGR2HSV)\n    h=cv2.calcHist([hsv],[0,1],None,[32,32],[0,180,0,256])\n    cv2.normalize(h,h)\n    if prev is not None:\n        pg,ph=prev\n        rows.append((i,float(np.mean(np.abs(g-pg))),float(cv2.compareHist(ph,h,cv2.HISTCMP_CORREL)),float(g.mean())))\n    prev=(g,h)\n    i+=1\ncap.release()\nprint('frames 410-455')\nfor f,mad,corr,mean in rows:\n    if 410<=f<=455:\n        print(f'{f:3d} mad={mad:7.4f} corr={corr:7.4f} mean={mean:7.2f}')\nprint('candidate runs mad>0.05')\nruns=[]\nstart=None\nlast=None\nfor f,mad,corr,mean in rows:\n    if mad>0.05:\n        if start is None:\n            start=f\n        last=f\n    else:\n        if start is not None:\n            runs.append((start,last))\n            start=None\nif start is not None:\n    runs.append((start,last))\nfor a,b in runs:\n    print(a,b,'len pairs',b-a+1)\nprint('candidate runs mad>0.15')\nruns=[]\nstart=None;last=None\nfor f,mad,corr,mean in rows:\n    if mad>0.15:\n        if start is None: start=f\n        last=f\n    else:\n        if start is not None:\n            runs.append((start,last)); start=None\nif start is not None: runs.append((start,last))\nfor a,b in runs:\n    print(a,b,'len pairs',b-a+1)\nPY\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 35.1,
+    "keystrokes": "cat > /app/shot_detector.py <<'PY'\n#!/usr/bin/env python3\nimport cv2\nimport json\nimport math\nimport os\nimport sys\n\nimport numpy as np\n\nOUT_DIR = \"/app\"\nSHOTS_JSON = os.path.join(OUT_DIR, \"shots.json\")\nCONTACT_SHEET = os.path.join(OUT_DIR, \"contact_sheet.png\")\n\n\ndef analyze_video(video_path):\n    cap = cv2.VideoCapture(video_path)\n    if not cap.isOpened():\n        raise RuntimeError(\"Could not open video: {}\".format(video_path))\n\n    fps = float(cap.get(cv2.CAP_PROP_FPS))\n    frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))\n    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))\n    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))\n\n    diffs = []\n    sharpness = []\n    brightness = []\n    prev_gray = None\n    prev_color = None\n    prev_hist = None\n    actual_frames = 0\n\n    while True:\n        ok, frame = cap.read()\n        if not ok:\n            break\n\n        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)\n        sharpness.append(float(cv2.Laplacian(gray, cv2.CV_64F).var()))\n        brightness.append(float(gray.mean()))\n\n        small = cv2.resize(frame, (64, 48), interpolation=cv2.INTER_AREA)\n        small_gray = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY).astype(np.float32)\n        small_color = small.astype(np.float32)\n        hsv = cv2.cvtColor(small, cv2.COLOR_BGR2HSV)\n        hist = cv2.calcHist([hsv], [0, 1], None, [32, 32], [0, 180, 0, 256])\n        cv2.normalize(hist, hist)\n\n        if prev_gray is not None:\n            mad_gray = float(np.mean(np.abs(small_gray - prev_gray)))\n            mad_color = float(np.mean(np.abs(small_color - prev_color)))\n            corr = float(cv2.compareHist(prev_hist, hist, cv2.HISTCMP_CORREL))\n            if not np.isfinite(corr):\n                corr = 0.0\n            diffs.append({\n                \"mad_gray\": mad_gray,\n                \"mad_color\": mad_color,\n                \"corr\": corr,\n            })\n\n        prev_gray = small_gray\n        prev_color = small_color\n        prev_hist = hist\n        actual_frames += 1\n\n    cap.release()\n\n    if actual_frames == 0:\n        raise RuntimeError(\"Video contained no readable frames: {}\".format(video_path))\n\n    # Use the number of frames actually decoded.\n    total_frames = actual_frames\n    if frame_count <= 0:\n        frame_count = total_frames\n\n    return {\n        \"fps\": fps,\n        \"width\": width,\n        \"height\": height,\n        \"reported_frame_count\": frame_count,\n        \"total_frames\": total_frames,\n        \"diffs\": diffs,\n        \"sharpness\": sharpness,\n        \"brightness\": brightness,\n    }\n\n\ndef _group_changed(changed, max_gap=1):\n    groups = []\n    n = len(changed)\n    i = 0\n    while i < n:\n        if not changed[i]:\n            i += 1\n            continue\n        start = i\n        end = i\n        j = i + 1\n        last_active = i\n        while j < n and j - last_active <= max_gap:\n            if changed[j]:\n                end = j\n                last_active = j\n            j += 1\n        groups.append((start, end))\n        i = j\n    return groups\n\n\ndef detect_transitions(analysis):\n    diffs = analysis[\"diffs\"]\n    n_pairs = len(diffs)\n    if n_pairs == 0:\n        return []\n\n    mad = np.array([d[\"mad_gray\"] for d in diffs], dtype=np.float64)\n    color = np.array([d[\"mad_color\"] for d in diffs], dtype=np.float64)\n    corr = np.array([d[\"corr\"] for d in diffs], dtype=np.float64)\n\n    median_mad = float(np.median(mad))\n    mad_of_mad = float(np.median(np.abs(mad - median_mad)))\n    robust_spread = 1.4826 * mad_of_mad\n\n    # A low threshold catches slow fades.  The robust term prevents a moving\n    # background from being interpreted as a long fade.\n    change_threshold = max(0.10, median_mad + 3.0 * robust_spread)\n    cut_threshold = max(8.0, median_mad + 12.0 * robust_spread)\n\n    changed = (mad > change_threshold) | (color > 2.0 * change_threshold)\n\n    # Candidate hard cuts: high adjacent difference and low histogram\n    # correlation, or an unmistakably large difference.\n    high = (mad >= cut_threshold) & (corr <= 0.55)\n    high = high | ((mad >= 2.5 * cut_threshold) & (corr <= 0.85))\n\n    groups = _group_changed(changed, max_gap=1)\n\n    cut_pairs = []\n    fade_intervals = []\n\n    for start, end in groups:\n        length = end - start + 1\n        local_max = float(np.max(mad[start:end + 1]))\n        local_color_max = float(np.max(color[start:end + 1]))\n        has_high = bool(np.any(high[start:end + 1]))\n\n        # A hard cut is normally an isolated strong change.  A few adjacent\n        # high-change pairs are merged into one boundary.\n        if has_high and length <= 3 and (local_max >= cut_threshold or local_color_max >= 2.0 * cut_threshold):\n            pair = start + int(np.argmax(mad[start:end + 1]))\n            cut_pairs.append(pair)\n            continue\n\n        # A dissolve/fade is a sustained gradual change bounded by stable\n        # content on both sides.\n        if 15 <= length <= 45 and not has_high:\n            cumulative = float(np.sum(mad[start:end + 1]))\n            if cumulative >= 4.0:\n                fade_intervals.append((start, end))\n\n    # Non-maximum suppression for adjacent cut detections.\n    cut_pairs = sorted(set(cut_pairs))\n    merged_cuts = []\n    for pair in cut_pairs:\n        if merged_cuts and pair - merged_cuts[-1] <= 2:\n            prev = merged_cuts[-1]\n            if mad[pair] > mad[prev]:\n                merged_cuts[-1] = pair\n        else:\n            merged_cuts.append(pair)\n    cut_pairs = merged_cuts\n\n    # Remove fade intervals that overlap a cut and merge nearby fades.\n    filtered_fades = []\n    for start, end in sorted(fade_intervals):\n        overlaps_cut = any(start <= p <= end for p in cut_pairs)\n        if overlaps_cut:\n            continue\n        if filtered_fades and start - filtered_fades[-1][1] <= 3:\n            filtered_fades[-1] = (filtered_fades[-1][0], max(filtered_fades[-1][1], end))\n        else:\n            filtered_fades.append((start, end))\n\n    transitions = []\n\n    for pair in cut_pairs:\n        # Pair index p changes frame p-1 into frame p.  The new shot begins\n        # at frame p, while the previous shot ends at p-1.\n        transitions.append({\n            \"prev_end\": pair - 1,\n            \"next_start\": pair,\n            \"type\": \"cut\",\n        })\n\n    for start, end in filtered_fades:\n        # Active transition pairs start..end.  The stable outgoing shot ends\n        # immediately before the first changed pair, and the incoming shot\n        # starts after the last changed pair.\n        transitions.append({\n            \"prev_end\": start - 1,\n            \"next_start\": end + 1,\n            \"type\": \"fade\",\n        })\n\n    transitions.sort(key=lambda t: (t[\"next_start\"], t[\"prev_end\"]))\n\n    # Resolve accidental overlaps conservatively.\n    cleaned = []\n    for tr in transitions:\n        if tr[\"prev_end\"] < 0:\n            continue\n        if cleaned and tr[\"next_start\"] <= cleaned[-1][\"next_start\"]:\n            continue\n        if cleaned and tr[\"prev_end\"] < cleaned[-1][\"next_start\"]:\n            continue\n        cleaned.append(tr)\n\n    return cleaned\n\n\ndef choose_keyframes(shots, sharpness):\n    selected = []\n    for start, end, _transition in shots:\n        mid = (start + end) / 2.0\n        # Prefer the frame with greatest Laplacian variance.  When several\n        # frames are equally sharp, prefer the one nearest the shot midpoint.\n        best = start\n        best_score = (sharpness[start], -abs(start - mid))\n        for frame in range(start + 1, end + 1):\n            score = (sharpness[frame], -abs(frame - mid))\n            if score > best_score:\n                best = frame\n                best_score = score\n        selected.append(best)\n    return selected\n\n\ndef build_shots(transitions, total_frames, sharpness):\n    shots = []\n    shot_start = 0\n\n    for tr in transitions:\n        if tr[\"prev_end\"] < shot_start:\n            continue\n\n        end = tr[\"prev_end\"]\n        if end < shot_start:\n            shot_start = max(shot_start, tr[\"next_start\"])\n            continue\n\n        shots.append((shot_start, end, tr[\"type\"]))\n        shot_start = tr[\"next_start\"]\n\n    if shot_start <= total_frames - 1:\n        shots.append((shot_start, total_frames - 1, \"cut\"))\n\n    # Fallback safety: if detection produced no usable shots, return one\n    # shot covering the whole video.\n    if not shots:\n        shots = [(0, total_frames - 1, \"cut\")]\n\n    keyframes = choose_keyframes(shots, sharpness)\n\n    output_shots = []\n    for idx, ((start, end, transition_after), keyframe) in enumerate(zip(shots, keyframes)):\n        output_shots.append({\n            \"shot_id\": idx,\n            \"start_frame\": int(start),\n            \"end_frame\": int(end),\n            \"transition_after\": transition_after,\n            \"keyframe_frame\": int(keyframe),\n        })\n    return output_shots\n\n\ndef read_keyframes(video_path, keyframe_numbers):\n    cap = cv2.VideoCapture(video_path)\n    if not cap.isOpened():\n        raise RuntimeError(\"Could not open video for keyframe extraction: {}\".format(video_path))\n\n    wanted = sorted(keyframe_numbers)\n    frames = {}\n    current = 0\n    wi = 0\n\n    while wi < len(wanted):\n        ok, frame = cap.read()\n        if not ok:\n            break\n\n        if current == wanted[wi]:\n            frames[current] = frame.copy()\n            wi += 1\n\n        current += 1\n\n    cap.release()\n    return frames\n\n\ndef make_contact_sheet(shots, frames):\n    thumb_w, thumb_h = 160, 120\n    border = 2\n    cols = 3\n    rows = int(math.ceil(len(shots) / float(cols)))\n\n    cell_w = thumb_w + 2 * border\n    cell_h = thumb_h + 2 * border\n    sheet_h = rows * cell_h\n    sheet_w = cols * cell_w\n\n    # Black background.\n    sheet = np.zeros((sheet_h, sheet_w, 3), dtype=np.uint8)\n\n    for idx, shot in enumerate(shots):\n        row = idx // cols\n        col = idx % cols\n        x = col * cell_w\n        y = row * cell_h\n\n        # White border/cell around each thumbnail.\n        sheet[y:y + cell_h, x:x + cell_w] = 255\n\n        key = shot[\"keyframe_frame\"]\n        frame = frames.get(key)\n        if frame is None:\n            thumb = np.zeros((thumb_h, thumb_w, 3), dtype=np.uint8)\n        else:\n            thumb = cv2.resize(frame, (thumb_w, thumb_h), interpolation=cv2.INTER_AREA)\n\n        sheet[y + border:y + border + thumb_h, x + border:x + border + thumb_w] = thumb\n\n    return sheet\n\n\ndef main():\n    if len(sys.argv) != 2:\n        print(\"Usage: python3 /app/shot_detector.py /path/to/video.mp4\", file=sys.stderr)\n        return 1\n\n    video_path = sys.argv[1]\n    analysis = analyze_video(video_path)\n\n    transitions = detect_transitions(analysis)\n    shots = build_shots(transitions, analysis[\"total_frames\"], analysis[\"sharpness\"])\n\n    output = {\n        \"total_frames\": int(analysis[\"total_frames\"]),\n        \"fps\": float(analysis[\"fps\"]),\n        \"shots\": shots,\n    }\n\n    with open(SHOTS_JSON, \"w\", encoding=\"utf-8\") as f:\n        json.dump(output, f, indent=2)\n        f.write(\"\\n\")\n\n    keyframe_numbers = [s[\"keyframe_frame\"] for s in shots]\n    frames = read_keyframes(video_path, keyframe_numbers)\n    sheet = make_contact_sheet(shots, frames)\n    if not cv2.imwrite(CONTACT_SHEET, sheet):\n        raise RuntimeError(\"Could not write contact sheet: {}\".format(CONTACT_SHEET))\n\n    return 0\n\n\nif __name__ == \"__main__\":\n    sys.exit(main())\nPY\npython3 -m py_compile /app/shot_detector.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 35.1,
+    "keystrokes": "python3 /app/shot_detector.py /app/example_video.mp4\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 39.2,
+    "keystrokes": "cat /app/shots.json\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 39.2,
+    "keystrokes": "python3 - <<'PY'\nimport cv2, os\np='/app/contact_sheet.png'\nimg=cv2.imread(p)\nprint('exists', os.path.exists(p), 'shape', img.shape if img is not None else None)\nPY\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 43.3,
+    "keystrokes": "cat /app/shots.json\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 43.3,
+    "keystrokes": "python3 - <<'PY'\nimport json\nwith open('/app/shots.json') as f:\n    data=json.load(f)\nprint('total_frames', data['total_frames'], 'fps', data['fps'], 'n', len(data['shots']))\nprev_end=None\nfor s in data['shots']:\n    print(s)\n    if prev_end is not None:\n        print('  gap/next start - prev_end:', s['start_frame']-prev_end)\n    prev_end=s['end_frame']\nPY\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 13,
+    "offset_sec": 47.4,
+    "keystrokes": "grep -n \"prev_end\\|next_start\\|Pair index\\|Active transition\" /app/shot_detector.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 50.5,
+    "keystrokes": "python3 - <<'PY'\nfrom pathlib import Path\np = Path('/app/shot_detector.py')\ns = p.read_text()\nold = '''        # Pair index p changes frame p-1 into frame p.  The new shot begins\n        # at frame p, while the previous shot ends at p-1.\n        transitions.append({\n            \"prev_end\": pair - 1,\n            \"next_start\": pair,\n            \"type\": \"cut\",\n        })'''\nnew = '''        # Difference index p compares frame p with frame p+1.  A hard cut\n        # therefore puts the previous shot's last frame at p and the next\n        # shot's first frame at p+1.\n        transitions.append({\n            \"prev_end\": pair,\n            \"next_start\": pair + 1,\n            \"type\": \"cut\",\n        })'''\nif old not in s:\n    raise SystemExit('cut replacement target not found')\ns = s.replace(old, new)\nold = '''        # Active transition pairs start..end.  The stable outgoing shot ends\n        # immediately before the first changed pair, and the incoming shot\n        # starts after the last changed pair.\n        transitions.append({\n            \"prev_end\": start - 1,\n            \"next_start\": end + 1,\n            \"type\": \"fade\",\n        })'''\nnew = '''        # Active transition pairs start..end compare frames start/start+1\n        # through end/end+1.  The outgoing shot's last stable frame is start,\n        # and the incoming shot's first stable frame is end+1.\n        transitions.append({\n            \"prev_end\": start,\n            \"next_start\": end + 1,\n            \"type\": \"fade\",\n        })'''\nif old not in s:\n    raise SystemExit('fade replacement target not found')\ns = s.replace(old, new)\np.write_text(s)\nprint('patched')\nPY\npython3 -m py_compile /app/shot_detector.py\npython3 /app/shot_detector.py /app/example_video.mp4\npython3 - <<'PY'\nimport json\nwith open('/app/shots.json') as f:\n    d=json.load(f)\nprint('total_frames', d['total_frames'], 'fps', d['fps'])\nfor s in d['shots']:\n    print(s)\nPY\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 15,
+    "offset_sec": 54.5,
+    "keystrokes": "rm -rf /app/__pycache__\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 15,
+    "offset_sec": 54.5,
+    "keystrokes": "ls -la /app\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 16,
+    "offset_sec": 57.7,
+    "keystrokes": "python3 - <<'PY'\nimport cv2, numpy as np\ncap=cv2.VideoCapture('/app/example_video.mp4')\nprev=None\nmetrics=[]\ni=0\nwhile True:\n    ok, frame=cap.read()\n    if not ok: break\n    small=cv2.resize(frame,(64,48),interpolation=cv2.INTER_AREA)\n    g=cv2.cvtColor(small,cv2.COLOR_BGR2GRAY).astype(np.float32)\n    c=small.astype(np.float32)\n    hsv=cv2.cvtColor(small,cv2.COLOR_BGR2HSV)\n    h=cv2.calcHist([hsv],[0,1],None,[32,32],[0,180,0,256])\n    cv2.normalize(h,h)\n    if prev is not None:\n        pg,pc,ph=prev\n        metrics.append((i,float(np.mean(np.abs(g-pg))),float(np.mean(np.abs(c-pc))),float(cv2.compareHist(ph,h,cv2.HISTCMP_CORREL))))\n    prev=(g,c,h)\n    i+=1\ncap.release()\nfor label, a, b in [('cuts',0,11),('fade1',230,281),('fade2',410,461)]:\n    pass\n# show surrounding known actual current-frame transitions\nfor name, rng in [('cut 89-91',(89,92)),('fade 239-241',(239,242)),('fade 269-271',(269,272)),('cut 359-361',(359,362)),('fade 419-421',(419,422)),('fade 449-451',(449,452))]:\n    print(name)\n    for i,mg,mc,corr in metrics:\n        if rng[0]<=i<=rng[1]:\n            print(i, 'gray',round(mg,3),'color',round(mc,3),'corr',round(corr,4))\nprint('max color mad cut groups near 90,180,360')\nfor center in [90,180,360]:\n    vals=[mc for i,mg,mc,corr in metrics if center-2<=i<=center+2]\n    print(center, max(vals) if vals else None)\nprint('max color mad fade regions')\nfor a,b in [(238,272),(418,452)]:\n    vals=[mc for i,mg,mc,corr in metrics if a<=i<=b]\n    print(a,b,max(vals) if vals else None)\nPY\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 17,
+    "offset_sec": 61.7,
+    "keystrokes": "python3 - <<'PY'\nimport cv2, numpy as np, subprocess, json, os, sys\n\ndef make(video_path, segments):\n    fourcc=cv2.VideoWriter_fourcc(*'mp4v')\n    vw=cv2.VideoWriter(video_path, fourcc, 30.0, (640,480))\n    for kind, n, a, b in segments:\n        for i in range(n):\n            if kind=='static':\n                frame=np.zeros((480,640,3),np.uint8)\n                frame[:] = a\n            else:\n                t=i/(n-1)\n                frame=np.zeros((480,640,3),np.uint8)\n                frame[:] = [int(round(a[j]*(1-t)+b[j]*t)) for j in range(3)]\n            vw.write(frame)\n    vw.release()\n\nred=(0,0,255); green=(0,255,0); blue=(255,0,0); mag=(255,0,255)\n# 15-frame fade: stable green frames 60-119, blended frames 120-134, stable blue 135-194\nmake('/tmp/test_fade15.mp4', [\n    ('static',60,red,None),\n    ('static',60,green,None),\n    ('fade',15,green,blue),\n    ('static',60,blue,None),\n])\n# 45-frame fade: stable red 0-74, blended frames 75-119, stable green 120-194\nmake('/tmp/test_fade45.mp4', [\n    ('static',75,red,None),\n    ('fade',45,red,green),\n    ('static',75,green,None),\n    ('static',75,mag,None),\n])\nfor p in ['/tmp/test_fade15.mp4','/tmp/test_fade45.mp4']:\n    print('testing', p)\n    r=subprocess.run([sys.executable,'/app/shot_detector.py',p], capture_output=True, text=True)\n    print('return', r.returncode, r.stderr.strip())\n    with open('/app/shots.json') as f:\n        d=json.load(f)\n    print('total', d['total_frames'])\n    for s in d['shots']:\n        print(s)\n    print()\nPY\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 18,
+    "offset_sec": 65.7,
+    "keystrokes": "\n",
+    "duration": 2.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 19,
+    "offset_sec": 70.7,
+    "keystrokes": "python3 - <<'PY'\nimport cv2, numpy as np\n\ndef diag(path):\n    cap=cv2.VideoCapture(path)\n    prev=None\n    rows=[]\n    i=0\n    while True:\n        ok, frame=cap.read()\n        if not ok: break\n        small=cv2.resize(frame,(64,48),interpolation=cv2.INTER_AREA)\n        g=cv2.cvtColor(small,cv2.COLOR_BGR2GRAY).astype(np.float32)\n        c=small.astype(np.float32)\n        hsv=cv2.cvtColor(small,cv2.COLOR_BGR2HSV)\n        h=cv2.calcHist([hsv],[0,1],None,[32,32],[0,180,0,256]); cv2.normalize(h,h)\n        if prev is not None:\n            pg,pc,ph=prev\n            rows.append((i-1,float(np.mean(np.abs(g-pg))),float(np.mean(np.abs(c-pc))),float(cv2.compareHist(ph,h,cv2.HISTCMP_CORREL))))\n        prev=(g,c,h); i+=1\n    cap.release()\n    mad=np.array([r[1] for r in rows]); color=np.array([r[2] for r in rows]); corr=np.array([r[3] for r in rows])\n    med=float(np.median(mad)); spread=1.4826*float(np.median(np.abs(mad-med)))\n    change=max(0.10, med+3*spread); cut=max(8.0, med+12*spread)\n    high=((mad>=cut)&(corr<=0.55))|((mad>=2.5*cut)&(corr<=0.85))\n    print('\\n',path,'n_pairs',len(rows),'med',med,'spread',spread,'change',change,'cut',cut)\n    active=(mad>change)|(color>2*change)\n    runs=[]; s=None\n    for idx,val in enumerate(active):\n        if val:\n            if s is None: s=idx\n        else:\n            if s is not None: runs.append((s,idx-1)); s=None\n    if s is not None: runs.append((s,len(active)-1))\n    for a,b in runs:\n        print('run',a,b,'len',b-a+1,'maxmad',mad[a:b+1].max(),'maxcol',color[a:b+1].max(),'high_any',bool(high[a:b+1].any()),'cum',mad[a:b+1].sum())\n        for p in range(max(0,a-1),min(len(rows),b+2)):\n            print(' ',p,'mad',round(mad[p],3),'col',round(color[p],3),'corr',round(corr[p],4),'high',bool(high[p]))\nfor p in ['/tmp/test_fade15.mp4','/tmp/test_fade45.mp4']:\n    diag(p)\nPY\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 20,
+    "offset_sec": 74.7,
+    "keystrokes": "python3 - <<'PY'\nimport sys, importlib.util\nspec=importlib.util.spec_from_file_location('sd','/app/shot_detector.py')\nsd=importlib.util.module_from_spec(spec); spec.loader.exec_module(sd)\nfor p in ['/app/example_video.mp4','/tmp/test_fade15.mp4','/tmp/test_fade45.mp4']:\n    a=sd.analyze_video(p)\n    d=a['diffs']\n    import numpy as np\n    mad=np.array([x['mad_gray'] for x in d]); color=np.array([x['mad_color'] for x in d]); corr=np.array([x['corr'] for x in d])\n    med=float(np.median(mad)); spread=1.4826*float(np.median(np.abs(mad-med)))\n    change=max(0.10,med+3*spread); cut=max(8.0,med+12*spread)\n    active=(mad>change)|(color>2*change)\n    runs=[]; s=None\n    for idx,val in enumerate(active):\n        if val and s is None: s=idx\n        if not val and s is not None: runs.append((s,idx-1)); s=None\n    if s is not None: runs.append((s,len(active)-1))\n    high=((mad>=cut)&(corr<=0.55))|((mad>=2.5*cut)&(corr<=0.85))\n    print('\\n',p,'pairs',len(d),'med',round(med,3),'spread',round(spread,3),'change',round(change,3),'cut',round(cut,3))\n    for r in runs:\n        a1,b1=r\n        print(' run idx',r,'len',b1-a1+1,'maxmad',round(float(mad[a1:b1+1].max()),3),'maxcol',round(float(color[a1:b1+1].max()),3),'high_any',bool(high[a1:b1+1].any()))\n    print(' transitions',sd.detect_transitions(a))\nPY\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 21,
+    "offset_sec": 78.7,
+    "keystrokes": "sed -n '118,175p' /app/shot_detector.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 22,
+    "offset_sec": 81.8,
+    "keystrokes": "python3 - <<'PY'\nfrom pathlib import Path\np=Path('/app/shot_detector.py')\ns=p.read_text()\nold='''    high = (mad >= cut_threshold) & (corr <= 0.55)\n    high = high | ((mad >= 2.5 * cut_threshold) & (corr <= 0.85))'''\nnew='''    high = ((mad >= cut_threshold) | (color >= 2.0 * cut_threshold)) & (corr <= 0.55)\n    high = high | (((mad >= 2.5 * cut_threshold) | (color >= 5.0 * cut_threshold)) & (corr <= 0.85))'''\nif old not in s: raise SystemExit('high target not found')\ns=s.replace(old,new)\nold='''        # A dissolve/fade is a sustained gradual change bounded by stable\n        # content on both sides.\n        if 15 <= length <= 45 and not has_high:\n            cumulative = float(np.sum(mad[start:end + 1]))\n            if cumulative >= 4.0:\n                fade_intervals.append((start, end))'''\nnew='''        # A dissolve/fade is a sustained gradual change bounded by stable\n        # content on both sides.  A 15-frame blend often produces only 14\n        # changed adjacent-frame pairs because its first/last frames match\n        # the neighboring stable shots, so allow 14..46 pairs here.\n        if 14 <= length <= 46:\n            cumulative = float(np.sum(mad[start:end + 1]))\n            if cumulative >= 4.0:\n                fade_intervals.append((start, end))'''\nif old not in s: raise SystemExit('fade target not found')\ns=s.replace(old,new)\np.write_text(s)\nprint('patched')\nPY\npython3 -m py_compile /app/shot_detector.py\npython3 /app/shot_detector.py /app/example_video.mp4\npython3 - <<'PY'\nimport json\nwith open('/app/shots.json') as f: d=json.load(f)\nprint('EXAMPLE', d['total_frames'], d['fps'])\nfor s in d['shots']: print(s)\nPY\nfor p in /tmp/test_fade15.mp4 /tmp/test_fade45.mp4; do python3 /app/shot_detector.py \"$p\"; python3 - \"$p\" <<'PY'\nimport json,sys\nwith open('/app/shots.json') as f: d=json.load(f)\nprint('VIDEO', sys.argv[1], 'frames', d['total_frames'])\nfor s in d['shots']: print(s)\nPY\ndone\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 23,
+    "offset_sec": 85.8,
+    "keystrokes": "python3 - <<'PY'\nimport importlib.util, numpy as np\nspec=importlib.util.spec_from_file_location('sd','/app/shot_detector.py')\nsd=importlib.util.module_from_spec(spec); spec.loader.exec_module(sd)\np='/tmp/test_fade45.mp4'\na=sd.analyze_video(p); d=a['diffs']\nmad=np.array([x['mad_gray'] for x in d]); color=np.array([x['mad_color'] for x in d]); corr=np.array([x['corr'] for x in d])\nmed=float(np.median(mad)); spread=1.4826*float(np.median(np.abs(mad-med))); change=max(0.10,med+3*spread); cut=max(8.0,med+12*spread)\nhigh=((mad>=cut)|(color>=2*cut))&(corr<=0.55)\nhigh=high|(((mad>=2.5*cut)|(color>=5*cut))&(corr<=0.85))\nactive=(mad>change)|(color>2*change)\nruns=[]; s=None\nfor idx,val in enumerate(active):\n    if val and s is None: s=idx\n    if not val and s is not None: runs.append((s,idx-1)); s=None\nif s is not None: runs.append((s,len(active)-1))\nprint('total',a['total_frames'],'pairs',len(d),'change',change,'cut',cut)\nfor r in runs:\n    print('run',r,'len',r[1]-r[0]+1,'maxmad',mad[r[0]:r[1]+1].max(),'maxcol',color[r[0]:r[1]+1].max(),'high_any',high[r[0]:r[1]+1].any())\nprint('transitions',sd.detect_transitions(a))\nPY\npython3 /app/shot_detector.py /tmp/test_fade45.mp4\npython3 - <<'PY'\nimport json\nwith open('/app/shots.json') as f: d=json.load(f)\nfor s in d['shots']: print(s)\nPY\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 24,
+    "offset_sec": 89.8,
+    "keystrokes": "python3 /app/shot_detector.py /app/example_video.mp4\nrm -rf /app/__pycache__ /tmp/test_fade15.mp4 /tmp/test_fade45.mp4\npython3 - <<'PY'\nimport cv2, json, os\nwith open('/app/shots.json') as f:\n    data = json.load(f)\nimg = cv2.imread('/app/contact_sheet.png')\nprint('shots.json total_frames=', data['total_frames'], 'fps=', data['fps'], 'shot_count=', len(data['shots']))\nfor s in data['shots']:\n    print(s)\nprint('contact_sheet exists=', os.path.exists('/app/contact_sheet.png'), 'shape=', None if img is None else img.shape)\nPY\nls -la /app\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 25,
+    "offset_sec": 93.8,
+    "keystrokes": "python3 - <<'PY'\nimport cv2, numpy as np\ncap=cv2.VideoCapture('/app/example_video.mp4')\nsigs=[]\nmeans=[]\ni=0\nwhile True:\n    ok, frame=cap.read()\n    if not ok: break\n    small=cv2.resize(frame,(64,48),interpolation=cv2.INTER_AREA).astype(np.float32)\n    sigs.append(small)\n    means.append(small.mean())\n    i+=1\ncap.release()\nprint('frames',len(sigs))\nfor a,b in [(235,273),(415,453)]:\n    print('--- range',a,b)\n    for p in range(a,b):\n        d=float(np.mean(np.abs(sigs[p]-sigs[p+1])))\n        print(f'{p:3d}->{p+1:3d} diff={d:8.4f} mean=({means[p]:7.2f},{means[p+1]:7.2f})')\nPY\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 26,
+    "offset_sec": 97.8,
+    "keystrokes": "sed -n '1,260p' /app/shot_detector.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 27,
+    "offset_sec": 100.9,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 28,
+    "offset_sec": 103.9,
+    "keystrokes": "python3 - <<'PY'\nimport cv2, numpy as np, os, subprocess, json, sys\n\ndef make_video(path, frames):\n    vw=cv2.VideoWriter(path, cv2.VideoWriter_fourcc(*'mp4v'), 30.0, (640,480))\n    for f in frames:\n        vw.write(np.clip(f,0,255).astype(np.uint8))\n    vw.release()\n\ndef const(color): return np.zeros((480,640,3),np.uint8)+np.array(color,dtype=np.uint8)\ndef checker(phase, c1=(0,0,0), c2=(255,255,255)):\n    f=np.zeros((480,640,3),np.uint8)\n    yy,xx=np.indices((480,640))\n    mask=((xx//40+yy//40+phase)%2)==0\n    f[mask]=c1; f[~mask]=c2\n    return f\ndef noise(seed):\n    rng=np.random.RandomState(seed)\n    return rng.randint(0,256,(480,640,3),dtype=np.uint8)\n\n# Hard cut between two noisy textures\nmake_video('/tmp/t_cut_noise.mp4', [noise(1)]*60 + [noise(2)]*60)\n# Hard cut between checkerboard and inverse (same histogram, large pixel diff)\nmake_video('/tmp/t_cut_checker.mp4', [checker(0)]*60 + [checker(1)]*60)\n\n# Color-only hard cut: choose two BGR colors with equal grayscale-ish conversion result\n# Use OpenCV BGR2GRAY = 0.114B + 0.587G + 0.299R.\n# BGR (255,0,0)->29, BGR (0,0,97)->29 approx\nc1=const((255,0,0)); c2=const((0,0,97))\nmake_video('/tmp/t_cut_color.mp4', [c1]*60 + [c2]*60)\n\n# Fades with differing alpha endpoints\ndef fade_video(path, a, b, n, endpoint_eq=True):\n    frames=[]\n    if endpoint_eq:\n        for i in range(n): t=i/(n-1); frames.append((1-t)*a+t*b)\n    else:\n        for i in range(n): t=(i+1)/(n+1); frames.append((1-t)*a+t*b)\n    make_video(path, [const((0,0,255))]*60 + frames + [const((255,0,0))]*60)\n\nfade_video('/tmp/t_fade15_eq.mp4', (0,0,255), (255,0,0), 15, True)\nfade_video('/tmp/t_fade30_eq.mp4', (0,255,0), (255,0,0), 30, True)\nfade_video('/tmp/t_fade45_eq.mp4', (0,0,255), (0,255,0), 45, True)\nfade_video('/tmp/t_fade15_ne.mp4', (0,0,255), (255,0,0), 15, False)\nfade_video('/tmp/t_fade45_ne.mp4', (0,0,255), (0,255,0), 45, False)\n\ntests=['/tmp/t_cut_noise.mp4','/tmp/t_cut_checker.mp4','/tmp/t_cut_color.mp4',\n       '/tmp/t_fade15_eq.mp4','/tmp/t_fade30_eq.mp4','/tmp/t_fade45_eq.mp4',\n       '/tmp/t_fade15_ne.mp4','/tmp/t_fade45_ne.mp4']\nfor p in tests:\n    r=subprocess.run([sys.executable,'/app/shot_detector.py',p],capture_output=True,text=True)\n    print('\\nTEST',p,'return',r.returncode,'err',r.stderr.strip())\n    if r.returncode==0:\n        with open('/app/shots.json') as f: d=json.load(f)\n        print('frames',d['total_frames'],'shots',len(d['shots']))\n        for s in d['shots']:\n            print(s)\nPY\n",
+    "duration": 2.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 29,
+    "offset_sec": 108.9,
+    "keystrokes": "python3 - <<'PY'\nimport cv2, numpy as np, os, subprocess, json, sys\n\ndef make_video(path, frames):\n    vw=cv2.VideoWriter(path, cv2.VideoWriter_fourcc(*'mp4v'), 30.0, (640,480))\n    for f in frames:\n        vw.write(np.clip(f,0,255).astype(np.uint8))\n    vw.release()\n\ndef const(color):\n    return np.zeros((480,640,3),np.uint8)+np.array(color,dtype=np.uint8)\n\ndef checker(phase, c1=(0,0,0), c2=(255,255,255)):\n    f=np.zeros((480,640,3),np.uint8)\n    yy,xx=np.indices((480,640))\n    mask=((xx//40+yy//40+phase)%2)==0\n    f[mask]=c1; f[~mask]=c2\n    return f\n\ndef noise(seed):\n    rng=np.random.RandomState(seed)\n    return rng.randint(0,256,(480,640,3),dtype=np.uint8)\n\nmake_video('/tmp/t_cut_noise.mp4', [noise(1)]*60 + [noise(2)]*60)\nmake_video('/tmp/t_cut_checker.mp4', [checker(0)]*60 + [checker(1)]*60)\nmake_video('/tmp/t_cut_color.mp4', [const((255,0,0))]*60 + [const((0,0,97))]*60)\n\ndef fade_video(path, a0, b0, n, endpoint_eq=True):\n    a=np.array(a0,dtype=np.float64); b=np.array(b0,dtype=np.float64)\n    frames=[]\n    if endpoint_eq:\n        ts=[i/(n-1) for i in range(n)]\n    else:\n        ts=[(i+1)/(n+1) for i in range(n)]\n    for t in ts:\n        frames.append((1-t)*a+t*b)\n    make_video(path, [const((0,0,255))]*60 + frames + [const((255,0,0))]*60)\n\nfade_video('/tmp/t_fade15_eq.mp4', (0,0,255), (255,0,0), 15, True)\nfade_video('/tmp/t_fade30_eq.mp4', (0,255,0), (255,0,0), 30, True)\nfade_video('/tmp/t_fade45_eq.mp4', (0,0,255), (0,255,0), 45, True)\nfade_video('/tmp/t_fade15_ne.mp4', (0,0,255), (255,0,0), 15, False)\nfade_video('/tmp/t_fade45_ne.mp4', (0,0,255), (0,255,0), 45, False)\n\ntests=['/tmp/t_cut_noise.mp4','/tmp/t_cut_checker.mp4','/tmp/t_cut_color.mp4',\n       '/tmp/t_fade15_eq.mp4','/tmp/t_fade30_eq.mp4','/tmp/t_fade45_eq.mp4',\n       '/tmp/t_fade15_ne.mp4','/tmp/t_fade45_ne.mp4']\nfor p in tests:\n    r=subprocess.run([sys.executable,'/app/shot_detector.py',p],capture_output=True,text=True)\n    print('\\nTEST',p,'return',r.returncode,'err',r.stderr.strip())\n    if r.returncode==0:\n        with open('/app/shots.json') as f: d=json.load(f)\n        print('frames',d['total_frames'],'shots',len(d['shots']))\n        for s in d['shots']:\n            print(s)\nPY\n",
+    "duration": 2.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 30,
+    "offset_sec": 113.9,
+    "keystrokes": "\n",
+    "duration": 2.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 31,
+    "offset_sec": 118.9,
+    "keystrokes": "python3 - <<'PY'\nfrom pathlib import Path\np = Path('/app/shot_detector.py')\ns = p.read_text()\nold = '''    high = ((mad >= cut_threshold) | (color >= 2.0 * cut_threshold)) & (corr <= 0.55)\n    high = high | (((mad >= 2.5 * cut_threshold) | (color >= 5.0 * cut_threshold)) & (corr <= 0.85))'''\nnew = '''    # Normal histogram-based cut criterion.\n    high = ((mad >= cut_threshold) | (color >= 2.0 * cut_threshold)) & (corr <= 0.55)\n    # Extremely large adjacent-frame differences are treated as cuts even if\n    # both shots share a similar color histogram (e.g. phase-inverted images).\n    strong_cut = (mad >= 2.5 * cut_threshold) | (color >= 5.0 * cut_threshold)\n    high = high | strong_cut'''\nif old not in s:\n    raise SystemExit('target replacement not found')\ns = s.replace(old, new)\np.write_text(s)\nprint('patched')\nPY\npython3 -m py_compile /app/shot_detector.py\npython3 /app/shot_detector.py /app/example_video.mp4\npython3 - <<'PY'\nimport json\nwith open('/app/shots.json') as f:\n    d=json.load(f)\nprint('EXAMPLE')\nfor s in d['shots']:\n    print(s)\nPY\nfor p in /tmp/t_cut_noise.mp4 /tmp/t_cut_checker.mp4 /tmp/t_cut_color.mp4; do\n  if [ -f \"$p\" ]; then\n    python3 /app/shot_detector.py \"$p\"\n    python3 - \"$p\" <<'PY'\nimport json,sys\nwith open('/app/shots.json') as f: d=json.load(f)\nprint('TEST',sys.argv[1],'shots',len(d['shots']))\nfor s in d['shots']: print(s)\nPY\n  fi\ndone\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 32,
+    "offset_sec": 122.9,
+    "keystrokes": "\n",
+    "duration": 2.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 33,
+    "offset_sec": 127.9,
+    "keystrokes": "python3 - <<'PY'\nimport cv2, numpy as np, importlib.util\np='/tmp/t_cut_noise.mp4'\ncap=cv2.VideoCapture(p)\nprint('opened',cap.isOpened(),'count',cap.get(cv2.CAP_PROP_FRAME_COUNT),'fps',cap.get(cv2.CAP_PROP_FPS),'w/h',cap.get(cv2.CAP_PROP_FRAME_WIDTH),cap.get(cv2.CAP_PROP_FRAME_HEIGHT))\nprev=None\nrows=[]\ni=0\nframe_means=[]\nwhile True:\n    ok,frame=cap.read()\n    if not ok: break\n    frame_means.append(float(frame.mean()))\n    small=cv2.resize(frame,(64,48),interpolation=cv2.INTER_AREA)\n    g=cv2.cvtColor(small,cv2.COLOR_BGR2GRAY).astype(np.float32)\n    c=small.astype(np.float32)\n    hsv=cv2.cvtColor(small,cv2.COLOR_BGR2HSV)\n    h=cv2.calcHist([hsv],[0,1],None,[32,32],[0,180,0,256]); cv2.normalize(h,h)\n    if prev is not None:\n        pg,pc,ph=prev\n        rows.append((i-1,float(np.mean(np.abs(g-pg))),float(np.mean(np.abs(c-pc))),float(cv2.compareHist(ph,h,cv2.HISTCMP_CORREL))))\n    prev=(g,c,h); i+=1\ncap.release()\nprint('decoded',i)\nprint('first means', [round(x,2) for x in frame_means[:5]], 'last means', [round(x,2) for x in frame_means[-5:]])\nprint('unique means count', len(set(round(x,5) for x in frame_means)))\nprint('max adjacent MAD rows')\nfor r in sorted(rows,key=lambda x:x[1],reverse=True)[:10]: print(r)\nspec=importlib.util.spec_from_file_location('sd','/app/shot_detector.py'); sd=importlib.util.module_from_spec(spec); spec.loader.exec_module(sd)\na=sd.analyze_video(p)\nprint('transitions',sd.detect_transitions(a))\nPY\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 34,
+    "offset_sec": 131.9,
+    "keystrokes": "python3 -m py_compile /app/shot_detector.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 34,
+    "offset_sec": 131.9,
+    "keystrokes": "python3 /app/shot_detector.py /app/example_video.mp4\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 34,
+    "offset_sec": 131.9,
+    "keystrokes": "rm -rf /app/__pycache__ /tmp/t_cut_noise.mp4 /tmp/t_cut_checker.mp4 /tmp/t_cut_color.mp4 /tmp/t_fade15_eq.mp4 /tmp/t_fade30_eq.mp4 /tmp/t_fade45_eq.mp4 /tmp/t_fade15_ne.mp4 /tmp/t_fade45_ne.mp4\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 34,
+    "offset_sec": 131.9,
+    "keystrokes": "python3 - <<'PY'\nimport cv2, json, os\nwith open('/app/shots.json') as f:\n    data = json.load(f)\nimg = cv2.imread('/app/contact_sheet.png')\nprint('shots.json:', data['total_frames'], data['fps'], len(data['shots']))\nfor s in data['shots']:\n    print(s)\nprint('contact_sheet:', os.path.exists('/app/contact_sheet.png'), img.shape if img is not None else None)\nPY\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 36,
+    "offset_sec": 137.1,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 37,
+    "offset_sec": 140.1,
+    "keystrokes": "python3 - <<'PY'\nimport cv2, numpy as np, importlib.util, json, subprocess, sys, os\np='/tmp/test_fade15_clean.mp4'\nvw=cv2.VideoWriter(p, cv2.VideoWriter_fourcc(*'mp4v'), 30.0, (640,480))\ndef frame(color): return np.zeros((480,640,3),np.uint8)+np.array(color,np.uint8)\nred=(0,0,255); blue=(255,0,0)\nfor _ in range(60): vw.write(frame(red))\nfor i in range(15):\n    t=i/14.0\n    vw.write(np.clip((1-t)*np.array(red,np.float64)+t*np.array(blue,np.float64),0,255).astype(np.uint8))\nfor _ in range(60): vw.write(frame(blue))\nvw.release()\nprint('created',os.path.exists(p),os.path.getsize(p))\n\nspec=importlib.util.spec_from_file_location('sd','/app/shot_detector.py')\nsd=importlib.util.module_from_spec(spec); spec.loader.exec_module(sd)\na=sd.analyze_video(p)\nd=a['diffs']\nmad=np.array([x['mad_gray'] for x in d]); color=np.array([x['mad_color'] for x in d]); corr=np.array([x['corr'] for x in d])\nprint('frames',a['total_frames'],'pairs',len(d))\nprint('selected adjacent metrics:')\nfor i in range(max(0,55),min(len(d),77)):\n    print(i,'mad',round(float(mad[i]),4),'color',round(float(color[i]),4),'corr',round(float(corr[i]),4))\nmed=float(np.median(mad)); spread=1.4826*float(np.median(np.abs(mad-med)))\nchange=max(0.10,med+3*spread); cut=max(8.0,med+12*spread)\nprint('med',med,'spread',spread,'change',change,'cut',cut)\nactive=(mad>change)|(color>2*change)\nruns=[]; s=None\nfor i,v in enumerate(active):\n    if v and s is None: s=i\n    if not v and s is not None: runs.append((s,i-1)); s=None\nif s is not None: runs.append((s,len(active)-1))\nprint('runs',runs)\nprint('transitions',sd.detect_transitions(a))\nPY\npython3 /app/shot_detector.py /tmp/test_fade15_clean.mp4\npython3 - <<'PY'\nimport json\nwith open('/app/shots.json') as f: d=json.load(f)\nprint('DETECTED')\nfor s in d['shots']: print(s)\nPY\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 38,
+    "offset_sec": 144.1,
+    "keystrokes": "python3 - <<'PY'\nimport cv2, numpy as np, os\nred = (0,0,255)\nblue = (255,0,0)\ndef make_fade(path, n):\n    vw = cv2.VideoWriter(path, cv2.VideoWriter_fourcc(*'mp4v'), 30.0, (640,480))\n    A = np.zeros((480,640,3), np.uint8); A[:] = red\n    B = np.zeros((480,640,3), np.uint8); B[:] = blue\n    for _ in range(60): vw.write(A)\n    for i in range(n):\n        # alpha starts just above zero and ends just below one, so every\n        # transition frame differs from both stable endpoint shots.\n        alpha = (i+1)/(n+1)\n        vw.write(cv2.addWeighted(A, 1.0-alpha, B, alpha, 0.0))\n    for _ in range(60): vw.write(B)\n    vw.release()\n    return os.path.getsize(path)\nfor n in (15, 45):\n    p = f'/tmp/correct_fade{n}.mp4'\n    print(p, make_fade(p, n))\nPY\nfor p in /tmp/correct_fade15.mp4 /tmp/correct_fade45.mp4; do\n  echo \"--- $p\"\n  python3 /app/shot_detector.py \"$p\"\n  python3 - \"$p\" <<'PY'\nimport json,sys\nwith open('/app/shots.json') as f: d=json.load(f)\nprint('shots', len(d['shots']))\nfor s in d['shots']: print(s)\nPY\ndone\npython3 /app/shot_detector.py /app/example_video.mp4\nrm -rf /app/__pycache__ /tmp/correct_fade15.mp4 /tmp/correct_fade45.mp4 /tmp/test_fade15_clean.mp4\n",
+    "duration": 2.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 39,
+    "offset_sec": 149.1,
+    "keystrokes": "\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 39,
+    "offset_sec": 149.1,
+    "keystrokes": "python3 - <<'PY'\nimport json, cv2, os\nwith open('/app/shots.json') as f:\n    d = json.load(f)\nprint('total_frames', d['total_frames'], 'fps', d['fps'], 'shots', len(d['shots']))\nfor s in d['shots']:\n    print(s)\nimg = cv2.imread('/app/contact_sheet.png')\nprint('contact_sheet', os.path.exists('/app/contact_sheet.png'), None if img is None else img.shape)\nPY\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 40,
+    "offset_sec": 154.1,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 41,
+    "offset_sec": 157.1,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

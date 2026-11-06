@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The grader evaluates Surprise models trained from pandas integer IDs using string IDs loaded from the CSV, making every held-out user and item unknown and rejecting an otherwise qualifying model.",
+    "evidence": "attempt-08.jsonl turn 34 reports RMSE 0.913968 and a 2.72 MB pickle from Dataset.load_from_df; replaying that approach reproduces those values, while the seed verifier reports RMSE 1.1303. tests/test_outputs.py loads its test set through Dataset.load_from_file without reconciling raw-ID types.",
+    "change": "Normalize held-out raw user and item IDs to the trained model's raw-ID key types before prediction, preserving the same records and split while accepting both documented CSV-loading approaches.",
+    "kind": "hidden_requirement"
+  }
+]

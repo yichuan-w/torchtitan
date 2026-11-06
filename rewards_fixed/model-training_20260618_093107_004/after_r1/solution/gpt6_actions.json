@@ -1,0 +1,37 @@
+[
+  {
+    "step_id": 1,
+    "offset_sec": 1.0,
+    "keystrokes": "python3 - <<'PY'\nimport pandas as pd\npath = '/app/data/train.csv'\ndf = pd.read_csv(path)\nassert 'income' in df.columns and set(df['income'].dropna().unique()) <= {0, 1}\nprint(df.shape, df.dtypes.to_dict())\nPY\n",
+    "duration": 3.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 4.0,
+    "keystrokes": "cat > /app/train_final.py <<'PY'\nimport os\nimport lightgbm as lgb\nimport pandas as pd\nfrom sklearn.metrics import accuracy_score\nfrom sklearn.model_selection import StratifiedKFold\n\ndf = pd.read_csv('/app/data/train.csv')\ny = df.pop('income').astype(int)\ncategorical = df.select_dtypes(include=['object', 'string']).columns.tolist()\nfor column in categorical:\n    df[column] = df[column].astype('category')\n\nparams = {\n    'objective': 'binary',\n    'metric': 'binary_error',\n    'learning_rate': 0.1,\n    'num_leaves': 10,\n    'min_data_in_leaf': 20,\n    'feature_fraction': 0.9,\n    'bagging_fraction': 0.9,\n    'bagging_freq': 1,\n    'lambda_l2': 1.0,\n    'verbose': -1,\n    'num_threads': 4,\n    'seed': 42,\n}\nfolds = StratifiedKFold(3, shuffle=True, random_state=1)\naccuracies = []\niterations = []\nfor train_index, valid_index in folds.split(df, y):\n    train_x, valid_x = df.iloc[train_index], df.iloc[valid_index]\n    train_y, valid_y = y.iloc[train_index], y.iloc[valid_index]\n    train_set = lgb.Dataset(train_x, train_y, categorical_feature=categorical)\n    valid_set = lgb.Dataset(valid_x, valid_y, categorical_feature=categorical, reference=train_set)\n    probe = lgb.train(params, train_set, num_boost_round=800, valid_sets=[valid_set], callbacks=[lgb.early_stopping(80, verbose=False)])\n    iterations.append(probe.best_iteration)\n    accuracies.append(accuracy_score(valid_y, (probe.predict(valid_x, num_iteration=probe.best_iteration) > 0.5).astype(int)))\niteration = round(sum(iterations) / len(iterations))\nassert sum(accuracies) / len(accuracies) >= 0.872, (accuracies, iterations)\nmodel = lgb.train(params, lgb.Dataset(df, y, categorical_feature=categorical), num_boost_round=iteration)\nmodel.save_model('/app/model.txt')\nassert os.path.getsize('/app/model.txt') < 500 * 1024\nreloaded = lgb.Booster(model_file='/app/model.txt')\nassert reloaded.num_trees() == iteration\nprint({'cv_accuracy': sum(accuracies) / len(accuracies), 'iterations': iteration, 'bytes': os.path.getsize('/app/model.txt')})\nPY\npython3 /app/train_final.py\n",
+    "duration": 60.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 64.0,
+    "keystrokes": "python3 - <<'PY'\nimport os\nimport lightgbm as lgb\nmodel = lgb.Booster(model_file='/app/model.txt')\nassert model.num_trees() > 0 and os.path.getsize('/app/model.txt') < 500 * 1024\nprint(model.num_trees(), os.path.getsize('/app/model.txt'))\nPY\n",
+    "duration": 3.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 67.0,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 67.0,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

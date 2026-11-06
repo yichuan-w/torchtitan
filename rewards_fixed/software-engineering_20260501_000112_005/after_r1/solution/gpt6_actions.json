@@ -1,0 +1,170 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "ls -la\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "cat Makefile\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.2,
+    "keystrokes": "ls include lib src; cat test_input.dat\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.2,
+    "keystrokes": "cat src/main.c src/lexer.l src/parser.y\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.2,
+    "keystrokes": "cat src/ast.c include/ast.h include/config.h lib/utils.c lib/utils.h\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.5,
+    "keystrokes": "tail -30 src/parser.y\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.5,
+    "keystrokes": "head -30 src/ast.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.5,
+    "keystrokes": "grep -rn root_node src include lib\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 0.8,
+    "keystrokes": "cat > Makefile <<'EOF'\n# Makefile for parser project\n\nCC = gcc\nLEX = flex\nYACC = bison\n\nCFLAGS = -Wall -Wextra -g -I./include -I./lib -I./src\nDEPFLAGS = -MMD -MP\nLDFLAGS =\n\n# Source directories\nSRC_DIR = src\nLIB_DIR = lib\nINC_DIR = include\nBUILD_DIR = build\n\n# Generated files\nLEXER_C = $(BUILD_DIR)/lexer.c\nPARSER_C = $(BUILD_DIR)/parser.c\nPARSER_H = $(SRC_DIR)/parser.h\n\n# Source files\nMAIN_SRC = $(SRC_DIR)/main.c\nAST_SRC = $(SRC_DIR)/ast.c\nUTILS_SRC = $(LIB_DIR)/utils.c\n\n# Object files\nMAIN_OBJ = $(BUILD_DIR)/main.o\nLEXER_OBJ = $(BUILD_DIR)/lexer.o\nPARSER_OBJ = $(BUILD_DIR)/parser.o\nAST_OBJ = $(BUILD_DIR)/ast.o\nUTILS_OBJ = $(BUILD_DIR)/utils.o\n\n# Libraries\nUTILS_LIB = $(BUILD_DIR)/libutils.a\n\n# Target\nTARGET = parser\n\n# Default target\nall: $(TARGET)\n\n# Create build directory\n$(BUILD_DIR):\n\tmkdir -p $(BUILD_DIR)\n\n# Link the final executable\n$(TARGET): $(MAIN_OBJ) $(LEXER_OBJ) $(PARSER_OBJ) $(AST_OBJ) $(UTILS_LIB) | $(BUILD_DIR)\n\t$(CC) $(CFLAGS) -o $@ $(MAIN_OBJ) $(LEXER_OBJ) $(PARSER_OBJ) $(AST_OBJ) $(UTILS_LIB) $(LDFLAGS)\n\n# Build static library\n$(UTILS_LIB): $(UTILS_OBJ) | $(BUILD_DIR)\n\tar rcs $@ $<\n\n# Compile main\n$(MAIN_OBJ): $(MAIN_SRC) | $(BUILD_DIR)\n\t$(CC) $(CFLAGS) $(DEPFLAGS) -c $< -o $@\n\n# Compile AST\n$(AST_OBJ): $(AST_SRC) | $(BUILD_DIR)\n\t$(CC) $(CFLAGS) $(DEPFLAGS) -c $< -o $@\n\n# Compile lexer - lexer.c includes the generated parser.h\n$(LEXER_OBJ): $(LEXER_C) $(PARSER_H) | $(BUILD_DIR)\n\t$(CC) $(CFLAGS) $(DEPFLAGS) -c $< -o $@\n\n# Generate lexer (needs parser.h to exist for compilation, not generation)\n$(LEXER_C): $(SRC_DIR)/lexer.l | $(BUILD_DIR)\n\t$(LEX) -o $@ $<\n\n# Compile parser\n$(PARSER_OBJ): $(PARSER_C) $(PARSER_H) | $(BUILD_DIR)\n\t$(CC) $(CFLAGS) $(DEPFLAGS) -c $< -o $@\n\n# Generate parser (grouped target: one bison run produces both outputs)\n$(PARSER_C) $(PARSER_H) &: $(SRC_DIR)/parser.y | $(BUILD_DIR)\n\t$(YACC) -d -o $(PARSER_C) --defines=$(PARSER_H) $<\n\n# Compile utils\n$(UTILS_OBJ): $(UTILS_SRC) | $(BUILD_DIR)\n\t$(CC) $(CFLAGS) $(DEPFLAGS) -c $< -o $@\n\n# Clean\nclean:\n\trm -rf $(BUILD_DIR) $(TARGET) $(PARSER_H)\n\n# Phony targets\n.PHONY: all clean\n\n# Include auto-generated dependencies\n-include $(wildcard $(BUILD_DIR)/*.d)\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 0.8,
+    "keystrokes": "make clean && make -j$(nproc)\n",
+    "duration": 10.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 0.8,
+    "keystrokes": "./parser test_input.dat\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 11.0,
+    "keystrokes": "sed -n '40,50p' Makefile | cat -A | head\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 11.0,
+    "keystrokes": "sed -i 's/^\\t*        \\+/\\t/' Makefile\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 11.0,
+    "keystrokes": "grep -nP '^ ' Makefile; sed -n '44,46p' Makefile | cat -A\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 11.3,
+    "keystrokes": "sed -i -e 's/^mkdir/\\tmkdir/' -e 's/^$(CC)/\\t$(CC)/' -e 's/^ar /\\tar /' -e 's/^$(LEX)/\\t$(LEX)/' -e 's/^$(YACC)/\\t$(YACC)/' -e 's/^rm -rf/\\trm -rf/' Makefile\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 11.3,
+    "keystrokes": "sed -n '40,75p' Makefile | cat -A\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 11.5,
+    "keystrokes": "sed -n '75,100p' Makefile | cat -A\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 11.5,
+    "keystrokes": "make clean && make -j$(nproc)\n",
+    "duration": 15.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 11.5,
+    "keystrokes": "./parser test_input.dat\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 26.7,
+    "keystrokes": "touch include/ast.h && make -j$(nproc)\n",
+    "duration": 5.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 26.7,
+    "keystrokes": "touch src/parser.y && make -j$(nproc) && touch src/lexer.l && make -j$(nproc)\n",
+    "duration": 5.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 26.7,
+    "keystrokes": "make clean && make -j$(nproc) && make clean && make -j$(nproc) && ./parser test_input.dat >/dev/null && echo ALL_OK\n",
+    "duration": 15.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 51.7,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 51.7,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

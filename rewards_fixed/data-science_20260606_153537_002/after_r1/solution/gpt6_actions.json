@@ -1,0 +1,135 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "head /app/annual_maxima.csv; python3 -c \"import scipy, matplotlib, numpy; print('ok')\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.1,
+    "keystrokes": "pip install -q scipy numpy matplotlib\n",
+    "duration": 60.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.1,
+    "keystrokes": "python3 -c \"import scipy, matplotlib, numpy; print('ok')\"\n",
+    "duration": 10.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 70.1,
+    "keystrokes": "which pip3; python3 -m pip --version\n",
+    "duration": 10.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 80.1,
+    "keystrokes": "python3 -m ensurepip --upgrade 2>&1 | tail -2; ls /usr/bin/python*; which apt apt-get\n",
+    "duration": 15.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 95.1,
+    "keystrokes": "python3 -m pip install -q numpy scipy matplotlib 2>&1 | tail -3\n",
+    "duration": 60.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 95.1,
+    "keystrokes": "python3 -c \"import scipy, matplotlib, numpy; print('ok')\"\n",
+    "duration": 10.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 165.1,
+    "keystrokes": "cat > /app/analysis.py << 'EOF'\nimport numpy as np\nimport pandas as pd\nfrom scipy.optimize import minimize, brentq\nfrom scipy.stats import chi2\nimport matplotlib\nmatplotlib.use(\"Agg\")\nimport matplotlib.pyplot as plt\n\n# ---------------- Data ----------------\ndf = pd.read_csv(\"/app/annual_maxima.csv\")\nx = df[\"flow_m3s\"].values.astype(float)\nn = len(x)\n\n# ---------------- GEV negative log-likelihood ----------------\ndef gev_nll(params, data):\n    mu, sigma, xi = params\n    if sigma <= 0:\n        return np.inf\n    z = (data - mu) / sigma\n    if xi != 0 and np.any(1.0 + xi * z <= 0):\n        return np.inf\n    if abs(xi) < 1e-8:\n        # xi -> 0 limit (Gumbel)\n        return n * np.log(sigma) + np.sum(z) + np.sum(np.exp(-z))\n    t = 1.0 + xi * z\n    return n * np.log(sigma) + (1.0 + 1.0 / xi) * np.sum(np.log(t)) + np.sum(t ** (-1.0 / xi))\n\n# ---------------- MLE with multiple starts ----------------\nbest = None\nfor xi0 in [-0.3, -0.1, 0.0, 0.1, 0.3]:\n    res = minimize(gev_nll, [np.mean(x), np.std(x), xi0], args=(x,),\n                   method=\"Nelder-Mead\", options={\"maxiter\": 20000, \"xatol\": 1e-8, \"fatol\": 1e-10})\n    if res.success and (best is None or res.fun < best.fun):\n        best = res\nmu_hat, sigma_hat, xi_hat = best.x\nll_max = -best.fun\nprint(f\"MLE: mu={mu_hat:.4f}, sigma={sigma_hat:.4f}, xi={xi_hat:.4f}, ll={ll_max:.4f}\")\n\n# ---------------- Return levels ----------------\ndef return_level(T, mu, sigma, xi):\n    yT = -np.log(1.0 - 1.0 / T)\n    if abs(xi) < 1e-8:\n        return mu - sigma * np.log(yT)\n    return mu + sigma / xi * (yT ** (-xi) - 1.0)\n\n# ---------------- Profile likelihood for return levels ----------------\n# Reparameterize: return level z replaces mu:\n#   mu = z - sigma/xi * (yT^{-xi} - 1)\ndef prof_nll(z, T, data):\n    yT = -np.log(1.0 - 1.0 / T)\n    def negll(free):\n        sigma, xi = free\n        if sigma <= 0:\n            return 1e12\n        if abs(xi) < 1e-8:\n            mu = z + sigma * np.log(yT)\n        else:\n            mu = z - sigma / xi * (yT ** (-xi) - 1.0)\n        v = gev_nll([mu, sigma, xi], data)\n        return v if np.isfinite(v) else 1e12\n    best_r = None\n    for xi0 in [xi_hat, -0.1, 0.0, 0.1]:\n        r = minimize(negll, [sigma_hat, xi0], method=\"Nelder-Mead\",\n                     options={\"maxiter\": 10000, \"xatol\": 1e-8, \"fatol\": 1e-10})\n        if best_r is None or r.fun < best_r.fun:\n            best_r = r\n    return best_r.fun\n\nTHRESH = 0.5 * chi2.ppf(0.95, 1)  # 1.9207\n\ndef deviance_diff(z, T):\n    return prof_nll(z, T, x) - ll_max - THRESH\n\ndef profile_ci(T, z_est):\n    # lower bound\n    lo = brentq(deviance_diff, max(z_est - 4 * sigma_hat, 1e-3), z_est, args=(T,), xtol=1e-4)\n    hi = brentq(deviance_diff, z_est, z_est + 20 * sigma_hat, args=(T,), xtol=1e-4)\n    return lo, hi\n\nrows = []\nfor T in [10, 50, 100]:\n    z_est = return_level(T, mu_hat, sigma_hat, xi_hat)\n    lo, hi = profile_ci(T, z_est)\n    rows.append({\"return_period\": T, \"estimate\": z_est, \"ci_lower\": lo, \"ci_upper\": hi})\n    print(f\"T={T}: {z_est:.3f} [{lo:.3f}, {hi:.3f}]\")\n\npd.DataFrame(rows).to_csv(\"/app/return_levels.csv\", index=False)\n\n# ---------------- GEV CDF ----------------\ndef gev_cdf(v, mu, sigma, xi):\n    z = (v - mu) / sigma\n    if abs(xi) < 1e-8:\n        return np.exp(-np.exp(-z))\n    return np.exp(-(1.0 + xi * z) ** (-1.0 / xi))\n\n# ---------------- P-P plot ----------------\nxs = np.sort(x)\nemp = (np.arange(1, n + 1) - 0.5) / n\ntheo = gev_cdf(xs, mu_hat, sigma_hat, xi_hat)\nplt.figure(figsize=(6, 6))\nplt.plot([0, 1], [0, 1], \"k--\", label=\"1:1 line\")\nplt.plot(theo, emp, \"o\", color=\"steelblue\", label=\"Data\")\nplt.xlabel(\"Theoretical (fitted GEV) probability\")\nplt.ylabel(\"Empirical probability\")\nplt.title(\"P-P Plot: Fitted GEV vs Empirical\")\nplt.legend()\nplt.grid(alpha=0.3)\nplt.tight_layout()\nplt.savefig(\"/app/pp_plot.png\", dpi=150)\nplt.close()\n\n# ---------------- Anderson-Darling statistic ----------------\nF = np.clip(gev_cdf(xs, mu_hat, sigma_hat, xi_hat), 1e-12, 1 - 1e-12)\ni = np.arange(1, n + 1)\nA2 = -n - np.sum((2 * i - 1) * (np.log(F) + np.log(1.0 - F[::-1]))) / n\nwith open(\"/app/ad_statistic.txt\", \"w\") as f:\n    f.write(f\"{A2:.6f}\\n\")\nprint(f\"Anderson-Darling A2 = {A2:.6f}\")\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 165.1,
+    "keystrokes": "cd /app && python3 analysis.py\n",
+    "duration": 60.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 225.2,
+    "keystrokes": "python3 -m pip install -q pandas 2>&1 | tail -2\n",
+    "duration": 60.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 225.2,
+    "keystrokes": "python3 /app/analysis.py\n",
+    "duration": 60.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 345.2,
+    "keystrokes": "python3 - << 'EOF'\nsrc = open('/app/analysis.py').read()\nold = '''def profile_ci(T, z_est):\n    # lower bound\n    lo = brentq(deviance_diff, max(z_est - 4 * sigma_hat, 1e-3), z_est, args=(T,), xtol=1e-4)\n    hi = brentq(deviance_diff, z_est, z_est + 20 * sigma_hat, args=(T,), xtol=1e-4)\n    return lo, hi'''\nnew = '''def profile_ci(T, z_est):\n    # find lower bracket by stepping outward until deviance_diff > 0\n    step = sigma_hat\n    a = z_est - step\n    fa = deviance_diff(a, T)\n    tries = 0\n    while fa < 0 and tries < 200:\n        step *= 1.5\n        a = z_est - step\n        fa = deviance_diff(a, T)\n        tries += 1\n    lo = brentq(deviance_diff, a, z_est, args=(T,), xtol=1e-4)\n    step = sigma_hat\n    b = z_est + step\n    fb = deviance_diff(b, T)\n    tries = 0\n    while fb < 0 and tries < 200:\n        step *= 1.5\n        b = z_est + step\n        fb = deviance_diff(b, T)\n        tries += 1\n    hi = brentq(deviance_diff, z_est, b, args=(T,), xtol=1e-4)\n    return lo, hi'''\nassert old in src\nopen('/app/analysis.py','w').write(src.replace(old, new))\nprint(\"patched\")\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 345.2,
+    "keystrokes": "python3 /app/analysis.py\n",
+    "duration": 60,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 405.3,
+    "keystrokes": "python3 - << 'EOF'\nimport importlib.util, sys\nsrc = open('/app/analysis.py').read()\n# cut off before rows loop\nsrc = src.split(\"rows = []\")[0]\nexec(src, globals())\nfor T in [10]:\n    z_est = return_level(T, mu_hat, sigma_hat, xi_hat)\n    print(\"z_est\", z_est, \"ll_max\", ll_max)\n    for dz in [-40,-20,-10,-5,0,5,10,20,40,80]:\n        z = z_est+dz\n        pn = prof_nll(z, T, x)\n        print(dz, pn, pn - ll_max - THRESH)\nEOF\n",
+    "duration": 60.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 465.3,
+    "keystrokes": "python3 - << 'EOF'\nsrc = open('/app/analysis.py').read()\nsrc = src.replace(\"return prof_nll(z, T, x) - ll_max - THRESH\",\n                  \"return prof_nll(z, T, x) - best.fun - THRESH\")\nopen('/app/analysis.py','w').write(src)\nprint(\"patched\")\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 465.3,
+    "keystrokes": "python3 /app/analysis.py\n",
+    "duration": 60,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 525.4,
+    "keystrokes": "ls -la /app/return_levels.csv /app/ad_statistic.txt /app/pp_plot.png /app/analysis.py; cat /app/return_levels.csv; cat /app/ad_statistic.txt\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 13,
+    "offset_sec": 525.5,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 525.5,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The verifier requires /app/data.db itself to have a repaired header, but the instruction emphasized recovered.sql as the deliverable and did not unambiguously say that the original path must remain and open afterward.",
+    "evidence": "attempt-04.jsonl turn 20 and attempt-08.jsonl turn 19 repair copied databases and produce semantically complete dumps; replay grading passes all dump checks and fails only the unchanged /app/data.db header check (tests/test_outputs.py and instruction.md).",
+    "change": "State explicitly that /app/data.db itself must open normally after its binary header is repaired.",
+    "kind": "hidden_requirement"
+  }
+]

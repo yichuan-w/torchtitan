@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The shipped constants are 1, pi, pi^2, ..., pi^5, which have no nonzero integer relation although the instruction promises one.",
+    "evidence": "instruction.md promises an integer relation, while environment/files/constants.py returns powers of transcendental pi; attempt-01.jsonl turn 3 explicitly identifies the contradiction and attempt-09.jsonl turn 5 reports no relation found on that seed input.",
+    "change": "Replace the seed vector with six high-precision values that genuinely satisfy a primitive integer relation, while retaining hidden-input grading.",
+    "kind": "broken_setup"
+  }
+]

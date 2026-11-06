@@ -1,0 +1,139 @@
+rob = 0.0
+[?2004l
+[?2004h> 
+[?2004l
+[?2004h>         if rng.random() < accept_prob:
+[?2004l
+[?2004h>             mu, sigma = mu_prop, sigma_prop
+[?2004l
+[?2004h>             ll_current = ll_prop
+[?2004l
+[?2004h> 
+[?2004l
+[?2004h>         chain.append((mu, sigma))
+[?2004l
+[?2004h> 
+[?2004l
+[?2004h>     return np.array(chain)
+[?2004l
+[?2004h> PY
+[?2004l
+[?2004hroot@088feb4a-00da-4448-b350-3c6b35e20c88:~# cat > /home/user/run_sampler.py <<'PY'
+[?2004l
+[?2004h> import numpy as np
+[?2004l
+[?2004h> 
+[?2004l
+[?2004h> from mcmc import sample
+[?2004l
+[?2004h> 
+[?2004l
+[?2004h> 
+[?2004l
+[?2004h> def main():
+[?2004l
+[?2004h>     data = np.load('/home/user/data.npy')
+[?2004l
+[?2004h>     chain = sample(data, iters=5000, seed=42)
+[?2004l
+[?2004h> 
+[?2004l
+[?2004h>     posterior_samples = chain[1000:]
+[?2004l
+[?2004h>     mu_mean = float(np.mean(posterior_samples[:, 0]))
+[?2004l
+[?2004h>     sigma_mean = float(np.mean(posterior_samples[:, 1]))
+[?2004l
+[?2004h> 
+[?2004l
+[?2004h>     np.savetxt(
+[?2004l
+[?2004h>         '/home/user/results.csv',
+[?2004l
+[?2004h>         np.array([[mu_mean, sigma_mean]]),
+[?2004l
+[?2004h>         delimiter=',',
+[?2004l
+[?2004h>     )
+[?2004l
+[?2004h> 
+[?2004l
+[?2004h> 
+[?2004l
+[?2004h> if __name__ == '__main__':
+[?2004l
+[?2004h>     main()
+[?2004l
+[?2004h> PY
+[?2004l
+[?2004hroot@088feb4a-00da-4448-b350-3c6b35e20c88:~# cat > /home/user/test_reproducibility.py <<'PY'
+[?2004l
+[?2004h> import numpy as np
+[?2004l
+[?2004h> 
+[?2004l
+[?2004h> from mcmc import sample
+[?2004l
+[?2004h> 
+[?2004l
+[?2004h> 
+[?2004l
+[?2004h> def main():
+[?2004l
+[?2004h>     data = np.load('/home/user/data.npy')
+[?2004l
+[?2004h> 
+[?2004l
+[?2004h>     chain_1 = sample(data, iters=100, seed=42)
+[?2004l
+[?2004h>     chain_2 = sample(data, iters=100, seed=42)
+[?2004l
+[?2004h> 
+[?2004l
+[?2004h>     np.testing.assert_array_equal(chain_1, chain_2)
+[?2004l
+[?2004h>     print('Reproducibility test passed: chains are exactly identical.')
+[?2004l
+[?2004h> 
+[?2004l
+[?2004h> 
+[?2004l
+[?2004h> if __name__ == '__main__':
+[?2004l
+[?2004h>     main()
+[?2004l
+[?2004h> PY
+[?2004l
+[?2004hroot@088feb4a-00da-4448-b350-3c6b35e20c88:~# python3 /home/user/run_sampler.py
+[?2004l
+[?2004hroot@088feb4a-00da-4448-b350-3c6b35e20c88:~# python3 /home/user/test_reproducibility.py
+[?2004l
+Reproducibility test passed: chains are exactly identical.
+[?2004hroot@088feb4a-00da-4448-b350-3c6b35e20c88:~# cat /home/user/results.csv
+[?2004l
+5.254036818282917132e+00,2.045058087165975813e+00
+[?2004hroot@088feb4a-00da-4448-b350-3c6b35e20c88:~# 
+
+--- verifier output (exit 0) ---
+============================= test session starts ==============================
+platform linux -- Python 3.10.12, pytest-9.0.3, pluggy-1.6.0
+rootdir: /tmp
+collected 6 items
+
+../tmp/test_final_state.py ....F
+
+=================================== FAILURES ===================================
+_________________________ test_results_csv_correctness _________________________
+/tmp/test_final_state.py:126: in test_results_csv_correctness
+    assert np.isclose(actual_mu_mean, expected_mu_mean, rtol=1e-4), f"mu_mean is incorrect. Expected approx {expected_mu_mean}, got {actual_mu_mean}"
+E   AssertionError: mu_mean is incorrect. Expected approx 5.24004024706689, got 5.254036818282917
+E   assert False
+E    +  where False = <function isclose at 0x79bb1ea59270>(5.254036818282917, 5.24004024706689, rtol=0.0001)
+E    +    where <function isclose at 0x79bb1ea59270> = np.isclose
+=========================== short test summary info ============================
+FAILED ../tmp/test_final_state.py::test_results_csv_correctness - AssertionEr...
+!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!
+========================= 1 failed, 4 passed in 1.13s ==========================
+
+
+Fix the task so the reference solution scores 1.0, then check again. The container is still up: ./sandbox exec to look around.

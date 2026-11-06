@@ -1,0 +1,173 @@
+{
+  "retained_skill": "Design and validate an extended Euclidean algorithm that computes modular inverses, including coefficient updates and normalization, on a stack VM.",
+  "bottleneck": "All 12 scored attempts spend nearly the entire episode hand-encoding instructions, recalculating absolute jump offsets, and rewriting generators; their first executable programs have malformed encodings, stack errors, bad jumps, or wrong outputs, and none submits before its limit.",
+  "change": "Repair the contradictory PUSH byte-order comment, and place structural help in the original environment: a small generic assembler module that emits VM instructions and resolves symbolic labels. This removes manual byte serialization and jump-offset bookkeeping (roughly turns 2 through the final turn in every attempt) while leaving the extended-Euclid state, update order, loop, normalization, and validation decisions wholly to the student. The original signal retained is running the resulting bytecode in the provided VM and reacting to its output/errors.",
+  "restore": "A later hardening can remove /app/assembler.py and its removable instruction paragraph, returning byte emission and absolute-address bookkeeping without changing the mathematical task.",
+  "prediction": "The change addresses repeated hand-written byte emitters and stale numeric jump targets. With encoding and label fixups handled, some attempts will next implement and test their extended-Euclid recurrence instead of rewriting generators; observing multiple correct nontrivial inputs before submission supports this, while another 0/12 group still ending in assembler rewrites or jump-address debugging refutes it.",
+  "expected": "5 of 12",
+  "evidence": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turn": 7,
+      "observation": "First generator rewrite is already malformed; the attempt rewrites emitters through turn 32 and times out. Replayed grading of a late analogous artifact from attempt 12 showed existence/size pass but both semantic checks fail."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turn": 7,
+      "observation": "First runnable bytecode reports stack underflow at pc=3; generator/jump rewrites continue through turn 28. Replay of its final turn on a fresh reset produced no prog.bin; grading failed existence, size, core values, and additional values."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turn": 6,
+      "observation": "Generator compilation first fails on an undeclared opcode, followed by malformed opcode and division-by-zero revisions through turn 41."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turn": 8,
+      "observation": "First run reports stack underflow at pc=16; byte layouts are repeatedly rewritten through turn 29."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turn": 10,
+      "observation": "First tested artifact reaches unknown opcode 0x46 at pc=2, consistent with serialization confusion; retries continue through turn 48."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turn": 4,
+      "observation": "The attempt changes generator language/encoding approach early and keeps debugging malformed stacks/opcodes through turn 27."
+    },
+    {
+      "attempt": "attempt-07.jsonl",
+      "turn": 11,
+      "observation": "First generated program reports stack underflow while peeking at pc=47; generator rewrites continue through turn 49."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turn": 10,
+      "observation": "First run reaches unknown opcode 0x55 at pc=6; numeric layout and generator revisions continue through turn 36."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turn": 5,
+      "observation": "First program reaches unknown opcode 0x50 at pc=2; repeated serialization rewrites continue through turn 29."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turn": 13,
+      "observation": "The attempt manually appends bytes with placeholder jump addresses and remains in layout/output debugging through turn 38."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turn": 7,
+      "observation": "First generated artifact reaches unknown opcode 0x1F at pc=21; generator and address rewrites continue through turn 33."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turn": 9,
+      "observation": "The attempt starts manual byte appends and remains occupied with offsets through turn 26. Replaying turn 25 on a fresh reset created a 138-byte artifact; grading passed existence and size but failed core and additional inverse semantics (output 0 for nonzero inputs)."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turn": 25,
+      "observation": "After the rewrite, a fresh reset confirmed /app/assembler.py can emit valid immediates and resolve a forward symbolic jump: a 14-byte replay program ran and returned 1. The original late attempt would therefore bypass its manual offset stage and reach extended-Euclid behavior debugging."
+    }
+  ],
+  "budget": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turns": [
+        2,
+        32
+      ],
+      "stage": "Bytecode emitter and absolute-jump construction; the supplied assembler removes serialization and label-offset rewrites."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turns": [
+        2,
+        28
+      ],
+      "stage": "Generator, stack-layout, and jump-address rewrites; the supplied assembler removes encoding and fixup work."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turns": [
+        2,
+        41
+      ],
+      "stage": "Generator compilation and malformed-bytecode debugging; the supplied assembler removes opcode serialization and label fixups."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turns": [
+        2,
+        29
+      ],
+      "stage": "Emitter and stack/jump layout revisions; the supplied assembler removes byte and address bookkeeping."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turns": [
+        2,
+        48
+      ],
+      "stage": "Generator and malformed-opcode revisions; the supplied assembler removes immediate encoding and jump fixups."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turns": [
+        2,
+        27
+      ],
+      "stage": "Repeated generator-language and byte-layout attempts; the supplied assembler removes that stage."
+    },
+    {
+      "attempt": "attempt-07.jsonl",
+      "turns": [
+        2,
+        49
+      ],
+      "stage": "C emitter and stack/jump debugging; the supplied assembler removes manual encoding and labels."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turns": [
+        2,
+        36
+      ],
+      "stage": "Malformed opcode and numeric address debugging; the supplied assembler removes serialization and offset calculations."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turns": [
+        2,
+        29
+      ],
+      "stage": "Malformed program emission and rewrites; the supplied assembler removes byte-order and address mechanics."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turns": [
+        2,
+        38
+      ],
+      "stage": "Manual printf byte appends and placeholder jump patching; the supplied assembler removes this stage."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turns": [
+        2,
+        33
+      ],
+      "stage": "Generator and malformed opcode/address debugging; the supplied assembler removes serialization and fixups."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turns": [
+        2,
+        26
+      ],
+      "stage": "Manual byte appends and repeated offset recalculation; the supplied assembler removes this stage."
+    }
+  ]
+}

@@ -1,0 +1,387 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "ls -la\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "cat Makefile\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "cat logreader.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "xxd -g1 -l 256 sensor_data.bin\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.4,
+    "keystrokes": "od -Ax -tx1z -v sensor_data.bin\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.4,
+    "keystrokes": "python3 - <<'PY'\nfrom pathlib import Path\nb=Path('sensor_data.bin').read_bytes()\nprint('len',len(b))\nprint(b)\nprint('first 16', b[:16].hex())\nprint('last 16', b[-16:].hex())\nPY\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 0.6,
+    "keystrokes": "python3 - <<'PY'\nfrom pathlib import Path\nimport struct\nb=Path('sensor_data.bin').read_bytes()\nprint('len',len(b))\no=16\ni=0\nwhile o < len(b):\n    if b[o:o+4] == b'END!':\n        print('footer at', o, 'crc32_le=', hex(struct.unpack_from('<I', b, o+4)[0]), 'tail=', b[o+8:].hex())\n        break\n    ts,=struct.unpack_from('<Q', b, o); o+=8\n    level=b[o]; o+=1\n    slen=b[o]; o+=1\n    src=b[o:o+slen].decode('utf-8','replace'); o+=slen\n    mlen,=struct.unpack_from('<H', b, o); o+=2\n    msg=b[o:o+mlen].decode('utf-8','replace'); o+=mlen\n    i+=1\n    print(i, 'ts',ts,'level',level,'slen',slen,'mlen',mlen,'src',src,'msg',repr(msg),'nextoff',hex(o))\nprint('parsed',i)\nprint('--- original broken layout first 3 ---')\no=16\nfor i in range(3):\n    ts,=struct.unpack_from('<I',b,o); o+=4\n    level=b[o]; o+=1\n    slen,=struct.unpack_from('<H',b,o); o+=2\n    src=b[o:o+slen]; o+=slen\n    mlen,=struct.unpack_from('<H',b,o); o+=2\n    msg=b[o:o+mlen]; o+=mlen\n    print(i,ts,level,slen,src,mlen,msg,'next',hex(o))\nPY\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 0.7,
+    "keystrokes": "cat > logreader.c <<'EOF'\n#include <stdio.h>\n#include <stdlib.h>\n#include <stdint.h>\n#include <string.h>\n#include <inttypes.h>\n\ntypedef struct {\n    uint64_t timestamp;\n    uint8_t level;\n    uint8_t source_len;\n    unsigned char *source;\n    uint16_t msg_len;\n    unsigned char *message;\n} log_entry;\n\nstatic int read_exact(FILE *fp, void *buf, size_t n) {\n    return fread(buf, 1, n, fp) == n;\n}\n\nstatic int read_u8(FILE *fp, uint8_t *v) {\n    return read_exact(fp, v, 1);\n}\n\nstatic int read_le16(FILE *fp, uint16_t *v) {\n    unsigned char b[2];\n    if (!read_exact(fp, b, sizeof b)) {\n        return 0;\n    }\n    *v = (uint16_t)b[0] | ((uint16_t)b[1] << 8);\n    return 1;\n}\n\nstatic int read_le64_from_prefix(FILE *fp, unsigned char prefix[4], uint64_t *v) {\n    unsigned char b[8];\n    memcpy(b, prefix, 4);\n    if (!read_exact(fp, b + 4, 4)) {\n        return 0;\n    }\n    *v = ((uint64_t)b[0]) |\n         ((uint64_t)b[1] << 8) |\n         ((uint64_t)b[2] << 16) |\n         ((uint64_t)b[3] << 24) |\n         ((uint64_t)b[4] << 32) |\n         ((uint64_t)b[5] << 40) |\n         ((uint64_t)b[6] << 48) |\n         ((uint64_t)b[7] << 56);\n    return 1;\n}\n\nstatic void print_json_string(const unsigned char *s, size_t len) {\n    size_t i;\n    putchar('\"');\n    for (i = 0; i < len; i++) {\n        unsigned char c = s[i];\n        switch (c) {\n        case '\"':\n            fputs(\"\\\\\\\"\", stdout);\n            break;\n        case '\\\\':\n            fputs(\"\\\\\\\\\", stdout);\n            break;\n        case '\\b':\n            fputs(\"\\\\b\", stdout);\n            break;\n        case '\\f':\n            fputs(\"\\\\f\", stdout);\n            break;\n        case '\\n':\n            fputs(\"\\\\n\", stdout);\n            break;\n        case '\\r':\n            fputs(\"\\\\r\", stdout);\n            break;\n        case '\\t':\n            fputs(\"\\\\t\", stdout);\n            break;\n        default:\n            if (c < 0x20) {\n                printf(\"\\\\u%04x\", (unsigned int)c);\n            } else {\n                putchar(c);\n            }\n            break;\n        }\n    }\n    putchar('\"');\n}\n\nint main(int argc, char *argv[]) {\n    FILE *fp;\n    unsigned char header[16];\n    int first = 1;\n\n    if (argc != 2) {\n        fprintf(stderr, \"Usage: %s <blog_file>\\n\", argv[0]);\n        return 1;\n    }\n\n    fp = fopen(argv[1], \"rb\");\n    if (!fp) {\n        perror(\"fopen\");\n        return 1;\n    }\n\n    if (!read_exact(fp, header, sizeof header)) {\n        fprintf(stderr, \"Error reading header\\n\");\n        fclose(fp);\n        return 1;\n    }\n\n    if (memcmp(header, \"BLOG\", 4) != 0) {\n        fprintf(stderr, \"Invalid BLOG magic\\n\");\n        fclose(fp);\n        return 1;\n    }\n\n    printf(\"[\\n\");\n\n    for (;;) {\n        unsigned char prefix[4];\n        uint64_t timestamp;\n        uint8_t level;\n        uint8_t source_len;\n        unsigned char *source;\n        uint16_t msg_len;\n        unsigned char *message;\n        size_t nread;\n\n        nread = fread(prefix, 1, sizeof prefix, fp);\n        if (nread == 0) {\n            break;\n        }\n        if (nread != sizeof prefix) {\n            fprintf(stderr, \"Truncated entry header\\n\");\n            fclose(fp);\n            return 1;\n        }\n\n        if (memcmp(prefix, \"END!\", 4) == 0) {\n            unsigned char checksum[4];\n            if (!read_exact(fp, checksum, sizeof checksum)) {\n                fprintf(stderr, \"Truncated footer\\n\");\n                fclose(fp);\n                return 1;\n            }\n            break;\n        }\n\n        if (!read_le64_from_prefix(fp, prefix, &timestamp)) {\n            fprintf(stderr, \"Truncated timestamp\\n\");\n            fclose(fp);\n            return 1;\n        }\n        if (!read_u8(fp, &level)) {\n            fprintf(stderr, \"Truncated level\\n\");\n            fclose(fp);\n            return 1;\n        }\n        if (!read_u8(fp, &source_len)) {\n            fprintf(stderr, \"Truncated source length\\n\");\n            fclose(fp);\n            return 1;\n        }\n\n        source = malloc((size_t)source_len + 1);\n        if (!source) {\n            fprintf(stderr, \"Out of memory\\n\");\n            fclose(fp);\n            return 1;\n        }\n        if (!read_exact(fp, source, source_len)) {\n            fprintf(stderr, \"Truncated source\\n\");\n            free(source);\n            fclose(fp);\n            return 1;\n        }\n        source[source_len] = '\\0';\n\n        if (!read_le16(fp, &msg_len)) {\n            fprintf(stderr, \"Truncated message length\\n\");\n            free(source);\n            fclose(fp);\n            return 1;\n        }\n\n        message = malloc((size_t)msg_len + 1);\n        if (!message) {\n            fprintf(stderr, \"Out of memory\\n\");\n            free(source);\n            fclose(fp);\n            return 1;\n        }\n        if (!read_exact(fp, message, msg_len)) {\n            fprintf(stderr, \"Truncated message\\n\");\n            free(source);\n            free(message);\n            fclose(fp);\n            return 1;\n        }\n        message[msg_len] = '\\0';\n\n        if (!first) {\n            printf(\",\\n\");\n        }\n        first = 0;\n\n        printf(\"  {\\n\");\n        printf(\"    \\\"timestamp\\\": %\" PRIu64 \",\\n\", timestamp);\n        printf(\"    \\\"level\\\": %u,\\n\", (unsigned int)level);\n        printf(\"    \\\"source\\\": \");\n        print_json_string(source, source_len);\n        printf(\",\\n\");\n        printf(\"    \\\"message\\\": \");\n        print_json_string(message, msg_len);\n        printf(\"\\n\");\n        printf(\"  }\");\n\n        free(source);\n        free(message);\n    }\n\n    printf(\"\\n]\\n\");\n    fclose(fp);\n    return 0;\n}\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 0.7,
+    "keystrokes": "printf 'CC = gcc\\nCFLAGS = -Wall -Wextra -O2\\n\\nlogreader: logreader.c\\n\\t$(CC) $(CFLAGS) -o logreader logreader.c\\n\\nclean:\\n\\trm -f logreader\\n' > Makefile\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 0.7,
+    "keystrokes": "cat -A Makefile\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 0.7,
+    "keystrokes": "make clean\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 0.7,
+    "keystrokes": "make\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 0.7,
+    "keystrokes": "./logreader /app/sensor_data.bin\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 2.2,
+    "keystrokes": "which gcc\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 2.2,
+    "keystrokes": "gcc --version\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 2.2,
+    "keystrokes": "gcc -print-search-dirs\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 2.2,
+    "keystrokes": "ls -la /usr/include 2>&1 | head -50\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 2.2,
+    "keystrokes": "find /usr -name stdio.h 2>/dev/null | head\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 2.2,
+    "keystrokes": "find / -name stdio.h 2>/dev/null | head\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 2.8,
+    "keystrokes": "cat > /tmp/mini_test.c <<'EOF'\nextern int printf(const char *, ...);\nint main(void) {\n    printf(\"mini test %d\\n\", 42);\n    return 0;\n}\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 2.8,
+    "keystrokes": "gcc -Wall -Wextra -O2 /tmp/mini_test.c -o /tmp/mini_test\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 2.8,
+    "keystrokes": "/tmp/mini_test\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 4.0,
+    "keystrokes": "find /usr/lib /lib -maxdepth 4 \\( -name 'crt*.o' -o -name 'Scrt1.o' -o -name 'libc.so*' -o -name 'libc.a' \\) 2>/dev/null | sort\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 4.0,
+    "keystrokes": "ls -la /usr/lib/x86_64-linux-gnu 2>/dev/null | head -50\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 4.0,
+    "keystrokes": "gcc -print-file-name=Scrt1.o\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 4.0,
+    "keystrokes": "gcc -print-file-name=libc.so\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 4.0,
+    "keystrokes": "ld --verbose | grep SEARCH_DIR | head\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 4.5,
+    "keystrokes": "cat > logreader.c <<'EOF'\ntypedef unsigned char u8;\ntypedef unsigned short u16;\ntypedef unsigned int u32;\ntypedef unsigned long u64;\ntypedef long i64;\n\n#define SYS_read    0\n#define SYS_write   1\n#define SYS_open    2\n#define SYS_close   3\n#define SYS_lseek   8\n#define SYS_mmap    9\n#define SYS_exit    60\n\nstatic long syscall1(long n, long a1) {\n    long ret;\n    __asm__ volatile(\n        \"syscall\"\n        : \"=a\"(ret)\n        : \"a\"(n), \"D\"(a1)\n        : \"rcx\", \"r11\", \"memory\"\n    );\n    return ret;\n}\n\nstatic long syscall3(long n, long a1, long a2, long a3) {\n    long ret;\n    __asm__ volatile(\n        \"syscall\"\n        : \"=a\"(ret)\n        : \"a\"(n), \"D\"(a1), \"S\"(a2), \"d\"(a3)\n        : \"rcx\", \"r11\", \"memory\"\n    );\n    return ret;\n}\n\nstatic long syscall6(long n, long a1, long a2, long a3,\n                     long a4, long a5, long a6) {\n    long ret;\n    register long r10 __asm__(\"r10\") = a4;\n    register long r8 __asm__(\"r8\") = a5;\n    register long r9 __asm__(\"r9\") = a6;\n\n    __asm__ volatile(\n        \"syscall\"\n        : \"=a\"(ret)\n        : \"a\"(n), \"D\"(a1), \"S\"(a2), \"d\"(a3),\n          \"r\"(r10), \"r\"(r8), \"r\"(r9)\n        : \"rcx\", \"r11\", \"memory\"\n    );\n    return ret;\n}\n\nstatic unsigned long str_len(const char *s) {\n    unsigned long n = 0;\n    while (s[n] != '\\0') {\n        n++;\n    }\n    return n;\n}\n\nstatic void write_fd(long fd, const void *buf, unsigned long len) {\n    syscall3(SYS_write, fd, (long)buf, (long)len);\n}\n\nstatic void out_str(const char *s) {\n    write_fd(1, s, str_len(s));\n}\n\nstatic void err_str(const char *s) {\n    write_fd(2, s, str_len(s));\n}\n\nstatic void out_char(char c) {\n    write_fd(1, &c, 1);\n}\n\nstatic void out_u64(u64 v) {\n    u8 tmp[20];\n    int i = 0;\n\n    if (v == 0) {\n        out_char('0');\n        return;\n    }\n\n    while (v != 0) {\n        tmp[i++] = (u8)('0' + (v % 10));\n        v /= 10;\n    }\n\n    while (i > 0) {\n        out_char((char)tmp[--i]);\n    }\n}\n\nstatic void out_hex_digit(u8 v) {\n    if (v < 10) {\n        out_char((char)('0' + v));\n    } else {\n        out_char((char)('a' + (v - 10)));\n    }\n}\n\nstatic void out_json_string(const u8 *s, unsigned long len) {\n    unsigned long i;\n\n    out_char('\"');\n    for (i = 0; i < len; i++) {\n        u8 c = s[i];\n        if (c == '\"') {\n            out_str(\"\\\\\\\"\");\n        } else if (c == '\\\\') {\n            out_str(\"\\\\\\\\\");\n        } else if (c == '\\b') {\n            out_str(\"\\\\b\");\n        } else if (c == '\\f') {\n            out_str(\"\\\\f\");\n        } else if (c == '\\n') {\n            out_str(\"\\\\n\");\n        } else if (c == '\\r') {\n            out_str(\"\\\\r\");\n        } else if (c == '\\t') {\n            out_str(\"\\\\t\");\n        } else if (c < 0x20) {\n            out_str(\"\\\\u00\");\n            out_hex_digit((u8)(c >> 4));\n            out_hex_digit((u8)(c & 0x0f));\n        } else {\n            out_char((char)c);\n        }\n    }\n    out_char('\"');\n}\n\nstatic int bytes_eq(const u8 *a, const char *b, unsigned long n) {\n    unsigned long i;\n    for (i = 0; i < n; i++) {\n        if (a[i] != (u8)b[i]) {\n            return 0;\n        }\n    }\n    return 1;\n}\n\nstatic u64 read_le64(const u8 *p) {\n    u64 v = 0;\n    int i;\n    for (i = 0; i < 8; i++) {\n        v |= ((u64)p[i]) << (8 * i);\n    }\n    return v;\n}\n\nstatic u16 read_le16(const u8 *p) {\n    return (u16)((u16)p[0] | ((u16)p[1] << 8));\n}\n\nstatic int parse_and_print(const u8 *data, unsigned long size) {\n    unsigned long pos = 16;\n    int first = 1;\n\n    if (size < 16 || !bytes_eq(data, \"BLOG\", 4)) {\n        err_str(\"Invalid BLOG file\\n\");\n        return 1;\n    }\n\n    out_str(\"[\\n\");\n\n    while (pos < size) {\n        u64 timestamp;\n        u8 level;\n        u8 source_len;\n        const u8 *source;\n        u16 msg_len;\n        const u8 *message;\n\n        if (size - pos >= 4 && bytes_eq(data + pos, \"END!\", 4)) {\n            break;\n        }\n\n        if (size - pos < 12) {\n            err_str(\"Truncated entry\\n\");\n            return 1;\n        }\n\n        timestamp = read_le64(data + pos);\n        pos += 8;\n        level = data[pos++];\n        source_len = data[pos++];\n\n        if ((unsigned long)source_len > size - pos) {\n            err_str(\"Truncated source\\n\");\n            return 1;\n        }\n        source = data + pos;\n        pos += source_len;\n\n        if (size - pos < 2) {\n            err_str(\"Truncated message length\\n\");\n            return 1;\n        }\n        msg_len = read_le16(data + pos);\n        pos += 2;\n\n        if ((unsigned long)msg_len > size - pos) {\n            err_str(\"Truncated message\\n\");\n            return 1;\n        }\n        message = data + pos;\n        pos += msg_len;\n\n        if (!first) {\n            out_str(\",\\n\");\n        }\n        first = 0;\n\n        out_str(\"  {\\n\");\n        out_str(\"    \\\"timestamp\\\": \");\n        out_u64(timestamp);\n        out_str(\",\\n\");\n        out_str(\"    \\\"level\\\": \");\n        out_u64((u64)level);\n        out_str(\",\\n\");\n        out_str(\"    \\\"source\\\": \");\n        out_json_string(source, source_len);\n        out_str(\",\\n\");\n        out_str(\"    \\\"message\\\": \");\n        out_json_string(message, msg_len);\n        out_str(\"\\n\");\n        out_str(\"  }\");\n    }\n\n    out_str(\"\\n]\\n\");\n    return 0;\n}\n\nstatic int run(int argc, char **argv) {\n    const char *path;\n    long fd;\n    long size;\n    long map_addr;\n    u8 *data;\n    int rc;\n\n    if (argc != 2) {\n        err_str(\"Usage: logreader <blog_file>\\n\");\n        return 1;\n    }\n\n    path = argv[1];\n    fd = syscall3(SYS_open, (long)path, 0, 0);\n    if (fd < 0) {\n        err_str(\"Cannot open input file\\n\");\n        return 1;\n    }\n\n    size = syscall3(SYS_lseek, fd, 0, 2);\n    if (size < 16) {\n        err_str(\"Input file is too small\\n\");\n        syscall1(SYS_close, fd);\n        return 1;\n    }\n\n    map_addr = syscall6(SYS_mmap, 0, size, 1, 2, fd, 0);\n    syscall1(SYS_close, fd);\n\n    if (map_addr < 0 && map_addr > -4096) {\n        err_str(\"Cannot map input file\\n\");\n        return 1;\n    }\n\n    data = (u8 *)map_addr;\n    rc = parse_and_print(data, (unsigned long)size);\n    return rc;\n}\n\nstatic void start_c(long *sp) {\n    int argc = (int)sp[0];\n    char **argv = (char **)(sp + 1);\n    int rc = run(argc, argv);\n\n    syscall1(SYS_exit, rc);\n    for (;;) {\n    }\n}\n\n__attribute__((naked, noreturn))\nvoid _start(void) {\n    __asm__ volatile(\n        \"mov %rsp, %rdi\\n\"\n        \"andq $-16, %rsp\\n\"\n        \"call start_c\\n\"\n        \"hlt\\n\"\n    );\n}\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 4.5,
+    "keystrokes": "cat > Makefile <<'EOF'\nCC = gcc\nCFLAGS = -Wall -Wextra -O2 -ffreestanding -fno-builtin -fno-stack-protector -nostdlib -static -no-pie\n\nlogreader: logreader.c\n\t$(CC) $(CFLAGS) -o logreader logreader.c\n\nclean:\n\trm -f logreader\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 4.5,
+    "keystrokes": "cat -A Makefile\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 4.5,
+    "keystrokes": "make clean\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 4.5,
+    "keystrokes": "make\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 5.9,
+    "keystrokes": "printf 'CC = gcc\\nCFLAGS = -Wall -Wextra -O2 -ffreestanding -fno-builtin -fno-stack-protector -nostdlib -static -no-pie\\n\\nlogreader: logreader.c\\n\\t$(CC) $(CFLAGS) -o logreader logreader.c\\n\\nclean:\\n\\trm -f logreader\\n' > Makefile\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 5.9,
+    "keystrokes": "cat -A Makefile\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 5.9,
+    "keystrokes": "make clean\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 5.9,
+    "keystrokes": "make\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 7.2,
+    "keystrokes": "python3 - <<'PY'\nfrom pathlib import Path\np=Path('logreader.c')\ns=p.read_text()\ns=s.replace('static void start_c(long *sp) {', 'static void __attribute__((used)) start_c(long *sp) {')\np.write_text(s)\nPY\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 7.2,
+    "keystrokes": "grep -n \"start_c\" logreader.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 7.2,
+    "keystrokes": "make clean\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 7.2,
+    "keystrokes": "make\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 13,
+    "offset_sec": 8.5,
+    "keystrokes": "./logreader /app/sensor_data.bin\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 13,
+    "offset_sec": 8.5,
+    "keystrokes": "./logreader /app/sensor_data.bin > /tmp/out.json && python3 -m json.tool /tmp/out.json\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 8.7,
+    "keystrokes": "make clean\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 8.7,
+    "keystrokes": "make\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 8.7,
+    "keystrokes": "./logreader /app/sensor_data.bin > /tmp/sensor_out.json\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 8.7,
+    "keystrokes": "python3 - <<'PY'\nimport json\nwith open('/tmp/sensor_out.json') as f:\n    data = json.load(f)\nexpected = [\n    {\"timestamp\": 1718123456789012, \"level\": 1, \"source\": \"sensor-a\", \"message\": \"Temperature reading: 23.5 C\"},\n    {\"timestamp\": 1718123457789012, \"level\": 2, \"source\": \"sensor-b\", \"message\": \"Humidity above threshold: 85%\"},\n    {\"timestamp\": 1718123458789012, \"level\": 0, \"source\": \"controller\", \"message\": \"Heartbeat check OK\"},\n    {\"timestamp\": 1718123459789012, \"level\": 3, \"source\": \"sensor-a\", \"message\": \"Connection lost\"},\n    {\"timestamp\": 1718123460789012, \"level\": 1, \"source\": \"sensor-c\", \"message\": \"Pressure: 1013.25 hPa\"},\n]\nassert data == expected, (data, expected)\nprint('validation ok:', len(data), 'entries')\nPY\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 15,
+    "offset_sec": 10.0,
+    "keystrokes": "python3 - <<'PY'\nfrom pathlib import Path\np = Path('logreader.c')\ns = p.read_text()\nold = 'if (size - pos >= 4 && bytes_eq(data + pos, \"END!\", 4)) {'\nnew = 'if (size - pos == 8 && bytes_eq(data + pos, \"END!\", 4)) {'\nif old not in s:\n    raise SystemExit('expected footer condition not found')\ns = s.replace(old, new)\np.write_text(s)\nPY\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 15,
+    "offset_sec": 10.0,
+    "keystrokes": "grep -n 'END!' logreader.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 15,
+    "offset_sec": 10.0,
+    "keystrokes": "make clean\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 15,
+    "offset_sec": 10.0,
+    "keystrokes": "make\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 15,
+    "offset_sec": 10.0,
+    "keystrokes": "./logreader /app/sensor_data.bin > /tmp/sensor_out.json\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 15,
+    "offset_sec": 10.0,
+    "keystrokes": "python3 - <<'PY'\nimport json\nwith open('/tmp/sensor_out.json') as f:\n    data = json.load(f)\nexpected = [\n    {\"timestamp\": 1718123456789012, \"level\": 1, \"source\": \"sensor-a\", \"message\": \"Temperature reading: 23.5 C\"},\n    {\"timestamp\": 1718123457789012, \"level\": 2, \"source\": \"sensor-b\", \"message\": \"Humidity above threshold: 85%\"},\n    {\"timestamp\": 1718123458789012, \"level\": 0, \"source\": \"controller\", \"message\": \"Heartbeat check OK\"},\n    {\"timestamp\": 1718123459789012, \"level\": 3, \"source\": \"sensor-a\", \"message\": \"Connection lost\"},\n    {\"timestamp\": 1718123460789012, \"level\": 1, \"source\": \"sensor-c\", \"message\": \"Pressure: 1013.25 hPa\"},\n]\nassert data == expected, (data, expected)\nprint('validation ok:', len(data), 'entries')\nPY\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 16,
+    "offset_sec": 11.5,
+    "keystrokes": "true\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 16,
+    "offset_sec": 11.6,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 17,
+    "offset_sec": 11.6,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

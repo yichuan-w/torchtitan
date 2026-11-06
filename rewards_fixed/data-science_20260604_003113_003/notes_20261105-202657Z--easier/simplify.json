@@ -1,0 +1,70 @@
+{
+  "retained_skill": "Inspect benchmark evidence, aggregate ROC AUC appropriately across datasets and folds, and identify the best overall model.",
+  "bottleneck": "All 12 scored attempts read the data and computed an unqualified mean over every row, but none inspected or honored the evaluation caveat embedded in the Parquet metadata; each therefore selected XGBoost instead of the model selected after the caveat is applied.",
+  "change": "Instruction-level repair at the original benchmark-comparison signal: add a vague requirement to honor any evaluation caveat embedded in the benchmark file, without naming the caveat, affected rows, or answer. No analysis stage is supplied; the student must still discover the metadata, interpret it, aggregate ROC AUC, and choose the model.",
+  "restore": "Remove the standalone caveat sentence from instruction.md to restore the original task wording.",
+  "prediction": "The change addresses the failing action of averaging all 300 rows without checking file metadata. It enables some students to inspect the benchmark's embedded metadata before aggregation and exclude the caveat-affected results; the prediction is refuted if the next group still uniformly reports XGBoost or if all 12 immediately identify the caveat and pass.",
+  "expected": "5 of 12",
+  "evidence": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turn": 12,
+      "observation": "First wrong decision: grouped all rows by model and averaged roc_auc, obtaining XGBoost. Replayed its submitted /app/result.txt and graded it: file existence passed; result content failed because XGBoost was unexpected. After the edit, replayed the same approach from a fresh reset using uv run, followed the new cue by inspecting Parquet metadata, applied its exclusion, reached LightGBM, and grading passed both file existence and result content checks."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turn": 14,
+      "observation": "After package setup, computed the mean over every row and reported XGBoost; no metadata or caveat inspection occurred."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turn": 21,
+      "observation": "After resolving Parquet dependencies, averaged every row by model and selected XGBoost; no metadata or caveat inspection occurred."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turn": 16,
+      "observation": "Computed per-model mean ROC AUC across all rows and ranked XGBoost first, without inspecting file metadata."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turn": 23,
+      "observation": "Loaded the 300 rows, averaged all roc_auc values by model, and selected XGBoost; the embedded caveat was not examined."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turn": 21,
+      "observation": "First wrong decision after lengthy package setup: averaged every row and wrote XGBoost. Replayed its submitted /app/result.txt from a fresh reset and graded it: file existence passed; result content failed because XGBoost was unexpected."
+    },
+    {
+      "attempt": "attempt-07.jsonl",
+      "turn": 13,
+      "observation": "Calculated the mean ROC AUC over all rows and selected XGBoost, with no metadata inspection."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turn": 20,
+      "observation": "Converted the Parquet table to pandas, averaged all rows, and selected XGBoost; did not inspect the Parquet metadata."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turn": 16,
+      "observation": "Grouped all rows by model and selected XGBoost from the unqualified mean; did not check for a benchmark caveat."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turn": 25,
+      "observation": "After repairing its Python packages, averaged all 300 rows and selected XGBoost without metadata inspection."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turn": 12,
+      "observation": "Computed mean ROC AUC across every row and selected XGBoost; no metadata or caveat inspection occurred."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turn": 25,
+      "observation": "After extensive dependency work, averaged all rows and wrote XGBoost; no metadata or caveat inspection occurred."
+    }
+  ]
+}

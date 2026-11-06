@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The verifier requires RDKit for eight semantic checks but its selected /opt/verifier Python has neither RDKit nor pip, so every submission fails before its chemical output is inspected.",
+    "evidence": "tests/test_outputs.py:8-14 requires RDKit and falls back to python -m pip; tests/test.sh selects /opt/verifier/bin/python; environment/Dockerfile does not install RDKit there. Full replays of attempt-02.jsonl and attempt-05.jsonl followed by ./sandbox grade each passed only output existence and failed all eight semantic checks with 'No module named rdkit' followed by 'No module named pip'.",
+    "change": "Install pinned RDKit into /opt/verifier during image build and make the tests import it directly rather than attempting a network install while grading.",
+    "kind": "broken_setup"
+  }
+]

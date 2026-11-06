@@ -1,0 +1,70 @@
+{
+  "retained_skill": "Diagnose CHIP-8 opcode-semantics bugs from small ROM behavior and correct the C interpreter to match the original COSMAC VIP.",
+  "bottleneck": "The public request says there are four test ROMs and asks for all four to pass, while the workspace contains five ROMs and grading requires all five; every scored attempt nevertheless ran all five, then first committed to an incomplete or incorrect subset of the opcode fixes.",
+  "change": "Repair the hidden fifth-ROM requirement in the instruction by changing 'all four test ROMs' to 'all five test ROMs'. This instruction-level repair makes the deliverable agree with the supplied workspace and retained verifier without supplying any opcode decision; under the required repair path, no separate simplification is added in this rewrite.",
+  "restore": "Restore the original wording 'all four test ROMs' to withdraw this disclosure after the repaired task is measured, though doing so would recreate the instruction/workspace mismatch.",
+  "prediction": "The change addresses attempts treating a proper-looking result from only one opcode family as completion even though another supplied ROM still exposes an unchanged mismatch. It enables the different next action of accounting for every supplied ROM before submission; this prediction is refuted if a new group still runs all five ROMs but submits after fixing only one family. Because all current attempts already discovered and ran all five, the repair alone is not enough to count any replayed attempt as solved.",
+  "expected": "0 of 12",
+  "evidence": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turn": 19,
+      "observation": "First wrong at turn 19: changes only shift carry sources, not shift results, BCD order, or index increments. Replayed this submitted state with `./sandbox reset`, the two turn-19/20 substitutions, rebuild, and `./sandbox grade`; all five checks failed: shift-right result, shift-left result, FX55 increment, FX65 increment, and FX33 BCD."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turn": 19,
+      "observation": "First wrong at turn 19: changes both shift destinations to VY rather than placing VY-shifted results in VX, and leaves the BCD and index-register deviations untouched."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turn": 36,
+      "observation": "First wrong at turn 36: begins an unsafe textual FX55 edit that introduces an extra brace; later repairs index increments but reverts them and times out while pursuing unrelated subtraction behavior."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turn": 19,
+      "observation": "First wrong at turn 19: stores the carry into VY rather than VF and leaves all other exposed deviations unchanged."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turn": 22,
+      "observation": "First wrong at turn 22: a broad line-range replacement corrupts the BCD implementation; subsequent recovery remains focused on BCD and does not complete all five ROM behaviors."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turn": 19,
+      "observation": "First wrong at turn 19: correctly repairs BCD order but declares success while shift and index-register behaviors remain unchanged."
+    },
+    {
+      "attempt": "attempt-07.jsonl",
+      "turn": 27,
+      "observation": "First wrong at turn 27: adopts an incorrect Vx-through-VF interpretation for FX55/FX65 rather than the supplied ROMs' V0-through-VX behavior, then continues around that false premise."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turn": 27,
+      "observation": "First wrong at turn 27: rewrites FX55/FX65 to transfer Vx-through-VF, later reverts and reapplies it, while never completing the other opcode families; this attempt times out."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turn": 18,
+      "observation": "Turns 18-21 correctly repair both shift semantics, but the attempt first goes wrong by treating that one family as the entire task and leaves BCD and both index increments unchanged."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turn": 39,
+      "observation": "After correctly repairing BCD and both index increments, turn 39 makes unrelated subtraction flags incorrect and the attempt never repairs either shift opcode."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turn": 29,
+      "observation": "First wrong at turn 29: shifts VY in place rather than assigning the shifted VY value to VX, and leaves BCD and index increments untouched."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turn": 18,
+      "observation": "First wrong at turn 18 as a completeness decision: correctly repairs BCD only and submits without repairing the two shift and two index-register behaviors. Replayed this submitted state with `./sandbox reset`, its BCD substitutions, rebuild, and `./sandbox grade`; BCD passed while shift-right, shift-left, FX55 increment, and FX65 increment failed. After editing, replayed its approach from a fresh `./sandbox reset`: built and ran all five unchanged ROMs under the clarified five-ROM contract, reaching all five original mismatch signals; `./sandbox grade` failed all five checks, so the repair reaches the target but does not remove the retained diagnosis work."
+    }
+  ]
+}

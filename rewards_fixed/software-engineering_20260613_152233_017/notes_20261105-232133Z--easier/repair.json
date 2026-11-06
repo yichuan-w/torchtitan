@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The instruction says each S-expression is one line, while its required example and verifier use expressions spanning multiple lines.",
+    "evidence": "instruction.md input sentence and multiline make-counter example conflict; tests/test_outputs.py test_counter_closure supplies one expression across five input lines.",
+    "change": "Clarify that an expression may span lines and provide an input loop that accumulates balanced expressions.",
+    "kind": "hidden_requirement"
+  }
+]

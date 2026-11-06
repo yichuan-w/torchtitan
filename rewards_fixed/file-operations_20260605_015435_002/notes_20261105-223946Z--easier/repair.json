@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The verifier required recover.py to recover deleted rows from a newly generated second database even though the public request identifies /app/data.db as both the damaged database and the invocation target.",
+    "evidence": "instruction.md identifies only /app/data.db; tests/test_outputs.py creates and grades /tmp/test_recover.db. Replays of attempt-03.jsonl turn 44 and attempt-07.jsonl turn 11 each passed script/output-shape checks but also failed this unseen-input check.",
+    "change": "Limit the stated and graded recovery target to the supplied /app/data.db and remove the fresh hidden database case.",
+    "kind": "hidden_requirement"
+  }
+]

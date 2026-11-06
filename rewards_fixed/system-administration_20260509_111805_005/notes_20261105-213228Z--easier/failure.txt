@@ -1,0 +1,96 @@
+hat the package is missing, has been obsoleted, or
+is only available from another source
+
+E: Package 'spawn-fcgi' has no installation candidate
+[?2004hroot@41ba69eb-4f73-4181-869d-d50083ed3090:/app# service fcgiwrap start
+[?2004l
+[?2004hroot@41ba69eb-4f73-4181-869d-d50083ed3090:/app# ls -la /run/fcgiwrap.socket /run/fcgiwrap.pid 2>/dev/null || true
+[?2004l
+[?2004hroot@41ba69eb-4f73-4181-869d-d50083ed3090:/app# ps aux | grep fcgiwrap | grep -v grep || true
+[?2004l
+[?2004hroot@41ba69eb-4f73-4181-869d-d50083ed3090:/app# curl -v -u gituser:gitpass 'http://localhost/project-alpha.git/info/refs?service=git-upload-pack' -o /tmp/git-inf
+fo-refs.out
+[?2004l
+* Host localhost:80 was resolved.
+* IPv6: ::1
+* IPv4: 127.0.0.1
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0*   Trying [::1]:80...
+* connect to ::1 port 80 from ::1 port 47350 failed: Connection refused
+*   Trying 127.0.0.1:80...
+* Connected to localhost (127.0.0.1) port 80
+* Server auth using Basic with user 'gituser'
+> GET /project-alpha.git/info/refs?service=git-upload-pack HTTP/1.1
+
+> Host: localhost
+
+> Authorization: Basic Z2l0dXNlcjpnaXRwYXNz
+
+> User-Agent: curl/8.5.0
+
+> Accept: */*
+
+> 
+
+< HTTP/1.1 502 Bad Gateway
+
+< Server: nginx/1.24.0 (Ubuntu)
+
+< Date: Thu, 05 Nov 2026 21:54:17 GMT
+
+< Content-Type: text/html
+
+< Content-Length: 166
+
+< Connection: keep-alive
+
+< 
+
+{ [166 bytes data]
+
+100   166  100   166    0     0  85699      0 --:--:-- --:--:-- --:--:--  162k
+* Connection #0 to host localhost left intact
+[?2004hroot@41ba69eb-4f73-4181-869d-d50083ed3090:/app# rm -rf /tmp/clone-test && git clone http://gituser:gitpass@localhost/project-alpha.git /tmp/clone-test
+[?2004l
+Cloning into '/tmp/clone-test'...
+fatal: unable to access 'http://localhost/project-alpha.git/': The requested URL returned error: 502
+[?2004hroot@41ba69eb-4f73-4181-869d-d50083ed3090:/app# cd /tmp/clone-test
+[?2004l
+bash: cd: /tmp/clone-test: No such file or directory
+[?2004hroot@41ba69eb-4f73-4181-869d-d50083ed3090:/app# git config user.name "Git Test User"
+[?2004l
+fatal: not in a git directory
+[?2004hroot@41ba69eb-4f73-4181-869d-d50083ed3090:/app# git config user.email "gituser@example.com"
+[?2004l
+fatal: not in a git directory
+[?2004hroot@41ba69eb-4f73-4181-869d-d50083ed3090:/app# git branch --show-current
+[?2004l
+fatal: not a git repository (or any of the parent directories): .git
+[?2004hroot@41ba69eb-4f73-4181-869d-d50083ed3090:/app# echo "push test $(date +%s)" > push-test.txt
+[?2004l
+[?2004hroot@41ba69eb-4f73-4181-869d-d50083ed3090:/app# git add push-test.txt
+[?2004l
+fatal: not a git repository (or any of the parent directories): .git
+[?2004hroot@41ba69eb-4f73-4181-869d-d50083ed3090:/app# git commit -m "Test push over HTTP"
+[?2004l
+fatal: not a git repository (or any of the parent directories): .git
+[?2004hroot@41ba69eb-4f73-4181-869d-d50083ed3090:/app# git push http://gituser:gitpass@localhost/project-alpha.git HEAD
+[?2004l
+fatal: not a git repository (or any of the parent directories): .git
+[?2004hroot@41ba69eb-4f73-4181-869d-d50083ed3090:/app# git --git-dir=/srv/git/project-alpha.git log --oneline -2
+[?2004l
+[33m03403b1[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmaster[m[33m)[m Initial commit
+[?2004hroot@41ba69eb-4f73-4181-869d-d50083ed3090:/app# 
+
+--- verifier output (exit 0) ---
+fcgiwrap is not running
+fcgiwrap is not accessible to nginx for authenticated Git HTTP requests
+authenticated clone failed: Cloning into '/tmp/tmp.QiIdGbuREq/first'...
+fatal: unable to access 'http://localhost/project-alpha.git/': The requested URL returned error: 502
+clone does not contain the supplied README.md content
+clone does not contain the supplied alpha.txt content
+
+
+Fix the task so the reference solution scores 1.0, then check again. The container is still up: ./sandbox exec to look around.

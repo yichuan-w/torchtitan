@@ -1,0 +1,14 @@
+[
+  {
+    "defect": "The instruction says /app/forecast.py loads /app/data/timeseries.csv and asks the student to re-run it, but that input file is absent from the starting image.",
+    "evidence": "instruction.md names /app/data/timeseries.csv, while attempts 01-12 first observe it missing at turns 3, 2, 3, 2, 2, 2, 2, 2, 2, 2, 2, and 2 respectively.",
+    "change": "Ship the intended deterministic time-series fixture at /app/data/timeseries.csv in the image.",
+    "kind": "broken_setup"
+  },
+  {
+    "defect": "The supplied program imports pandas, numpy, and sklearn, but the python3 selected in the student shell is the verifier interpreter and cannot import those dependencies even though the system interpreter has them.",
+    "evidence": "environment/Dockerfile provides no runtime selection; attempts 01, 04, 06, 08, 09, 11, and 12 hit ModuleNotFoundError after fabricating input, and multiple attempts then discover /usr/bin/python3 works.",
+    "change": "Put /usr/bin before the verifier-only interpreter on the student shell PATH so python3 runs the supplied program with its installed dependencies.",
+    "kind": "broken_setup"
+  }
+]

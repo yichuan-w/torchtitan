@@ -1,0 +1,14 @@
+[
+  {
+    "defect": "The grader requires condition literals and composed conditional/loop behavior that the public template syntax does not define.",
+    "evidence": "instruction.md describes only a generic `if condition`, while tests/test_outputs.py requires `not`, equality/inequality, signed integers, booleans, None, and an if block evaluated inside a loop; attempts 01 and 03 each passed 37/39 but failed the signed-negative and conditional-inside-loop cases.",
+    "change": "State the supported condition semantics and that the listed constructs must work together, without prescribing an implementation.",
+    "kind": "hidden_requirement"
+  },
+  {
+    "defect": "The grader requires unresolved substitutions to preserve the engine's `{{ UNDEFINED }}` marker, but the public instruction does not say what missing values render as.",
+    "evidence": "instruction.md is silent about missing keys, while tests/test_outputs.py requires the marker; attempts 05 and 11 reasonably chose an empty string and failed only those missing-value cases plus signed-negative comparison.",
+    "change": "State that unresolved substitutions retain the existing engine's undefined marker.",
+    "kind": "hidden_requirement"
+  }
+]

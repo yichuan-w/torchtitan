@@ -1,0 +1,65 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "xxd /app/inventory.bin | head -50\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "ls -l /app/inventory.bin\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.2,
+    "keystrokes": "od -A d -t x1z /app/inventory.bin\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.3,
+    "keystrokes": "cat > /app/parse.py << 'EOF'\nimport struct, csv\nfrom datetime import date, timedelta\n\ndata = open('/app/inventory.bin','rb').read()\nassert data[:4] == b'BIN2'\nn = struct.unpack('>H', data[4:6])[0]\noff = 6\nrows = []\nfor _ in range(n):\n    rid = struct.unpack('>I', data[off:off+4])[0]; off += 4\n    ln = data[off]; off += 1\n    name = data[off:off+ln].decode('ascii'); off += ln\n    price = struct.unpack('>f', data[off:off+4])[0]; off += 4\n    qty = struct.unpack('>I', data[off:off+4])[0]; off += 4\n    days = struct.unpack('>H', data[off:off+2])[0]; off += 2\n    d = date(2020,1,1) + timedelta(days=days)\n    rows.append((rid, name, f\"{price:.2f}\", qty, d.isoformat()))\n\nrows.sort(key=lambda r: r[0])\nwith open('/app/inventory.csv','w',newline='') as f:\n    w = csv.writer(f)\n    w.writerow(['id','name','price','quantity','date'])\n    w.writerows(rows)\nprint(open('/app/inventory.csv').read())\nEOF\npython3 /app/parse.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 0.4,
+    "keystrokes": "cat > /app/parse.py << 'EOF'\nimport struct, csv\nfrom datetime import date, timedelta\n\ndata = open('/app/inventory.bin','rb').read()\nassert data[:4] == b'BIN2'\nn = struct.unpack('>H', data[4:6])[0]\noff = 6\nrows = []\nfor _ in range(n):\n    rid = struct.unpack('>I', data[off:off+4])[0]; off += 4\n    ln = data[off]; off += 1\n    name = data[off:off+ln].decode('ascii'); off += ln\n    price = struct.unpack('>f', data[off:off+4])[0]; off += 4\n    qty = struct.unpack('>H', data[off:off+2])[0]; off += 2\n    days = struct.unpack('>I', data[off:off+4])[0]; off += 4\n    d = date(2020,1,1) + timedelta(days=days)\n    rows.append((rid, name, f\"{price:.2f}\", qty, d.isoformat()))\nassert off == len(data), (off, len(data))\n\nrows.sort(key=lambda r: r[0])\nwith open('/app/inventory.csv','w',newline='') as f:\n    w = csv.writer(f)\n    w.writerow(['id','name','price','quantity','date'])\n    w.writerows(rows)\nprint(open('/app/inventory.csv').read())\nEOF\npython3 /app/parse.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 0.5,
+    "keystrokes": "sed -i \"s/qty = struct.unpack('>H', data\\[off:off+2\\])\\[0\\]; off += 2/qty = struct.unpack('>I', data[off:off+4])[0]; off += 4/\" /app/parse.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 0.5,
+    "keystrokes": "python3 /app/parse.py\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 1.6,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 1.6,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

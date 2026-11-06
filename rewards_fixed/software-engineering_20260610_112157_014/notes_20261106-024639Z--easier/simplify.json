@@ -1,0 +1,70 @@
+{
+  "retained_skill": "Manually identify deleted FAT16 directory entries across the root and nested directories, calculate their data locations despite corrupted allocation metadata, and recover every deleted file's exact bytes without copying live files.",
+  "bottleneck": "FAT deletion destroys the first byte of each 8.3 short name, but the task required exact original base filenames and the verifier rejected otherwise correct recovered bytes under reasonable reconstructed names. Eight submitted attempts reached this ambiguity; attempts 02 and 06 recovered all six exact payloads and failed only a reconstructed name.",
+  "change": "Repair the result contract and scratch verifier to accept a reasonable reconstructed base filename when deletion erased filename characters. Files are matched by exact recovered content rather than the unknowable first filename byte; all six deleted payloads, top-level placement, and exclusion of live or extra files remain required. This is a contract/verifier repair at the original deletion signal, not supplied recovery work.",
+  "restore": "Restore the exact-original-base-filename requirement and canonical-name checks once the image itself preserves or supplies authoritative original names; no recovered content or FAT analysis help needs withdrawal.",
+  "prediction": "Attempts that recover exact payloads currently choose plausible names such as HEAD_DEV.TXT or NOTEBAK.TXT and then stop; accepting reasonable reconstructions enables them to submit those bytes successfully. This is refuted if a replay of attempt 06 still fails any retained content, completeness, placement, or extra-file check.",
+  "expected": "4 of 12",
+  "evidence": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turn": 6,
+      "observation": "First diverged by assuming the root directory began at 0x800; original grading passed directory/extras but failed completeness, sizes, and content. Its retained content failures remain after this repair."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turn": 21,
+      "observation": "Recovered all six exact payloads but renamed the backup payload NOTEBAK.TXT. Fresh replay used all recorded commands; grade failed all four artifact checks solely because NOTEBACK.TXT was absent and NOTEBAK.TXT was unexpected."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turn": 14,
+      "observation": "Located payload regions but submitted CONFIG.DAT with shell-script bytes and reconstructed README.DEV.TXT; original grading failed completeness, sizes, content, and extras."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turn": 7,
+      "observation": "Lost time trying unavailable loop devices and later ended sandbox_failed before submission; no grading state existed."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turn": 14,
+      "observation": "Found directory metadata but later submitted a truncated NOTES.TXT, omitted two deleted payloads, and included invented names; all retained artifact checks failed."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turn": 28,
+      "observation": "Recovered all six exact payloads and used HEAD_DEV.TXT for the entry whose surviving suffix is EAD_DEV.TXT. Fresh replay and grade passed directory existence and failed completeness, sizes, content lookup, and extras solely on READ_DEV.TXT versus HEAD_DEV.TXT. After the edit, a fresh reset plus the same recorded commands earned reward 1.0; all five scratch checks passed, so no retained failure remained."
+    },
+    {
+      "attempt": "attempt-07.jsonl",
+      "turn": 19,
+      "observation": "Recovered payload candidates but used HEAD_DEV.TXT and OTE_BACK.TXT and left audit/output files; original grade failed retained extra-file exclusion as well as canonical-name lookups."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turn": 13,
+      "observation": "Miscomputed candidate offsets and continued broad scanning until hit_context_limit without submission."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turn": 11,
+      "observation": "Recovered several payloads but omitted NOTES.TXT and used three reconstructed or invented names; original grading failed completeness, sizes, content, and extras."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turn": 18,
+      "observation": "Recovered payloads but reconstructed README_DEV.TXT and NOTE_BACK.TXT; original grading failed canonical-name completeness, sizes, content lookup, and extras."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turn": 14,
+      "observation": "Located deleted entries and payload areas but repeatedly scanned raw offsets, created several partial/invented files, and hit_context_limit without submission."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turn": 11,
+      "observation": "Used an incorrect data-area calculation, omitted CONFIG.DAT, and reconstructed two names; original grading failed completeness, sizes, content, and extras. A fresh recorded-command replay was attempted but its oversized combined shell stream made the sandbox server unreadable; grading then confirmed all five checks failed on the empty state."
+    }
+  ]
+}

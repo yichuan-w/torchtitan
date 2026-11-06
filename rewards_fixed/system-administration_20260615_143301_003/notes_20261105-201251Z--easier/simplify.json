@@ -1,0 +1,45 @@
+{
+  "retained_skill": "Integrate Postfix virtual-domain delivery with Dovecot passwd-file authentication and TLS IMAP so mail accepted for virtual users is readable through IMAP.",
+  "bottleneck": "The public task permits Maildir storage anywhere under /var/mail/vhosts/, but every scored attempt used the conventional per-user Maildir subdirectory while the verifier only inspected new, cur and tmp directly beneath each user directory; this layout mismatch was the first common grading failure in all 12 attempts.",
+  "change": "Repair in the scratch verifier: resolve each user's complete Maildir at either the direct per-user location or its conventional Maildir child, and use that same resolved location for cleanup, SMTP-delivery content checks and structure checks. This removes an unstated pathname choice while leaving virtual delivery, authentication, TLS and service integration entirely to the student. The original signal retained is an actual SMTP delivery followed by IMAP access.",
+  "restore": "A later hardening can require one exact layout by stating that layout explicitly in the public instruction and then checking it; no supplied configuration or implementation needs withdrawal.",
+  "prediction": "Attempts 04 and 11 already passed STARTTLS and reached IMAP FETCH but failed because Postfix and Dovecot agreed on a nested Maildir that the checker inspected elsewhere. Accepting either public-contract-compliant layout lets those attempts proceed to successful delivery and retrieval; this is refuted if replaying their nested-layout approach still fails any retained SMTP, IMAP, credential, TLS or Maildir behavior.",
+  "expected": "2 of 12",
+  "evidence": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turn": 8,
+      "observation": "First creates /var/mail/vhosts/example.com/{alice,bob}/Maildir/{cur,new,tmp}; original diagnostics fail all four checks, including direct-path /alice/new and /bob/new. Seed-reference state replayed with ./sandbox reset, ./sandbox exec and ./sandbox grade: SMTP passed while IMAP 993, IMAP 143 and direct Maildir structure failed, confirming the checks are independent and the exact path check is not needed to validate delivery."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turn": 9,
+      "observation": "Configures Dovecot at maildir:/var/mail/vhosts/%d/%n/Maildir. Its recorded grade passes IMAP 143 but fails SMTP inspection at /bob/new, IMAP FETCH content, and direct /alice/new structure; this is a near-success expected to benefit from consistent nested-layout inspection."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turn": 8,
+      "observation": "Uses the alternative direct per-user Maildir layout. Exact keystrokes were restored from the trace after ./sandbox reset and graded with ./sandbox grade; all four checks failed (services were not preserved by the non-interactive concatenated replay), matching the original recorded four failures and showing this attempt has independent Postfix/service faults the repair will not erase."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turn": 11,
+      "observation": "Creates conventional nested Maildir folders. Exact keystrokes were restored after a fresh ./sandbox reset and graded; all checks failed in the replay because concatenation did not preserve its interactive service state, while the recorded grade passed STARTTLS and failed SMTP mandatory-TLS behavior, IMAP pre-delivery and direct-path structure. The repair leaves its SMTP policy failure in place."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turn": 9,
+      "observation": "Configures nested Maildir, and its recorded grade passes IMAP 143 while failing SMTP direct-path inspection, IMAP FETCH content, and direct-path structure. This is the second near-success expected to benefit from checking the configured valid layout consistently."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turn": 7,
+      "observation": "Creates nested Maildir correctly, but the recorded grade still reports SMTP connection timeout and IMAP pre-delivery failure while STARTTLS passes; those retained service failures remain after the path repair."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turn": 9,
+      "observation": "Post-edit replay from a fresh ./sandbox reset rebuilt its nested Maildir approach, started only the services the attempt itself starts, and ./sandbox grade passed all four retained checks: SMTP delivery, IMAP 993 fetch, IMAP 143 STARTTLS, and both users\u2019 Maildirs. This confirms the repaired checker accepts the conventional nested layout without supplying the retained integration skill."
+    }
+  ]
+}

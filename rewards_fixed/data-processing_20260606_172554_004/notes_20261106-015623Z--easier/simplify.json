@@ -1,0 +1,70 @@
+{
+  "retained_skill": "Parse the irregular pipe-delimited transaction log, aggregate every store/product pair, derive quantity, revenue, time bounds and counts, and order the resulting rows by store then descending revenue.",
+  "bottleneck": "All 12 scored attempts first fail when serializing total_revenue: they correctly round the numeric aggregate but let Python write values such as 225.0 or 162.5, while the verifier requires fixed-point text such as two digits after the decimal. The instruction says rounded to 2 decimal places but does not unambiguously state that trailing zeroes are required, so this is a hidden output-format requirement rather than a failure of the aggregation skill.",
+  "change": "Repair the public contract in instruction.md by stating, as a vague output-format direction rather than a solution step, that total_revenue is written in fixed-point notation with exactly two digits after the decimal point. This instruction-level repair leaves parsing, normalization, aggregation, timestamp selection, and sorting entirely to the student and gives no computed answer.",
+  "restore": "In a later restoration, remove the fixed-point sentence only if the verifier is also relaxed to compare revenue numerically; otherwise retaining the sentence is necessary for the exact textual contract to remain fair.",
+  "prediction": "The failing action is writing a rounded floating-point object directly through a CSV writer, which drops insignificant trailing zeroes. Making the textual representation explicit enables some attempts to choose fixed-point formatting before writing while leaving the core data-processing decisions unchanged. A next group in which outputs still consistently contain 225.0 or 162.5 would refute the prediction.",
+  "expected": "6 of 12",
+  "evidence": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turn": 4,
+      "observation": "The script aggregates and sorts correctly but writes rounded float objects directly with DictWriter. Replayed all commands from a fresh reset and graded: 7 checks passed; the four content checks for NYC01/Widget-A, LAX02/Widget-A, CHI03/Gadget-X, and SEA04/Widget-B failed only because revenues were 162.5, 125.0, 225.0, and 122.5 rather than two-digit fixed-point text. After the instruction repair, replayed its approach through the targeted serialization decision from a fresh reset, changed only the revenue representation to two-digit fixed point, reran the report, and all 11 checks passed."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turn": 4,
+      "observation": "First wrong action is writing row['total_revenue'] directly after round(..., 2); output inspection at turn 6 shows 225.0 and 162.5."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turn": 3,
+      "observation": "First wrong action is passing numeric total_revenue values to DictWriter; turn 5 output shows 225.0 and 162.5."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turn": 4,
+      "observation": "First wrong action is interpolating the rounded float without a fixed-point format; turn 6 output shows 225.0 and 162.5."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turn": 2,
+      "observation": "First wrong action is storing round(..., 2) and writing it directly; turn 5 output shows 225.0 and 162.5."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turn": 4,
+      "observation": "First wrong action is writing numeric rounded revenues directly; turn 6 output shows 225.0 and 162.5."
+    },
+    {
+      "attempt": "attempt-07.jsonl",
+      "turn": 3,
+      "observation": "First wrong action is writing numeric rounded revenues directly; turn 5 output shows 225.0 and 162.5."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turn": 2,
+      "observation": "First wrong action is writing numeric rounded revenues directly. Replayed all commands from a fresh reset and graded: 7 checks passed and the same four content checks failed solely on missing trailing zeroes."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turn": 4,
+      "observation": "First wrong action is writing numeric rounded revenues directly; turn 6 output shows 225.0 and 162.5."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turn": 2,
+      "observation": "First wrong action is passing rounded floats to DictWriter; turn 3 output shows 225.0 and 162.5."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turn": 3,
+      "observation": "First wrong action is passing rounded floats directly to csv.writer; turn 5 output shows 225.0 and 162.5."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turn": 3,
+      "observation": "First wrong action is passing numeric rounded revenues to DictWriter; turn 5 output shows 225.0 and 162.5."
+    }
+  ]
+}

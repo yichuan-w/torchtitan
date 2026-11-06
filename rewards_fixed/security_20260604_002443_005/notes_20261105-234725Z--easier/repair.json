@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The public task requires db2's host key to use the ECDSA key type but leaves the ECDSA curve open, while the verifier accepts only the nistp256 representation.",
+    "evidence": "instruction.md Host Keys and Certificates requires the inventory's key type; environment/files/inventory.txt specifies only ecdsa for db2; tests/test_outputs.py maps ecdsa exclusively to ecdsa-sha2-nistp256. Replays of attempt-01 turn 3 (nistp521) and attempt-12 turn 3 (nistp384) each passed 15 of 17 checks and failed the host-key-type check for this reason.",
+    "change": "Accept any ssh-keygen ECDSA public-key curve for an inventory entry whose requested type is ecdsa.",
+    "kind": "hidden_requirement"
+  }
+]

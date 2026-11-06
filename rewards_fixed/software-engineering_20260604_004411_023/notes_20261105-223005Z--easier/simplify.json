@@ -1,0 +1,70 @@
+{
+  "retained_skill": "Implementing safe LZ4 block decompression: parsing sequences and extended lengths, validating offsets and bounds, and copying overlapping matches correctly.",
+  "bottleneck": "The dominant obstacle is an ambiguous empty-block sentence, not the decompression algorithm: all 12 implementations accept zero-byte input, and six otherwise pass every check.",
+  "change": "Repair only, in words at the original task signal: the public contract and header now distinguish invalid zero-byte input from the valid 0x00 empty-output block. This removes the misleading edge-case decision without supplying any LZ4 parsing implementation.",
+  "restore": "Remove the two-sentence clarification from instruction.md and restore the older ambiguous header/source wording to return to the original task.",
+  "prediction": "Near-passing students will no longer encode zero-byte input as a second empty block representation; they will reject it while still implementing all sequence parsing themselves. This is refuted if new attempts continue accepting zero-byte input or if none pass despite reaching that clarified branch.",
+  "expected": "6 of 12",
+  "evidence": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turn": 25,
+      "observation": "Replayed the final source after ./sandbox reset with its recorded turn-25 heredoc, then ran ./sandbox grade. It passed compilation, all valid vectors, corrupt-input checks, and overlap checks (12 passed) and failed only the edge-case check because zero-byte input returned success. The changed-task replay below patches only that clarified branch and passes all checks."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turn": 30,
+      "observation": "Final-state replay passed 12 checks and failed only the edge-case check for accepting zero-byte input; its own turn 47 explicitly tested that behavior as success."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turn": 25,
+      "observation": "Final-state replay had 8 failures and 5 passes: valid long/overlap vectors, corrupt-input rejection, and the edge-case group failed, so clarification alone does not make this attempt a predicted success."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turn": 22,
+      "observation": "Final-state replay passed 12 checks and failed only the edge-case check for accepting zero-byte input."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turn": 6,
+      "observation": "Replayed the recorded turn-6 final heredoc after ./sandbox reset and ran ./sandbox grade. It passed 12 checks and failed only the edge-case check for accepting zero-byte input."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turn": 6,
+      "observation": "Final-state replay passed 12 checks and failed only the edge-case check for accepting zero-byte input."
+    },
+    {
+      "attempt": "attempt-07.jsonl",
+      "turn": 35,
+      "observation": "Final-state replay had 7 failures and 6 passes, including valid-vector and edge-case failures, so it still has decompression errors outside this repair."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turn": 36,
+      "observation": "Final-state replay had 2 failures and 11 passes: corrupt-input rejection and the edge-case group failed, so clarification alone does not remove every failure."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turn": 26,
+      "observation": "Final-state replay had 3 failures and 10 passes, including valid-vector and edge-case failures, so it still has a decompression error outside this repair."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turn": 36,
+      "observation": "Final-state replay had 7 failures and 6 passes, including valid-vector, corrupt-input, and edge-case failures, so it still has decompression errors outside this repair."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turn": 15,
+      "observation": "Final-state replay passed 12 checks and failed only the edge-case check for accepting zero-byte input; turn 11 explicitly treated zero-byte success as correct."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turn": 17,
+      "observation": "Final-state replay had 2 failures and 11 passes: corrupt-input rejection and the edge-case group failed, so clarification alone does not remove every failure."
+    }
+  ]
+}

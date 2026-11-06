@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The starting image does not provide the scientific Python libraries required to perform and reproduce the requested analysis, while installing the distribution packages during an attempt exhausts the 1 GiB writable disk and does not make them importable from the default/verifier Python.",
+    "evidence": "environment/Dockerfile only copies the CSV; attempt-01.jsonl turn 6 reports missing numpy and turn 11 reports no space during apt, with the same first missing-library failure in all 12 attempts. Fresh replay grading of attempt-05 and attempt-12 final scripts passed six result checks but failed reproducibility because no probed Python imported numpy/scipy.",
+    "change": "Install pinned numpy, scipy, pandas, and matplotlib into /opt/verifier's default Python at image-build time so analysis.py runs reproducibly without consuming attempt disk or turns on environment repair.",
+    "kind": "broken_setup"
+  }
+]

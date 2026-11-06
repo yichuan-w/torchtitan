@@ -1,0 +1,191 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "ls -la /app/data/ && head -5 /app/data/north_sales.csv",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "file /app/data/* && head -5 /app/data/south_sales.csv | cat -A | head -20",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "head -10 /app/data/east_sales.tsv | cat -A",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "which duckdb; python3 -c \"import duckdb; print(duckdb.__version__)\"",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.4,
+    "keystrokes": "C-c",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.4,
+    "keystrokes": "ls -la /app/data/\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.4,
+    "keystrokes": "file /app/data/*\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.4,
+    "keystrokes": "head -5 /app/data/north_sales.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.4,
+    "keystrokes": "head -5 /app/data/south_sales.csv | cat -A\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.4,
+    "keystrokes": "head -8 /app/data/east_sales.tsv | cat -A\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.4,
+    "keystrokes": "which duckdb; python3 -c \"import duckdb; print(duckdb.__version__)\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 2.0,
+    "keystrokes": "cat /app/data/north_sales.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 2.0,
+    "keystrokes": "cat /app/data/south_sales.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 2.0,
+    "keystrokes": "cat /app/data/east_sales.tsv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 2.0,
+    "keystrokes": "pip install duckdb 2>&1 | tail -2\n",
+    "duration": 30.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 32.3,
+    "keystrokes": "pip install --break-system-packages duckdb 2>&1 | tail -2\n",
+    "duration": 60.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 32.3,
+    "keystrokes": "mkdir -p /app/output\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 32.3,
+    "keystrokes": "cat > /app/etl.py <<'EOF'\nimport csv, duckdb\nfrom datetime import datetime\n\nrows = []\n\ndef parse_date(s):\n    s = s.strip()\n    for fmt in (\"%Y-%m-%d\", \"%m/%d/%Y\", \"%d-%m-%Y\"):\n        try:\n            return datetime.strptime(s, fmt).date()\n        except ValueError:\n            pass\n    raise ValueError(f\"bad date: {s}\")\n\ndef clean(v):\n    return v.strip() if v is not None else None\n\n# North: comma csv\nwith open('/app/data/north_sales.csv', encoding='utf-8') as f:\n    for r in csv.DictReader(f):\n        rows.append((clean(r['order_id']), clean(r['customer_id']), parse_date(r['order_date']),\n                     clean(r['product']) or None, int(r['quantity']), float(r['unit_price']), clean(r['region'])))\n\n# South: semicolon, latin-1, Dutch columns\nwith open('/app/data/south_sales.csv', encoding='latin-1') as f:\n    for r in csv.DictReader(f, delimiter=';'):\n        rows.append((clean(r['id']), clean(r['klant_id']), parse_date(r['datum']),\n                     clean(r['product_naam']) or None, int(r['aantal']), float(r['prijs']), clean(r['regio'])))\n\n# East: TSV with comment line and $ prices\nwith open('/app/data/east_sales.tsv', encoding='utf-8') as f:\n    lines = [l for l in f if not l.startswith('#')]\nfor r in csv.DictReader(lines, delimiter='\\t'):\n    rows.append((clean(r['order_id']), clean(r['customer_id']), parse_date(r['order_date']),\n                 clean(r['item']) or None, int(r['qty']), float(r['unit_price'].replace('$','')), clean(r['region'])))\n\n# dedupe fully identical rows\nrows = list(dict.fromkeys(rows))\n\ncon = duckdb.connect('/app/sales.db')\ncon.execute(\"DROP TABLE IF EXISTS sales\")\ncon.execute(\"CREATE TABLE sales (order_id VARCHAR, customer_id VARCHAR, order_date DATE, product VARCHAR, quantity INTEGER, unit_price FLOAT, region VARCHAR)\")\ncon.executemany(\"INSERT INTO sales VALUES (?,?,?,?,?,?,?)\", rows)\nprint(\"rows loaded:\", con.execute(\"SELECT COUNT(*) FROM sales\").fetchone()[0])\n\nqueries = {\n 'revenue_by_region': \"SELECT region, SUM(quantity*unit_price) AS total_revenue FROM sales GROUP BY region ORDER BY total_revenue DESC\",\n 'top_products': \"SELECT product, SUM(quantity) AS total_quantity FROM sales GROUP BY product ORDER BY total_quantity DESC LIMIT 5\",\n 'monthly_revenue': \"SELECT strftime(order_date, '%Y-%m') AS month, SUM(quantity*unit_price) AS total_revenue FROM sales GROUP BY month ORDER BY month\",\n 'avg_order_value': \"SELECT region, SUM(quantity*unit_price)/COUNT(*) AS avg_order_value FROM sales GROUP BY region\",\n}\nfor name, q in queries.items():\n    con.execute(f\"COPY ({q}) TO '/app/output/{name}.csv' (HEADER, DELIMITER ',')\")\ncon.close()\nprint(\"done\")\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 32.3,
+    "keystrokes": "python3 /app/etl.py\n",
+    "duration": 15.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 107.5,
+    "keystrokes": "which python3; python3 --version; python3 -c \"import sys; print(sys.path)\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 107.5,
+    "keystrokes": "ls /usr/local/lib/python3.12/dist-packages | head; python3 -m pip --version\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 107.7,
+    "keystrokes": "ls /usr/bin/python*; /usr/bin/python3 -c \"import duckdb, sys; print(sys.version, duckdb.__version__)\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 107.7,
+    "keystrokes": "/usr/bin/python3 /app/etl.py\n",
+    "duration": 15.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 122.8,
+    "keystrokes": "for f in /app/output/*.csv; do echo \"== $f\"; cat $f; done\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 122.8,
+    "keystrokes": "/usr/bin/python3 -c \"\nimport duckdb\nc=duckdb.connect('/app/sales.db')\nprint(c.execute('SELECT count(*), count(DISTINCT order_id) FROM sales').fetchall())\nprint(c.execute(\\\"SELECT * FROM sales WHERE product LIKE '%af%' OR product IS NULL\\\").fetchall())\nprint(c.execute('DESCRIBE sales').fetchall())\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 123.0,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 123.0,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

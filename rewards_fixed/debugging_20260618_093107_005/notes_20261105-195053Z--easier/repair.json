@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The verifier requires recovered measurement values to equal two-decimal literals exactly, although the instruction asks for native numeric values and IEEE-754 decoding naturally yields nearby values such as 980.510009765625.",
+    "evidence": "tests/test_outputs.py exact tuple comparison conflicts with instruction.md's native-number requirement; attempt-03.jsonl turn 18 and attempt-11.jsonl turn 8 recover all 35 records but replay grading rejects every record solely for float representation.",
+    "change": "Compare measurement values numerically with a tight floating-point tolerance while retaining exact matching of timestamp, sensor_id, reading_type, record count, and corruption exclusions.",
+    "kind": "hidden_requirement"
+  }
+]

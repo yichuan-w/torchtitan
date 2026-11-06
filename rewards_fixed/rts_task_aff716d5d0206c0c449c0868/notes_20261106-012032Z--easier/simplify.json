@@ -1,0 +1,70 @@
+{
+  "retained_skill": "Performing a branch rebase and fast-forward while identifying the pre-operation baseline and producing the corresponding unified diff.",
+  "bottleneck": "All 12 scored attempts reached the audit-writing stage, but the verifier required three case-sensitive labels with bare hashes and treated the first blank line as the start of the diff, requirements the public instruction did not state.",
+  "change": "Repair the scratch verifier at the original task signal: recognize case-insensitive, descriptive forensics headers and locate the unified diff by its standard diff header, while retaining semantic checks of branch state, baseline, final commit, and exact diff content. No solution work is supplied.",
+  "restore": "A later version can restore stricter presentation only by explicitly adding an audit schema to the public contract; the retained Git and forensic decisions remain entirely with the student here.",
+  "prediction": "Attempts that correctly rebased and generated the baseline-to-final patch but decorated or capitalized header fields differently will now proceed past parsing and pass; attempts with the wrong baseline reference, abbreviated final value where a full object ID is required by their own header, extra text inside the patch, or git-show metadata will still fail. This is refuted if replaying attempt-01's approach still fails header or diff checks, or if a semantically wrong baseline passes.",
+  "expected": "6 of 12",
+  "evidence": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turn": 8,
+      "observation": "First wrong point: wrote correct full baseline/final values and git diff, but capitalized Commit/Reference and annotated hashes. Replay command reconstructed turns 3, 5, 6, and 8; grading passed git state and diff existence but failed header, diff-content, and shortcut checks solely because the parser returned no baseline. After the verifier repair, a fresh-reset replay of the same approach earned reward 1.0 and all five checks passed; no retained failure remained."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turn": 9,
+      "observation": "First wrong point: used descriptive lowercase field labels and a reflog description rather than the verifier's hidden exact labels after successfully rebasing and fast-forwarding."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turn": 8,
+      "observation": "First wrong point: placed descriptive headings and trailing report separators around the patch; the branches were already correctly aligned, but the audit was not a bare parser-specific header followed only by the diff."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turn": 19,
+      "observation": "First wrong point: represented baseline and final as labeled subsections with Commit values on following lines, a reasonable header structure rejected by the hidden one-line grammar."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turn": 8,
+      "observation": "First wrong point: used capitalized labels and annotations around otherwise derived baseline/final values and generated the requested git diff."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turn": 10,
+      "observation": "First wrong point: used descriptive lowercase labels in a structured report after completing the rebase workflow."
+    },
+    {
+      "attempt": "attempt-07.jsonl",
+      "turn": 8,
+      "observation": "First wrong point: reached audit generation after the rebase but used a prose report layout rather than the unstated exact field grammar."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turn": 10,
+      "observation": "First wrong point: reached the final report after completing branch alignment, but its prose header did not match the verifier's exact case-sensitive keys."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turn": 9,
+      "observation": "First wrong point: generated the baseline-to-final diff under descriptive lowercase labels; the verifier could not parse those labels."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turn": 12,
+      "observation": "First wrong point: wrote lowercase descriptive fields and an abbreviated final object ID after correctly aligning branches."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turn": 8,
+      "observation": "First wrong point: split baseline and reflog facts across descriptive fields and included report material before the unified diff after a successful rebase."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turn": 12,
+      "observation": "First wrong point: used capitalized descriptive fields and git show rather than a bare baseline-to-final diff. Replay reconstructed the approach on a fresh reset; grading passed git state and diff existence, then failed header, diff-content, and shortcut checks because baseline was unparsed, so later diff semantics were not reached. A separate fresh-reset replay confirmed its git state remains valid but git-show output remains outside the required baseline-to-final unified diff."
+    }
+  ]
+}

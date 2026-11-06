@@ -1,0 +1,205 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "ls -la\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "cat parser.h\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "cat reader.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "cat Makefile\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.4,
+    "keystrokes": "xxd normal.dat\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.4,
+    "keystrokes": "xxd malformed.dat | head -40\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.4,
+    "keystrokes": "xxd malformed.dat | tail -10\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.4,
+    "keystrokes": "make\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.4,
+    "keystrokes": "./reader normal.dat\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.4,
+    "keystrokes": "./reader malformed.dat; echo \"exit: $?\"\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 3.7,
+    "keystrokes": "od -A x -t x1z normal.dat\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 3.7,
+    "keystrokes": "od -A x -t x1z malformed.dat | head -20\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 3.7,
+    "keystrokes": "od -A x -t x1z malformed.dat | tail -10\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 3.7,
+    "keystrokes": "which gdb; nm -D libparser.so | head -30\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 4.1,
+    "keystrokes": "objdump -d libparser.so --disassemble=parser_next_item -M intel\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 4.6,
+    "keystrokes": "objdump -d libparser.so --disassemble=parser_create -M intel\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 4.6,
+    "keystrokes": "objdump -d libparser.so --disassemble=parser_read_checksum -M intel; objdump -d libparser.so --disassemble=parser_free_item -M intel; objdump -d libparser.so --disassemble=read_u16.part.0 -M intel\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 4.6,
+    "keystrokes": "objdump -s -j .rodata libparser.so | head -30\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 5.7,
+    "keystrokes": "cat > reader.c << 'EOF'\n#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n#include <stdint.h>\n#include \"parser.h\"\n\n/*\n * Binary Data File Reader\n *\n * Reads a custom binary format (.dat files) and prints the contents.\n * The format is documented in parser.h.\n *\n * The reader also performs integrity checks:\n * - Validates checksums\n * - Computes a simple hash of all item data\n * - Reports statistics about the dataset\n *\n * NOTE: This version works around a bug in the pre-compiled\n * libparser.so: parser_next_item() allocates a buffer of\n * (uint16_t)(data_len + 1) bytes and then reads data_len bytes into\n * it.  When data_len == 0xFFFF the 16-bit addition wraps to zero and\n * the fortified read aborts the process (\"buffer overflow detected\").\n * The wrapper below peeks at each item header and parses such items\n * manually with proper bounds checks; all other items are still\n * handled by the library.\n */\n\ntypedef struct {\n    uint16_t id;\n    uint32_t data_hash;\n    size_t data_len;\n} item_summary_t;\n\n/* Compute a simple FNV-1a hash of the item data */\nstatic uint32_t compute_data_hash(parsed_item_t *item) {\n    uint32_t hash = 2166136261U;\n    for (uint16_t i = 0; i < item->data_len; i++) {\n        hash ^= item->data[i];\n        hash *= 16777619U;\n    }\n    return hash;\n}\n\n/* Print a summary of the dataset */\nstatic void print_summary(item_summary_t *summaries, uint32_t count) {\n    printf(\"\\n=== Dataset Summary ===\\n\");\n    printf(\"Total items: %u\\n\", count);\n\n    size_t total_data = 0;\n    for (uint32_t i = 0; i < count; i++) {\n        total_data += summaries[i].data_len;\n        printf(\"  Item %u: id=%u, len=%zu, hash=0x%08x\\n\",\n               i, summaries[i].id, summaries[i].data_len,\n               summaries[i].data_hash);\n    }\n    printf(\"Total data bytes: %zu\\n\", total_data);\n}\n\n/*\n * Safe replacement for parser_next_item().\n *\n * Returns 1 on success, 0 if no more items, -1 on error -- the same\n * contract as parser_next_item(), but without the crash on items\n * whose data_len is 0xFFFF.\n */\nstatic int safe_next_item(parser_ctx_t *ctx, parsed_item_t *item) {\n    unsigned char hdr[4];\n    long pos;\n    size_t n;\n\n    if (!ctx || !ctx->fp || !item)\n        return -1;\n\n    /* No more items (matches the library's behaviour). */\n    if (ctx->current_item >= ctx->num_items)\n        return 0;\n\n    /* Peek at the 4-byte item header (id and data_len, big endian). */\n    pos = ftell(ctx->fp);\n    if (pos < 0)\n        return parser_next_item(ctx, item);\n\n    n = fread(hdr, 1, sizeof(hdr), ctx->fp);\n    if (fseek(ctx->fp, pos, SEEK_SET) != 0)\n        return parser_next_item(ctx, item);\n\n    if (n < sizeof(hdr)) {\n        /* Truncated item header: report an error instead of letting\n         * the library terminate the whole process. */\n        return -1;\n    }\n\n    uint16_t data_len = (uint16_t)(((uint16_t)hdr[2] << 8) | hdr[3]);\n    if (data_len != 0xFFFFu) {\n        /* This item is safe for the library to parse. */\n        return parser_next_item(ctx, item);\n    }\n\n    /*\n     * data_len == 0xFFFF triggers the buffer-size wraparound bug in\n     * libparser.so, so parse this item manually.  The header bytes\n     * have already been validated above; consume them now.\n     */\n    uint16_t item_id = (uint16_t)(((uint16_t)hdr[0] << 8) | hdr[1]);\n\n    if (fread(hdr, 1, 4, ctx->fp) != 4)\n        return -1;\n\n    /* Use a wide (size_t) addition so the size cannot wrap. */\n    uint8_t *buf = malloc((size_t)data_len + 1u);\n    if (!buf)\n        return -1;\n\n    if (fread(buf, 1, data_len, ctx->fp) != data_len) {\n        free(buf);\n        return -1;\n    }\n    buf[data_len] = '\\0';\n\n    item->item_id = item_id;\n    item->data_len = data_len;\n    item->data = buf;\n    ctx->current_item++;\n    return 1;\n}\n\nint main(int argc, char **argv) {\n    if (argc < 2) {\n        fprintf(stderr, \"Usage: %s <file.dat>\\n\", argv[0]);\n        return 1;\n    }\n\n    /* Open and parse the file */\n    parser_ctx_t *ctx = parser_create(argv[1]);\n    if (!ctx) {\n        fprintf(stderr, \"Failed to open file: %s\\n\", argv[1]);\n        return 1;\n    }\n\n    printf(\"Dataset: %u items, flags=0x%04x\\n\", ctx->num_items, ctx->flags);\n    fflush(stdout);\n\n    /* Allocate space for item summaries */\n    item_summary_t *summaries = malloc(ctx->num_items * sizeof(item_summary_t));\n    if (!summaries && ctx->num_items > 0) {\n        fprintf(stderr, \"Failed to allocate summaries\\n\");\n        parser_destroy(ctx);\n        return 1;\n    }\n\n    /* Read all items (using the crash-safe wrapper) */\n    uint32_t item_count = 0;\n    parsed_item_t item;\n    int rc;\n\n    while ((rc = safe_next_item(ctx, &item)) == 1) {\n        if (item_count < ctx->num_items) {\n            summaries[item_count].id = item.item_id;\n            summaries[item_count].data_len = item.data_len;\n            summaries[item_count].data_hash = compute_data_hash(&item);\n        }\n        item_count++;\n        parser_free_item(&item);\n    }\n\n    if (rc < 0) {\n        fprintf(stderr, \"Error parsing item %u\\n\", item_count);\n        free(summaries);\n        parser_destroy(ctx);\n        return 1;\n    }\n\n    /* Read and verify checksum */\n    uint32_t expected_checksum = parser_read_checksum(ctx);\n    uint32_t computed = 0;\n    for (uint32_t i = 0; i < item_count; i++) {\n        /* Re-read items to compute checksum...\n         * Actually, we already have the data, but it was freed.\n         * For a proper implementation, we'd need to keep the data.\n         * For now, just trust the parser. */\n    }\n    (void)expected_checksum;\n    (void)computed;\n\n    print_summary(summaries, item_count);\n\n    free(summaries);\n    parser_destroy(ctx);\n\n    printf(\"\\nProcessing complete.\\n\");\n    return 0;\n}\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 5.7,
+    "keystrokes": "make clean && make\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 5.7,
+    "keystrokes": "./reader normal.dat; echo \"exit: $?\"\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 5.7,
+    "keystrokes": "./reader malformed.dat; echo \"exit: $?\"\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 8.8,
+    "keystrokes": "which valgrind || echo \"no valgrind\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 8.8,
+    "keystrokes": "head -c 20 malformed.dat > /tmp/trunc.dat && ./reader /tmp/trunc.dat; echo \"exit: $?\"\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 8.8,
+    "keystrokes": "./reader normal.dat > /tmp/n1.txt && ./reader malformed.dat > /tmp/m1.txt && ./reader normal.dat > /tmp/n2.txt && diff /tmp/n1.txt /tmp/n2.txt && echo \"deterministic OK\"\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 10.9,
+    "keystrokes": "valgrind --error-exitcode=99 ./reader malformed.dat > /dev/null 2> /tmp/vg_m.txt; echo \"valgrind malformed exit: $?\"; tail -5 /tmp/vg_m.txt\n",
+    "duration": 10.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 10.9,
+    "keystrokes": "valgrind --error-exitcode=99 ./reader normal.dat > /dev/null 2> /tmp/vg_n.txt; echo \"valgrind normal exit: $?\"; tail -5 /tmp/vg_n.txt\n",
+    "duration": 10.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 30.9,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 30.9,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

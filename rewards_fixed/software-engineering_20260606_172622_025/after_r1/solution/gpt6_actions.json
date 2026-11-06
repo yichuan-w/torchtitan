@@ -1,0 +1,184 @@
+[
+  {
+    "step_id": 3,
+    "offset_sec": 0.0,
+    "keystrokes": "ls -la\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.0,
+    "keystrokes": "find . -maxdepth 2 -type f -printf '%p\\n' | sort\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.2,
+    "keystrokes": "cat Makefile\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.2,
+    "keystrokes": "make\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.2,
+    "keystrokes": "xxd test_ld.ch8; xxd test_sl.ch8; xxd test_sr.ch8; xxd test_st.ch8; xxd test_bcd.ch8\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.2,
+    "keystrokes": "grep -n \"main\\|usage\\|argc\\|argv\\|case 0x\" chip8.c | head -80\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 0.6,
+    "keystrokes": "for f in test_ld.ch8 test_sl.ch8 test_sr.ch8 test_st.ch8 test_bcd.ch8; do echo \"== $f ==\"; od -Ax -tx1 -v \"$f\"; done\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 0.6,
+    "keystrokes": "for f in test_ld.ch8 test_sl.ch8 test_sr.ch8 test_st.ch8 test_bcd.ch8; do echo \"== $f ==\"; ./chip8 \"$f\"; done\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 0.6,
+    "keystrokes": "sed -n '180,360p' chip8.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 0.6,
+    "keystrokes": "sed -n '1,180p' chip8.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 0.6,
+    "keystrokes": "sed -n '360,460p' chip8.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 1.1,
+    "keystrokes": "nl -ba chip8.c | sed -n '235,355p'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 1.2,
+    "keystrokes": "nl -ba chip8.c | sed -n '235,316p'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 1.3,
+    "keystrokes": "nl -ba chip8.c | sed -n '235,280p'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 1.4,
+    "keystrokes": "cp chip8.c chip8.c.bak\npython3 -c 'from pathlib import Path\np=Path(\"chip8.c\")\ns=p.read_text()\nrepls=[\n(\"            c->V[0xF] = c->V[x] & 0x01;\\n            c->V[x] >>= 1;\\n\",\n \"            c->V[0xF] = c->V[y] & 0x01;\\n            c->V[x] = c->V[y] >> 1;\\n\"),\n(\"            c->V[0xF] = (c->V[x] & 0x80) >> 7;\\n            c->V[x] <<= 1;\\n\",\n \"            c->V[0xF] = (c->V[y] & 0x80) >> 7;\\n            c->V[x] = c->V[y] << 1;\\n\"),\n(\"                uint8_t val = c->V[x];\\n                c->memory[c->I]     = val % 10;\\n                c->memory[c->I + 1] = (val / 10) % 10;\\n                c->memory[c->I + 2] = val / 100;\\n\",\n \"                uint8_t val = c->V[x];\\n                c->memory[c->I]     = val / 100;\\n                c->memory[c->I + 1] = (val / 10) % 10;\\n                c->memory[c->I + 2] = val % 10;\\n\"),\n(\"                c->memory[c->I + i] = c->V[i];\\n            }\\n            break;\\n        case 0x65:\",\n \"                c->memory[c->I + i] = c->V[i];\\n            }\\n            c->I += x + 1;\\n            break;\\n        case 0x65:\"),\n(\"                c->V[i] = c->memory[c->I + i];\\n            }\\n            break;\\n        default:\",\n \"                c->V[i] = c->memory[c->I + i];\\n            }\\n            c->I += x + 1;\\n            break;\\n        default:\")\n]\nfor old,new in repls:\n    cnt=s.count(old)\n    print(\"replacement count:\", cnt)\n    assert cnt == 1\nfor old,new in repls:\n    s=s.replace(old,new,1)\np.write_text(s)'\n",
+    "duration": 0.2,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 1.4,
+    "keystrokes": "diff -u chip8.c.bak chip8.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 1.4,
+    "keystrokes": "make\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 1.4,
+    "keystrokes": "for f in test_ld.ch8 test_sl.ch8 test_sr.ch8 test_st.ch8 test_bcd.ch8; do echo \"== $f ==\"; ./chip8 \"$f\"; done\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 3.2,
+    "keystrokes": "rm -f chip8.c.bak\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 3.2,
+    "keystrokes": "make clean && make\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 3.2,
+    "keystrokes": "for f in test_ld.ch8 test_sl.ch8 test_sr.ch8 test_bcd.ch8 test_st.ch8; do echo \"== $f ==\"; ./chip8 \"$f\"; done\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 3.2,
+    "keystrokes": "nl -ba chip8.c | sed -n '252,276p;329,348p'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 4.9,
+    "keystrokes": "make clean && make\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 4.9,
+    "keystrokes": "for f in test_ld.ch8 test_sl.ch8 test_sr.ch8 test_bcd.ch8 test_st.ch8; do echo \"== $f ==\"; ./chip8 \"$f\"; done\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 6.4,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 13,
+    "offset_sec": 6.4,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

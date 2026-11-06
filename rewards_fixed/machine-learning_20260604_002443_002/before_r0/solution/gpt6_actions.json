@@ -1,0 +1,58 @@
+[
+  {
+    "step_id": 3,
+    "offset_sec": 0.0,
+    "keystrokes": "ls -la\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.0,
+    "keystrokes": "nl -ba /app/model.py | sed -n '1,260p'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.2,
+    "keystrokes": "cat > /app/model.py <<'PY'\n\"\"\"\nTransformer Encoder implementation for sequence modeling.\n\"\"\"\nimport math\nimport torch\nimport torch.nn as nn\nimport torch.nn.functional as F\n\n\nclass MultiHeadAttention(nn.Module):\n    \"\"\"Multi-head scaled dot-product attention.\"\"\"\n\n    def __init__(self, d_model, n_heads, dropout=0.1):\n        super().__init__()\n        assert d_model % n_heads == 0\n        self.d_model = d_model\n        self.n_heads = n_heads\n        self.d_k = d_model // n_heads\n\n        self.W_q = nn.Linear(d_model, d_model)\n        self.W_k = nn.Linear(d_model, d_model)\n        self.W_v = nn.Linear(d_model, d_model)\n        self.W_o = nn.Linear(d_model, d_model)\n        self.dropout = nn.Dropout(dropout)\n\n    def forward(self, x, mask=None):\n        B, S, D = x.shape\n\n        q = self.W_q(x).view(B, S, self.n_heads, self.d_k).transpose(1, 2)\n        k = self.W_k(x).view(B, S, self.n_heads, self.d_k).transpose(1, 2)\n        v = self.W_v(x).view(B, S, self.n_heads, self.d_k).transpose(1, 2)\n\n        attn_scores = torch.matmul(q, k.transpose(-2, -1)) / math.sqrt(self.d_k)\n\n        if mask is not None:\n            attn_scores = attn_scores.masked_fill(mask == 0, float('-inf'))\n\n        attn_weights = F.softmax(attn_scores, dim=-1)\n        attn_weights = self.dropout(attn_weights)\n\n        out = torch.matmul(attn_weights, v)\n        out = out.transpose(1, 2).contiguous().view(B, S, D)\n        out = self.W_o(out)\n        return out\n\n\nclass FeedForward(nn.Module):\n    \"\"\"Position-wise feed-forward network.\"\"\"\n\n    def __init__(self, d_model, d_ff, dropout=0.1):\n        super().__init__()\n        self.linear1 = nn.Linear(d_model, d_ff)\n        self.linear2 = nn.Linear(d_ff, d_model)\n        self.dropout = nn.Dropout(dropout)\n\n    def forward(self, x):\n        return self.linear2(self.dropout(F.gelu(self.linear1(x))))\n\n\nclass TransformerEncoderLayer(nn.Module):\n    \"\"\"A single transformer encoder layer.\"\"\"\n\n    def __init__(self, d_model, n_heads, d_ff, dropout=0.1):\n        super().__init__()\n        self.self_attn = MultiHeadAttention(d_model, n_heads, dropout)\n        self.ffn = FeedForward(d_model, d_ff, dropout)\n        self.norm1 = nn.LayerNorm(d_model)\n        self.norm2 = nn.LayerNorm(d_model)\n        self.dropout = nn.Dropout(dropout)\n\n    def forward(self, x, mask=None):\n        attn_out = self.self_attn(x, mask)\n        x = self.norm1(x + self.dropout(attn_out))\n\n        ffn_out = self.ffn(x)\n        x = self.norm2(x + self.dropout(ffn_out))\n        return x\n\n\nclass PositionalEncoding(nn.Module):\n    \"\"\"Learnable positional encoding.\"\"\"\n\n    def __init__(self, d_model, max_len=512):\n        super().__init__()\n        self.max_len = max_len\n        self.pos_embedding = nn.Parameter(torch.randn(max_len, d_model))\n\n    def forward(self, x):\n        seq_len = x.size(1)\n        if seq_len > self.max_len:\n            raise ValueError(\n                f\"Sequence length {seq_len} exceeds maximum length {self.max_len}\"\n            )\n        return x + self.pos_embedding[:seq_len]\n\n\nclass TransformerEncoder(nn.Module):\n    \"\"\"Stack of transformer encoder layers.\"\"\"\n\n    def __init__(self, vocab_size, d_model, n_heads, d_ff, n_layers,\n                 max_len=512, dropout=0.1):\n        super().__init__()\n        self.token_embedding = nn.Embedding(vocab_size, d_model)\n        self.pos_encoding = PositionalEncoding(d_model, max_len)\n        self.dropout = nn.Dropout(dropout)\n\n        self.layers = nn.ModuleList([\n            TransformerEncoderLayer(d_model, n_heads, d_ff, dropout)\n            for _ in range(n_layers)\n        ])\n\n    def forward(self, x, mask=None):\n        x = self.token_embedding(x)\n        x = self.pos_encoding(x)\n        x = self.dropout(x)\n\n        for layer in self.layers:\n            x = layer(x, mask)\n\n        return x\nPY\n",
+    "duration": 0.2,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.2,
+    "keystrokes": "python3 -m py_compile /app/model.py\n",
+    "duration": 0.2,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.2,
+    "keystrokes": "cd /app && python3 - <<'PY'\nimport torch\nfrom model import TransformerEncoder\n\ntorch.manual_seed(0)\nmodel = TransformerEncoder(\n    vocab_size=100, d_model=64, n_heads=4, d_ff=128,\n    n_layers=2, max_len=64, dropout=0.0\n)\nx = torch.randint(0, 100, (2, 10))\nmask = torch.ones(2, 1, 1, 10, dtype=torch.bool)\nmask[:, :, :, -2:] = False\nwith torch.no_grad():\n    out = model(x, mask)\nprint('output shape:', tuple(out.shape))\nprint('positional embedding shape:', tuple(model.pos_encoding.pos_embedding.shape))\nprint('finite output:', bool(torch.isfinite(out).all()))\nprint('position-dependent:', not torch.allclose(out[:, 0], out[:, 1]))\nPY\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 1.1,
+    "keystrokes": "",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 2.1,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 2.1,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

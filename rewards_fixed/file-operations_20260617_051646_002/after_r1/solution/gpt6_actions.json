@@ -1,0 +1,65 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "ls -la\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "file /app/input.plist\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "node --version\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.3,
+    "keystrokes": "cat > /app/parse.js <<'EOF'\n'use strict';\n\nconst fs = require('fs');\n\nfunction readUIntBE(buf, offset, size) {\n  if (size === 1) return buf.readUInt8(offset);\n  if (size === 2) return buf.readUInt16BE(offset);\n  if (size === 4) return buf.readUInt32BE(offset);\n  if (size === 8) return Number(buf.readBigUInt64BE(offset));\n\n  let value = 0;\n  for (let i = 0; i < size; i++) {\n    value = value * 256 + buf[offset + i];\n  }\n  return value;\n}\n\nfunction readBigIntBE(buf, offset, size) {\n  let value = 0n;\n  for (let i = 0; i < size; i++) {\n    value = (value << 8n) | BigInt(buf[offset + i]);\n  }\n  if (size > 0 && (buf[offset] & 0x80)) {\n    value -= 1n << BigInt(size * 8);\n  }\n  return value;\n}\n\nfunction readInteger(buf, offset, info) {\n  const size = 1 << info;\n  if (info >= 3) {\n    return Number(readBigIntBE(buf, offset, size));\n  }\n\n  let value = 0n;\n  for (let i = 0; i < size; i++) {\n    value = (value << 8n) | BigInt(buf[offset + i]);\n  }\n  return Number(value);\n}\n\nfunction readLength(buf, offset, info) {\n  if (info !== 0xf) {\n    return { length: info, dataOffset: offset };\n  }\n\n  const sizeSize = 1 << (buf[offset] & 0x3);\n  return {\n    length: readUIntBE(buf, offset + 1, sizeSize),\n    dataOffset: offset + 1 + sizeSize\n  };\n}\n\nfunction formatDate(secondsSince2001) {\n  const epoch2001 = Date.UTC(2001, 0, 1, 0, 0, 0);\n  const iso = new Date(epoch2001 + secondsSince2001 * 1000).toISOString();\n  return iso.endsWith('.000Z') ? iso.slice(0, -5) + 'Z' : iso;\n}\n\nfunction parsePlist(buffer) {\n  if (buffer.length < 40) {\n    throw new Error('File is too short to be a binary plist');\n  }\n  if (buffer.toString('ascii', 0, 6) !== 'bplist') {\n    throw new Error('Invalid binary plist header');\n  }\n\n  const trailerStart = buffer.length - 32;\n  const offsetSize = buffer[trailerStart + 6];\n  const refSize = buffer[trailerStart + 7];\n  const numObjects = Number(buffer.readBigUInt64BE(trailerStart + 8));\n  const topObject = Number(buffer.readBigUInt64BE(trailerStart + 16));\n  const offsetTableStart = Number(buffer.readBigUInt64BE(trailerStart + 24));\n\n  if (![1, 2, 4, 8].includes(offsetSize) || ![1, 2, 4, 8].includes(refSize)) {\n    throw new Error('Unsupported integer size in trailer');\n  }\n\n  const offsets = [];\n  for (let i = 0; i < numObjects; i++) {\n    offsets.push(readUIntBE(buffer, offsetTableStart + i * offsetSize, offsetSize));\n  }\n\n  function readRef(offset) {\n    return readUIntBE(buffer, offset, refSize);\n  }\n\n  function parseObject(offset) {\n    if (offset < 0 || offset >= buffer.length) {\n      throw new Error('Object offset out of bounds');\n    }\n\n    const marker = buffer[offset];\n    const type = marker >> 4;\n    const info = marker & 0x0f;\n    const contentOffset = offset + 1;\n\n    switch (type) {\n      case 0x0:\n        if (info === 0x0) return null;\n        if (info === 0x8) return false;\n        if (info === 0x9) return true;\n        throw new Error('Unsupported primitive marker 0x' + marker.toString(16));\n\n      case 0x1:\n        return readInteger(buffer, contentOffset, info);\n\n      case 0x2:\n        if (info === 0x2) return buffer.readFloatBE(contentOffset);\n        if (info === 0x3) return buffer.readDoubleBE(contentOffset);\n        throw new Error('Unsupported real marker 0x' + marker.toString(16));\n\n      case 0x3:\n        if (info !== 0x3) {\n          throw new Error('Unsupported date marker 0x' + marker.toString(16));\n        }\n        return formatDate(buffer.readDoubleBE(contentOffset));\n\n      case 0x4: {\n        const { length, dataOffset } = readLength(buffer, contentOffset, info);\n        return buffer.subarray(dataOffset, dataOffset + length).toString('base64');\n      }\n\n      case 0x5: {\n        const { length, dataOffset } = readLength(buffer, contentOffset, info);\n        return buffer.toString('ascii', dataOffset, dataOffset + length);\n      }\n\n      case 0x6: {\n        const { length, dataOffset } = readLength(buffer, contentOffset, info);\n        let result = '';\n        for (let i = 0; i < length; i++) {\n          result += String.fromCharCode(buffer.readUInt16BE(dataOffset + i * 2));\n        }\n        return result;\n      }\n\n      case 0x8: {\n        const size = info + 1;\n        let uid = 0n;\n        for (let i = 0; i < size; i++) {\n          uid = (uid << 8n) | BigInt(buffer[contentOffset + i]);\n        }\n        return { __uid__: Number(uid) };\n      }\n\n      case 0xa:\n      case 0xc: {\n        const { length, dataOffset } = readLength(buffer, contentOffset, info);\n        const result = [];\n        for (let i = 0; i < length; i++) {\n          const ref = readRef(dataOffset + i * refSize);\n          result.push(parseObject(offsets[ref]));\n        }\n        return result;\n      }\n\n      case 0xd: {\n        const { length, dataOffset } = readLength(buffer, contentOffset, info);\n        const result = {};\n        const valueRefsOffset = dataOffset + length * refSize;\n        for (let i = 0; i < length; i++) {\n          const keyRef = readRef(dataOffset + i * refSize);\n          const valueRef = readRef(valueRefsOffset + i * refSize);\n          const key = parseObject(offsets[keyRef]);\n          if (typeof key !== 'string') {\n            throw new Error('Dictionary key is not a string');\n          }\n          result[key] = parseObject(offsets[valueRef]);\n        }\n        return result;\n      }\n\n      default:\n        throw new Error('Unsupported object marker 0x' + marker.toString(16));\n    }\n  }\n\n  return parseObject(offsets[topObject]);\n}\n\nconst inputPath = process.argv[2];\nif (!inputPath) {\n  console.error('Usage: node parse.js <input.plist>');\n  process.exit(1);\n}\n\ntry {\n  const buffer = fs.readFileSync(inputPath);\n  const result = parsePlist(buffer);\n  process.stdout.write(JSON.stringify(result) + '\\n');\n} catch (error) {\n  console.error('Error: ' + error.message);\n  process.exit(1);\n}\nEOF\nnode /app/parse.js /app/input.plist\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 0.4,
+    "keystrokes": "node --check /app/parse.js\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 0.4,
+    "keystrokes": "python3 - <<'PY'\nimport plistlib, json, base64\nwith open('/app/input.plist','rb') as f:\n    p = plistlib.load(f)\ndef enc(o):\n    if isinstance(o, bytes): return base64.b64encode(o).decode()\n    if isinstance(o, plistlib.UID): return {'__uid__': o.data}\n    if isinstance(o, dict): return {k: enc(v) for k,v in o.items()}\n    if isinstance(o, list): return [enc(v) for v in o]\n    if hasattr(o, 'isoformat'): return o.isoformat().replace('+00:00','Z')\n    return o\nprint(json.dumps(enc(p), indent=2))\nPY\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 1.9,
+    "keystrokes": "python3 - <<'PY'\nfrom pathlib import Path\np = Path('/app/parse.js')\ns = p.read_text()\ns = s.replace(\n    \"function readInteger(buf, offset, info) {\",\n    \"const SAFE_INT_MIN = BigInt(Number.MIN_SAFE_INTEGER);\\nconst SAFE_INT_MAX = BigInt(Number.MAX_SAFE_INTEGER);\\n\\nfunction bigIntToJsonValue(value) {\\n  return value >= SAFE_INT_MIN && value <= SAFE_INT_MAX ? Number(value) : value;\\n}\\n\\nfunction readInteger(buf, offset, info) {\",\n    1\n)\ns = s.replace(\n    \"return Number(readBigIntBE(buf, offset, size));\",\n    \"return bigIntToJsonValue(readBigIntBE(buf, offset, size));\",\n    1\n)\ns = s.replace(\n    \"return { __uid__: Number(uid) };\",\n    \"return { __uid__: bigIntToJsonValue(uid) };\",\n    1\n)\ns = s.replace(\n    \"const inputPath = process.argv[2];\",\n    \"function jsonStringify(value) {\\n  if (typeof value === 'bigint') return value.toString();\\n  if (value === null) return 'null';\\n  if (Array.isArray(value)) return '[' + value.map(jsonStringify).join(',') + ']';\\n  if (typeof value === 'object') {\\n    return '{' + Object.keys(value).map(key => JSON.stringify(key) + ':' + jsonStringify(value[key])).join(',') + '}';\\n  }\\n  return JSON.stringify(value);\\n}\\n\\nconst inputPath = process.argv[2];\",\n    1\n)\ns = s.replace(\n    \"process.stdout.write(JSON.stringify(result) + '\\\\n');\",\n    \"process.stdout.write(jsonStringify(result) + '\\\\n');\",\n    1\n)\np.write_text(s)\nPY\nnode --check /app/parse.js\nnode /app/parse.js /app/input.plist\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 2.0,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 2.0,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

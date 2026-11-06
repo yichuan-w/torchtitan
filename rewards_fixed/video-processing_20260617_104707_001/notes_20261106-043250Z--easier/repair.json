@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The instruction describes corruption as random noise, color blocks, and horizontal streaks, while the supplied frames preserve broad color statistics and are corrupted through local spatial scrambling; this steers detectors toward features the actual input was constructed to preserve.",
+    "evidence": "environment/Dockerfile generates corruption by shuffling pixels inside local blocks, while instruction.md describes different visual modes; attempt-01.jsonl turns 5-12 and attempt-04.jsonl turns 11-41 show the resulting zero-detection and subtle-frame near-miss behavior.",
+    "change": "Describe the observable corruption as disrupted local spatial continuity and warn only that broad color statistics can remain similar, without naming an algorithm, threshold, block size, or answer.",
+    "kind": "other"
+  }
+]

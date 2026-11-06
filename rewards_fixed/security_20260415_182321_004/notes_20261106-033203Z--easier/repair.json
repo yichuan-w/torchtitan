@@ -1,0 +1,14 @@
+[
+  {
+    "defect": "The instruction says an existing pytest suite can be run, but the image contains no /tests/test_outputs.py and no pytest executable.",
+    "evidence": "instruction.md step 4 conflicts with environment/Dockerfile; attempts 01-12 all had to create their own /tests/test_outputs.py or otherwise reconstruct tests before validation.",
+    "change": "Install pinned pytest and copy the task suite into /tests during image construction.",
+    "kind": "broken_setup"
+  },
+  {
+    "defect": "The grader patches only url_fetcher.urlopen, rejecting reasonable fixes that preserve behavior but use urllib custom openers.",
+    "evidence": "tests/test_outputs.py patches url_fetcher.urlopen, while attempts 01, 03-11 fail redirect/allowed-fetch checks primarily because their custom opener bypasses that private mock rather than because the reported final URL is accepted.",
+    "change": "Patch both supported urllib transport entry points in the semantic response tests so module-level urlopen and OpenerDirector-based implementations receive the same controlled response.",
+    "kind": "hidden_requirement"
+  }
+]

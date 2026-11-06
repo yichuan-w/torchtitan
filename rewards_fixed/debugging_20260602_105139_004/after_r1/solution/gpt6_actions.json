@@ -1,0 +1,121 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "python3 report.py\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "ls -la\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 1.1,
+    "keystrokes": "cat report.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 1.1,
+    "keystrokes": "cat sales.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 1.3,
+    "keystrokes": "nl -ba report.py | sed -n '1,120p'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 1.3,
+    "keystrokes": "nl -ba report.py | sed -n '121,260p'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 1.5,
+    "keystrokes": "nl -ba report.py | sed -n '75,180p'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 1.6,
+    "keystrokes": "nl -ba report.py | sed -n '50,105p'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 1.6,
+    "keystrokes": "nl -ba report.py | sed -n '106,141p'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 1.8,
+    "keystrokes": "nl -ba report.py | sed -n '45,80p'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 1.8,
+    "keystrokes": "python3 - <<'PY'\nimport csv, collections\nfor fmt in ('%m/%d/%Y','%d/%m/%Y'):\n    agg=collections.defaultdict(float)\n    with open('sales.csv') as f:\n        for r in csv.DictReader(f):\n            from datetime import datetime\n            d=datetime.strptime(r['date'],fmt)\n            agg[(d.year,d.month)] += int(r['quantity'])*float(r['unit_price'])\n    print(fmt, {k:round(v,2) for k,v in sorted(agg.items())})\nPY\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 2.0,
+    "keystrokes": "nl -ba report.py | sed -n '43,64p'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 2.1,
+    "keystrokes": "python3 - <<'PY'\nfrom pathlib import Path\n\npath = Path('report.py')\ntext = path.read_text()\ntext = text.replace(\n    'self.sort_chronological = False  # set to True for chronological',\n    'self.sort_chronological = True  # chronological by default'\n)\ntext = text.replace(\n    'datetime.strptime(date_str.strip(), \"%m/%d/%Y\")',\n    'datetime.strptime(date_str.strip(), \"%d/%m/%Y\")'\n)\ntext = text.replace(\n    'net = revenue + discount  # apply discount',\n    'net = revenue - discount  # apply discount'\n)\npath.write_text(text)\nPY\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 2.1,
+    "keystrokes": "grep -n \"sort_chronological\\|strptime\\|net = revenue\" report.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 2.1,
+    "keystrokes": "python3 report.py\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 3.3,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 3.3,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

@@ -1,0 +1,31 @@
+--- a/src/mistune/renderers/html.py
++++ b/src/mistune/renderers/html.py
+@@ -1,4 +1,5 @@
+ from typing import Any, ClassVar, Dict, Optional, Tuple, Literal
++from markupsafe import escape as escape_attr
+ from ..core import BaseRenderer, BlockState
+ from ..util import escape as escape_text
+ from ..util import safe_entity, striptags
+@@ -124,15 +125,15 @@
+     def block_text(self, text: str) -> str:
+         return text
+ 
+-    def block_code(self, code: str, info: Optional[str] = None) -> str:
++    def block_code(self, code: str, info: Optional[str]=None) ->str:
++        """TODO: Implement this function"""
+         html = '<pre><code'
+-        if info is not None:
+-            info = safe_entity(info.strip())
+         if info:
+-            lang = info.split(None, 1)[0]
+-            html += ' class="language-' + lang + '"'
+-        return html + '>' + escape_text(code) + '</code></pre>\n'
+-
++            lang = str(escape_attr(info.strip().split(None, 1)[0]))
++            if lang:
++                html += ' class="language-' + lang + '"'
++        html += '>' + escape_text(code) + '</code></pre>\n'
++        return html
+     def block_quote(self, text: str) -> str:
+         return '<blockquote>\n' + text + '</blockquote>\n'
+ 

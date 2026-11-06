@@ -1,0 +1,71 @@
+{
+  "retained_skill": "Diagnose the binary PNG corruption and reconstruct files whose validated decoded image content matches the originals.",
+  "bottleneck": "A hidden byte-for-byte representation requirement rejects semantically complete PNG recovery; all attempts reached recovery, but most validated only structure and attempt 10 deliberately emitted a valid equivalent PNG without ancillary metadata.",
+  "change": "Repair the grading contract in the instruction and verifier: retain exact filenames, complete file set, PNG structural validity, dimensions, and decoded pixels, while allowing a different lossless encoding. This is verifier-level removal of an unfair representation obstacle; the original malformed-file signal and the recovery decision remain with the student.",
+  "restore": "To restore the original difficulty after learning, require exact original file bytes and reinstate checksum identity explicitly in both the instruction and verifier.",
+  "prediction": "Attempt 10's failing action was discarding damaged ancillary metadata after recovering valid IHDR/IDAT/IEND chunks; allowing equivalent lossless encoding makes that next action a successful submission. This is refuted if replayed attempt 10 still fails any retained filename, validity, dimension, or pixel-content check.",
+  "expected": "2 of 12",
+  "evidence": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turn": 46,
+      "observation": "First wrong recovery writes a header/length rewrite rather than preserving the shifted stream."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turn": 9,
+      "observation": "First wrong recovery overwrites the signature and later spends turns rebuilding chunks."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turn": 6,
+      "observation": "First wrong recovery replaces shifted bytes and struggles with chunk reconstruction."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turn": 12,
+      "observation": "Begins a structural reconstruction but does not recover the exact original representation."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turn": 12,
+      "observation": "Writes a signature-focused repair, then continues until the time limit without submission."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turn": 5,
+      "observation": "Writes signature replacement early and exhausts time while trying to repair remaining structure."
+    },
+    {
+      "attempt": "attempt-07.jsonl",
+      "turn": 15,
+      "observation": "Creates a signature-repair script but does not produce the exact expected representation."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turn": 24,
+      "observation": "Starts reconstruction late and reaches the time limit before submitting."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turn": 28,
+      "observation": "Rebuilds structurally valid files but reaches the time limit without submission."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turn": 32,
+      "observation": "Replayed command reconstructed 20 structurally valid PNGs with decompressible original IDAT image data; grade passed directory and filenames but failed only test_recovered_files_valid because all SHA256 values differed. After the repair, a fresh reset plus replay of turn 32 graded 1.0: all three checks passed, including exact decoded dimensions and pixels. Negative control created a valid all-black first image after fresh reset; grading rejected it for decoded-pixel mismatch (and separately reported the other missing files)."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turn": 15,
+      "observation": "Overwrites the signature and later accepts a weak header-only validity signal."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turn": 22,
+      "observation": "Replayed insertion-only repair; grade passed directory and filenames but failed test_recovered_files_valid for all 20 SHA256 mismatches, so malformed ancillary content remains rejected by the retained validity check."
+    }
+  ],
+  "previous": "No earlier accepted simplification exists; traces/history/summary.md lists only this running r0 rewrite, so there is no prior prediction to compare."
+}

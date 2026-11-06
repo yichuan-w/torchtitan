@@ -1,0 +1,70 @@
+{
+  "retained_skill": "Implementing a correct modular-square-root algorithm for arbitrary odd moduli, including general odd primes, odd prime powers with non-unit residues, factorization, and CRT composition.",
+  "bottleneck": "A hidden even-modulus requirement contradicted instruction.md and was the first grading obstacle for six attempts; two otherwise-correct odd-modulus implementations failed only that unstated case.",
+  "change": "Repair the verifier and shipped sqrt_mod description to enforce the stated odd-modulus domain only. This removes the unrelated power-of-two branch while leaving every odd prime, prime-power, composite, no-root, zero, and ECC decision unchanged. The help is structural around the retained skill and removes an unfair grading obstacle rather than supplying any odd-modulus implementation.",
+  "restore": "A later hardening needs no restoration: even-modulus support was never part of the public contract. Preserve all odd-modulus checks and the prohibition on modifying ecc.py.",
+  "prediction": "Attempts 03 and 06 fail solely when the checker calls sqrt_mod on powers of two; removing that unstated call lets their already-complete odd-modulus implementations pass. This is refuted if either replay still fails a retained odd-modulus or ECC check after the repair.",
+  "expected": "2 of 12",
+  "evidence": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turn": 3,
+      "observation": "Final-state replay failed odd prime-power handling (sqrt_mod(9, 27)) and the hidden even-modulus check; verifier failures: test_sqrt_mod_prime_power, test_sqrt_mod_power_of_two."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turn": 5,
+      "observation": "Final-state replay failed the hidden even-modulus check and retained odd composite handling; verifier failures: test_sqrt_mod_power_of_two, test_sqrt_mod_composite."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turn": 3,
+      "observation": "Final-state replay passed all stated odd-modulus checks and failed only test_sqrt_mod_power_of_two, an even-modulus requirement absent from instruction.md. After a fresh sandbox reset on the changed task, restoring this final ntlib.py and running ./sandbox grade gave reward 1.0 with all 9 retained checks passing."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turn": 3,
+      "observation": "Final-state replay first failed retained odd prime-power handling, then the hidden even-modulus check; verifier failures: test_sqrt_mod_prime_power, test_sqrt_mod_power_of_two."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turn": 8,
+      "observation": "Final-state replay first failed retained prime handling due a NameError and then six retained checks; this attempt is not helped by the repair."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turn": 4,
+      "observation": "Final-state replay passed all stated odd-modulus checks and failed only test_sqrt_mod_power_of_two, an even-modulus requirement absent from instruction.md."
+    },
+    {
+      "attempt": "attempt-07.jsonl",
+      "turn": 3,
+      "observation": "Final-state replay reached retained odd prime-power/composite logic and did not finish the checker; local replay showed the implementation hanging after early tests, so the repair does not remove its failure."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turn": 3,
+      "observation": "Final-state replay reached retained odd prime-power/composite logic and did not finish the checker; local replay showed the implementation hanging after early tests, so the repair does not remove its failure."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turn": 3,
+      "observation": "Final-state replay first exposed the hidden even-modulus check, then hung in retained odd composite handling; the repair leaves the latter failure."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turn": 5,
+      "observation": "Final-state replay failed the hidden even-modulus check and retained odd composite handling; verifier failures: test_sqrt_mod_power_of_two, test_sqrt_mod_composite."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turn": 3,
+      "observation": "Final-state replay reached retained odd prime-power/composite logic and did not finish the checker; local replay showed the implementation hanging after early tests, so the repair does not remove its failure."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turn": 13,
+      "observation": "Final-state replay failed the hidden even-modulus check and retained odd composite handling; verifier failures: test_sqrt_mod_power_of_two, test_sqrt_mod_composite."
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+diff --git a/src/mistune/renderers/html.py b/src/mistune/renderers/html.py
+index 5a6d9bd..8d189e7 100644
+--- a/src/mistune/renderers/html.py
++++ b/src/mistune/renderers/html.py
+@@ -124,15 +124,19 @@ class HTMLRenderer(BaseRenderer):
+     def block_text(self, text: str) -> str:
+         return text
+ 
+-    def block_code(self, code: str, info: Optional[str] = None) -> str:
++    def block_code(self, code: str, info: Optional[str]=None) ->str:
++        """TODO: Implement this function"""
+         html = '<pre><code'
+-        if info is not None:
+-            info = safe_entity(info.strip())
+         if info:
+-            lang = info.split(None, 1)[0]
+-            html += ' class="language-' + lang + '"'
+-        return html + '>' + escape_text(code) + '</code></pre>\n'
+-
++            # Extract the language name from info string (first word)
++            lang = info.strip().split(None, 1)[0]
++            if lang:
++                html += ' class="language-' + escape_text(lang) + '"'
++    
++        html += '>'
++        html += escape_text(code)
++        html += '</code></pre>\n'
++        return html
+     def block_quote(self, text: str) -> str:
+         return '<blockquote>\n' + text + '</blockquote>\n'
+ 

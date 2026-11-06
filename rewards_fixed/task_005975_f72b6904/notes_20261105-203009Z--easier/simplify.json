@@ -1,0 +1,75 @@
+{
+  "retained_skill": "Translate the hardening requirements into Bash automation that rewrites the user list idempotently, configures the requested QEMU launch, and preserves existing cron entries.",
+  "bottleneck": "The dominant obstacle is a hidden representation requirement in VM validation: 11 of 12 attempts first fail where their valid QEMU password-authentication spelling is rejected, while one attempt first fails because it genuinely omitted the explicitly required -nographic option.",
+  "change": "Repair the scratch verifier, without adding student help, so its VM check accepts QEMU's valid short and explicit boolean spellings for password authentication and either supported VNC option form. The public VM behavior, all other checks, and the retained Bash/system-configuration skill remain unchanged. This help lives in grading correctness rather than the instruction; the original signal remains QEMU's own accepted command-line interface. The setup-script check also runs the submitted script against a grader-prepared fresh user list, deriving its expected result before invocation, so hardcoding the seed output cannot pass.",
+  "restore": "No simplification needs restoration: a later revision may tighten the public contract only if it explicitly requires a particular QEMU argument representation, but it must not silently reject equivalent valid syntax.",
+  "prediction": "Attempts that currently stop after writing `password` or the equivalent display-backend VNC form will now proceed to a passing grade because those commands enable password authentication in the installed QEMU; an attempt that substitutes `-display none` for the explicitly requested `-nographic` will still fail. This is refuted if replaying a short-form-password attempt still fails VM validation or if the no-`-nographic` attempt passes.",
+  "expected": "11 of 12",
+  "evidence": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turn": 4,
+      "observation": "First wrong point: wrote `-vnc 127.0.0.1:2,password`; direct replay and grade failed only the exact `password=on` regex after the user-output and idempotence checks passed. After the verifier repair, a fresh reset plus replay reached all four passing checks and reward 1.0."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turn": 4,
+      "observation": "First wrong point: used `-display none` instead of the expressly requested `-nographic`; direct replay and grade passed the first two checks and failed the retained nographic check. After the verifier repair, a fresh replay still failed only the retained -nographic requirement; the remaining three checks passed when run without fail-fast."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turn": 4,
+      "observation": "First wrong point reported by grading: valid short-form VNC password boolean was rejected by the exact `password=on` representation check."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turn": 2,
+      "observation": "First wrong point reported by grading: valid short-form VNC password boolean was rejected by the exact `password=on` representation check."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turn": 5,
+      "observation": "First wrong point reported by grading: used QEMU's VNC display-backend form with password authentication, while the checker required the unstated legacy `-vnc ... password=on` representation. A fresh post-change replay of this display-backend approach passed all four checks with reward 1.0."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turn": 4,
+      "observation": "First wrong point reported by grading: valid short-form VNC password boolean was rejected by the exact `password=on` representation check."
+    },
+    {
+      "attempt": "attempt-07.jsonl",
+      "turn": 4,
+      "observation": "First wrong point reported by grading: valid short-form VNC password boolean was rejected by the exact `password=on` representation check."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turn": 4,
+      "observation": "First wrong point reported by grading: valid short-form VNC password boolean was rejected by the exact `password=on` representation check."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turn": 2,
+      "observation": "First wrong point reported by grading: valid short-form VNC password boolean was rejected by the exact `password=on` representation check."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turn": 6,
+      "observation": "First wrong point reported by grading: valid short-form VNC password boolean was rejected by the exact `password=on` representation check."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turn": 6,
+      "observation": "First wrong point reported by grading: valid short-form VNC password boolean was rejected by the exact `password=on` representation check."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turn": 4,
+      "observation": "First wrong point reported by grading: valid short-form VNC password boolean was rejected by the exact `password=on` representation check."
+    },
+    {
+      "attempt": "attempt-01.jsonl",
+      "turn": 3,
+      "observation": "Its setup script was replayed after the verifier update on a grader-prepared two-record input; it derived the changed output, remained idempotent, restored the seed state, and passed."
+    }
+  ]
+}

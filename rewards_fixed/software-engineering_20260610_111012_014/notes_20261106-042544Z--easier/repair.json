@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The verifier requires the interpreter to run prog2.luac, but the public instruction only identifies program.luac as required input.",
+    "evidence": "instruction.md names only /app/program.luac, while tests/test_outputs.py::test_interpreter_program2 invokes /app/luavm.py on /app/prog2.luac.",
+    "change": "State that the same interpreter must execute both supplied Lua 5.1 chunks, without prescribing their outputs or implementation.",
+    "kind": "hidden_requirement"
+  }
+]

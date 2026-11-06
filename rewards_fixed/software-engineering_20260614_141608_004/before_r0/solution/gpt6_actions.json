@@ -1,0 +1,303 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "ls -la /app /app/test_progs\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "cat /app/Makefile\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "file /app/svm; ls -la /app/svm\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.3,
+    "keystrokes": "cat /app/NOTES.txt\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.3,
+    "keystrokes": "head -50 /app/test_progs/*.asm\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.5,
+    "keystrokes": "cd /app; for t in test_progs/*.asm; do echo \"== $t ==\"; ./svm $t; echo \"exit=$?\"; done\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 0.6,
+    "keystrokes": "cat -A test_progs/test_loop.asm\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 0.6,
+    "keystrokes": "objdump -d svm | head -100\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 0.6,
+    "keystrokes": "nm svm | head -40\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 0.9,
+    "keystrokes": "nm svm | tail -30\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 0.9,
+    "keystrokes": "objdump -d svm > /tmp/dis.txt; wc -l /tmp/dis.txt\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 1.1,
+    "keystrokes": "sed -n '/<vm_run>:/,/^$/p' /tmp/dis.txt | head -250\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 1.2,
+    "keystrokes": "sed -n '/<vm_run>:/,/24ff/p' /tmp/dis.txt\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 1.3,
+    "keystrokes": "objdump -d --start-address=0x2400 --stop-address=0x2520 svm | tail -n +5\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 1.4,
+    "keystrokes": "objdump -d --start-address=0x2400 --stop-address=0x24b0 svm | tail -n +7 | head -40\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 1.5,
+    "keystrokes": "objdump -s --start-address=0x32dc --stop-address=0x333c svm\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 1.5,
+    "keystrokes": "objdump -s --start-address=0x3180 --stop-address=0x32dc svm | head -40\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 1.7,
+    "keystrokes": "objdump -d --start-address=0x2518 --stop-address=0x25c0 svm | tail -n +7 | head -38\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 13,
+    "offset_sec": 1.8,
+    "keystrokes": "objdump -d --start-address=0x25c0 --stop-address=0x2688 svm | tail -n +7 | head -40\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 1.9,
+    "keystrokes": "objdump -d --start-address=0x2688 --stop-address=0x2740 svm | tail -n +7 | head -36\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 15,
+    "offset_sec": 2.0,
+    "keystrokes": "objdump -d --start-address=0x2820 --stop-address=0x28e8 svm | tail -n +7 | head -40\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 16,
+    "offset_sec": 2.1,
+    "keystrokes": "objdump -d --start-address=0x28b0 --stop-address=0x29c0 svm | tail -n +7 | head -42\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 18,
+    "offset_sec": 2.2,
+    "keystrokes": "objdump -d --start-address=0x2950 --stop-address=0x2a48 svm | tail -n +7 | head -42\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 20,
+    "offset_sec": 2.3,
+    "keystrokes": "objdump -d --start-address=0x2a48 --stop-address=0x2ab0 svm | tail -n +7 | head -30\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 21,
+    "offset_sec": 2.4,
+    "keystrokes": "objdump -s -j .rodata svm | sed -n '1,20p'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 21,
+    "offset_sec": 2.4,
+    "keystrokes": "strings -t x svm | grep -E 'PUSH|POP|DUP|SWAP|ADD|SUB|MUL|DIV|MOD|EQ|NE|LT|GT|LE|GE|JMP|JZ|JNZ|CALL|RET|LOAD|STORE|PRINT|HALT'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 23,
+    "offset_sec": 2.6,
+    "keystrokes": "objdump -h svm | grep -E 'rodata|data|text'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 23,
+    "offset_sec": 2.6,
+    "keystrokes": "objdump -s -j .rodata svm | sed -n '20,60p'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 24,
+    "offset_sec": 2.8,
+    "keystrokes": "sed -n '/<asm_assemble>:/,/^$/p' /tmp/dis.txt > /tmp/asm.txt; wc -l /tmp/asm.txt; grep -n 'strcmp' /tmp/asm.txt | head -40\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 25,
+    "offset_sec": 2.9,
+    "keystrokes": "sed -n '100,190p' /tmp/asm.txt | cut -c1-60\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 26,
+    "offset_sec": 3.0,
+    "keystrokes": "cat > /app/vm.h <<'EOF'\n#ifndef VM_H\n#define VM_H\n\n#include <stdint.h>\n\n#define STACK_SIZE 1024\n#define LOCALS_SIZE 256\n#define CALL_STACK_SIZE 256\n#define CODE_SIZE 65536\n\nenum {\n    OP_HALT = 0,\n    OP_PUSH, OP_POP, OP_DUP, OP_SWAP,\n    OP_ADD, OP_SUB, OP_MUL, OP_DIV, OP_MOD,\n    OP_EQ, OP_NE, OP_LT, OP_GT, OP_LE, OP_GE,\n    OP_JMP, OP_JZ, OP_JNZ, OP_CALL, OP_RET,\n    OP_LOAD, OP_STORE, OP_PRINT\n};\n\ntypedef struct {\n    int32_t stack[STACK_SIZE];\n    int32_t locals[LOCALS_SIZE];\n    int32_t call_stack[CALL_STACK_SIZE];\n    uint8_t code[CODE_SIZE];\n    int32_t code_len;\n    int32_t sp;\n    int32_t cp;\n    int32_t pc;\n    int running;\n    int trace;\n} VM;\n\nvoid vm_init(VM *vm);\nvoid vm_load(VM *vm, const uint8_t *code, int32_t len);\nvoid vm_set_trace(VM *vm, int trace);\nint vm_run(VM *vm);\nvoid vm_stats_print(VM *vm);\nvoid vm_stats_reset(VM *vm);\n\n#endif\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 26,
+    "offset_sec": 3.0,
+    "keystrokes": "cat > /app/asm.h <<'EOF'\n#ifndef ASM_H\n#define ASM_H\n\n#include <stdint.h>\n\n#define ASM_CODE_SIZE 65536\n#define MAX_LABELS 256\n#define MAX_FIXUPS 256\n#define LABEL_NAME_LEN 64\n\ntypedef struct {\n    char name[LABEL_NAME_LEN];\n    int32_t offset;\n} Label;\n\ntypedef struct {\n    char name[LABEL_NAME_LEN];\n    int32_t offset;\n} Fixup;\n\ntypedef struct {\n    uint8_t code[ASM_CODE_SIZE];\n    int32_t code_len;\n    Label labels[MAX_LABELS];\n    int num_labels;\n    Fixup fixups[MAX_FIXUPS];\n    int num_fixups;\n} Assembler;\n\nvoid asm_init(Assembler *a);\nint asm_assemble(Assembler *a, const char *filename);\nconst uint8_t *asm_get_code(Assembler *a);\nint32_t asm_get_code_len(Assembler *a);\n\n#endif\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 27,
+    "offset_sec": 3.2,
+    "keystrokes": "cat > /app/vm.c <<'EOF'\n#include <stdio.h>\n#include <string.h>\n#include \"vm.h\"\n\nvoid vm_init(VM *vm) {\n    memset(vm, 0, sizeof(*vm));\n    vm->running = 1;\n}\n\nvoid vm_load(VM *vm, const uint8_t *code, int32_t len) {\n    if (len > CODE_SIZE) len = CODE_SIZE;\n    memcpy(vm->code, code, len);\n    vm->code_len = len;\n}\n\nvoid vm_set_trace(VM *vm, int trace) { vm->trace = trace; }\nvoid vm_stats_print(VM *vm) { (void)vm; }\nvoid vm_stats_reset(VM *vm) { (void)vm; }\n\nstatic int push(VM *vm, int32_t v) {\n    if (vm->sp >= STACK_SIZE) {\n        fprintf(stderr, \"Stack overflow\\n\");\n        return -1;\n    }\n    vm->stack[vm->sp++] = v;\n    return 0;\n}\n\nstatic int pop(VM *vm, int32_t *out) {\n    if (vm->sp <= 0) {\n        fprintf(stderr, \"Stack underflow\\n\");\n        return -1;\n    }\n    *out = vm->stack[--vm->sp];\n    return 0;\n}\n\nint vm_run(VM *vm) {\n    if (!vm->running) return 0;\n    while (vm->running) {\n        if (vm->pc < 0 || vm->pc >= vm->code_len) {\n            fprintf(stderr, \"PC out of bounds: %d\\n\", vm->pc);\n            return 1;\n        }\n        uint8_t op = vm->code[vm->pc++];\n        int32_t a, b, v, addr;\n        uint8_t idx;\n        switch (op) {\n        case OP_HALT:\n            vm->running = 0;\n            break;\n        case OP_PUSH:\n            if (vm->pc + 4 > vm->code_len) {\n                fprintf(stderr, \"Unexpected EOF\\n\");\n                return 1;\n            }\n            memcpy(&v, vm->code + vm->pc, 4);\n            vm->pc += 4;\n            if (push(vm, v)) return 1;\n            break;\n        case OP_POP:\n            if (pop(vm, &v)) return 1;\n            break;\n        case OP_DUP:\n            if (vm->sp <= 0) { fprintf(stderr, \"Stack underflow\\n\"); return 1; }\n            if (push(vm, vm->stack[vm->sp - 1])) return 1;\n            break;\n        case OP_SWAP:\n            if (vm->sp < 2) { fprintf(stderr, \"Stack underflow\\n\"); return 1; }\n            v = vm->stack[vm->sp - 1];\n            vm->stack[vm->sp - 1] = vm->stack[vm->sp - 2];\n            vm->stack[vm->sp - 2] = v;\n            break;\n        case OP_ADD:\n            if (pop(vm, &b) || pop(vm, &a)) return 1;\n            if (push(vm, a + b)) return 1;\n            break;\n        case OP_SUB:\n            if (pop(vm, &b) || pop(vm, &a)) return 1;\n            if (push(vm, a - b)) return 1;\n            break;\n        case OP_MUL:\n            if (pop(vm, &b) || pop(vm, &a)) return 1;\n            if (push(vm, a * b)) return 1;\n            break;\n        case OP_DIV:\n            if (pop(vm, &b) || pop(vm, &a)) return 1;\n            if (b == 0) { fprintf(stderr, \"Division by zero\\n\"); return 1; }\n            if (push(vm, a / b)) return 1;\n            break;\n        case OP_MOD:\n            if (pop(vm, &b) || pop(vm, &a)) return 1;\n            if (b == 0) { fprintf(stderr, \"Modulo by zero\\n\"); return 1; }\n            if (push(vm, a % b)) return 1;\n            break;\n        case OP_EQ:\n            if (pop(vm, &b) || pop(vm, &a)) return 1;\n            if (push(vm, a == b)) return 1;\n            break;\n        case OP_NE:\n            if (pop(vm, &b) || pop(vm, &a)) return 1;\n            if (push(vm, a != b)) return 1;\n            break;\n        case OP_LT:\n            if (pop(vm, &b) || pop(vm, &a)) return 1;\n            if (push(vm, a < b)) return 1;\n            break;\n        case OP_GT:\n            if (pop(vm, &b) || pop(vm, &a)) return 1;\n            if (push(vm, a > b)) return 1;\n            break;\n        case OP_LE:\n            if (pop(vm, &b) || pop(vm, &a)) return 1;\n            if (push(vm, a <= b)) return 1;\n            break;\n        case OP_GE:\n            if (pop(vm, &b) || pop(vm, &a)) return 1;\n            if (push(vm, a >= b)) return 1;\n            break;\n        case OP_JMP:\n            memcpy(&addr, vm->code + vm->pc, 4);\n            vm->pc = addr;\n            break;\n        case OP_JZ:\n            memcpy(&addr, vm->code + vm->pc, 4);\n            vm->pc += 4;\n            if (pop(vm, &v)) return 1;\n            if (v == 0) vm->pc = addr;\n            break;\n        case OP_JNZ:\n            memcpy(&addr, vm->code + vm->pc, 4);\n            vm->pc += 4;\n            if (pop(vm, &v)) return 1;\n            if (v != 0) vm->pc = addr;\n            break;\n        case OP_CALL:\n            memcpy(&addr, vm->code + vm->pc, 4);\n            vm->pc += 4;\n            if (vm->cp >= CALL_STACK_SIZE) {\n                fprintf(stderr, \"Call stack overflow\\n\");\n                return 1;\n            }\n            vm->call_stack[vm->cp++] = vm->pc;\n            vm->pc = addr;\n            break;\n        case OP_RET:\n            if (vm->cp <= 0) {\n                fprintf(stderr, \"Call stack underflow\\n\");\n                return 1;\n            }\n            vm->pc = vm->call_stack[--vm->cp];\n            break;\n        case OP_LOAD:\n            idx = vm->code[vm->pc++];\n            if (push(vm, vm->locals[idx])) return 1;\n            break;\n        case OP_STORE:\n            idx = vm->code[vm->pc++];\n            if (pop(vm, &v)) return 1;\n            vm->locals[idx] = v;\n            break;\n        case OP_PRINT:\n            if (pop(vm, &v)) return 1;\n            printf(\"%d\\n\", v);\n            break;\n        default:\n            fprintf(stderr, \"Unknown opcode: %u at pc=%d\\n\", op, vm->pc - 1);\n            return 1;\n        }\n    }\n    return 0;\n}\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 28,
+    "offset_sec": 3.3,
+    "keystrokes": "cat > /app/asm.c <<'EOF'\n#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n#include <ctype.h>\n#include \"asm.h\"\n#include \"vm.h\"\n\nvoid asm_init(Assembler *a) {\n    memset(a, 0, sizeof(*a));\n}\n\nconst uint8_t *asm_get_code(Assembler *a) { return a->code; }\nint32_t asm_get_code_len(Assembler *a) { return a->code_len; }\n\nstatic int emit_byte(Assembler *a, uint8_t b) {\n    if (a->code_len >= ASM_CODE_SIZE) {\n        fprintf(stderr, \"Code buffer overflow\\n\");\n        return -1;\n    }\n    a->code[a->code_len++] = b;\n    return 0;\n}\n\nstatic int emit_i32(Assembler *a, int32_t v) {\n    for (int i = 0; i < 4; i++) {\n        if (emit_byte(a, (uint8_t)((v >> (8 * i)) & 0xff))) return -1;\n    }\n    return 0;\n}\n\nstatic int find_label(Assembler *a, const char *name, int32_t *out) {\n    for (int i = 0; i < a->num_labels; i++) {\n        if (strcmp(a->labels[i].name, name) == 0) {\n            *out = a->labels[i].offset;\n            return 0;\n        }\n    }\n    return -1;\n}\n\nstatic int add_label(Assembler *a, const char *name, int32_t offset) {\n    int32_t dummy;\n    if (find_label(a, name, &dummy) == 0) {\n        fprintf(stderr, \"Duplicate label: %s\\n\", name);\n        return -1;\n    }\n    if (a->num_labels >= MAX_LABELS) {\n        fprintf(stderr, \"Too many labels\\n\");\n        return -1;\n    }\n    strncpy(a->labels[a->num_labels].name, name, LABEL_NAME_LEN - 1);\n    a->labels[a->num_labels].offset = offset;\n    a->num_labels++;\n    return 0;\n}\n\nstatic int add_fixup(Assembler *a, const char *name, int32_t offset) {\n    if (a->num_fixups >= MAX_FIXUPS) {\n        fprintf(stderr, \"Too many fixups\\n\");\n        return -1;\n    }\n    strncpy(a->fixups[a->num_fixups].name, name, LABEL_NAME_LEN - 1);\n    a->fixups[a->num_fixups].offset = offset;\n    a->num_fixups++;\n    return 0;\n}\n\nstatic int opcode_for(const char *mn) {\n    if (!strcmp(mn, \"HALT\")) return OP_HALT;\n    if (!strcmp(mn, \"PUSH\")) return OP_PUSH;\n    if (!strcmp(mn, \"POP\")) return OP_POP;\n    if (!strcmp(mn, \"DUP\")) return OP_DUP;\n    if (!strcmp(mn, \"SWAP\")) return OP_SWAP;\n    if (!strcmp(mn, \"ADD\")) return OP_ADD;\n    if (!strcmp(mn, \"SUB\")) return OP_SUB;\n    if (!strcmp(mn, \"MUL\")) return OP_MUL;\n    if (!strcmp(mn, \"DIV\")) return OP_DIV;\n    if (!strcmp(mn, \"MOD\")) return OP_MOD;\n    if (!strcmp(mn, \"EQ\")) return OP_EQ;\n    if (!strcmp(mn, \"NE\")) return OP_NE;\n    if (!strcmp(mn, \"LT\")) return OP_LT;\n    if (!strcmp(mn, \"GT\")) return OP_GT;\n    if (!strcmp(mn, \"LE\")) return OP_LE;\n    if (!strcmp(mn, \"GE\")) return OP_GE;\n    if (!strcmp(mn, \"JMP\")) return OP_JMP;\n    if (!strcmp(mn, \"JZ\")) return OP_JZ;\n    if (!strcmp(mn, \"JNZ\")) return OP_JNZ;\n    if (!strcmp(mn, \"CALL\")) return OP_CALL;\n    if (!strcmp(mn, \"RET\")) return OP_RET;\n    if (!strcmp(mn, \"LOAD\")) return OP_LOAD;\n    if (!strcmp(mn, \"STORE\")) return OP_STORE;\n    if (!strcmp(mn, \"PRINT\")) return OP_PRINT;\n    return -1;\n}\n\nint asm_assemble(Assembler *a, const char *filename) {\n    FILE *f = fopen(filename, \"r\");\n    if (!f) {\n        fprintf(stderr, \"Cannot open file: %s\\n\", filename);\n        return 1;\n    }\n    char line[1024];\n    while (fgets(line, sizeof(line), f)) {\n        char *comment = strchr(line, ';');\n        if (comment) *comment = '\\0';\n        char *tok = strtok(line, \" \\t\\r\\n\");\n        while (tok) {\n            size_t len = strlen(tok);\n            if (len > 0 && tok[len - 1] == ':') {\n                tok[len - 1] = '\\0';\n                if (add_label(a, tok, a->code_len)) { fclose(f); return 1; }\n                tok = strtok(NULL, \" \\t\\r\\n\");\n                continue;\n            }\n            break;\n        }\n        if (!tok) continue;\n        int op = opcode_for(tok);\n        if (op < 0) {\n            fprintf(stderr, \"Unknown mnemonic: %s\\n\", tok);\n            fclose(f);\n            return 1;\n        }\n        if (emit_byte(a, (uint8_t)op)) { fclose(f); return 1; }\n        if (op == OP_PUSH) {\n            char *arg = strtok(NULL, \" \\t\\r\\n\");\n            if (!arg) {\n                fprintf(stderr, \"PUSH requires an integer argument\\n\");\n                fclose(f);\n                return 1;\n            }\n            if (emit_i32(a, (int32_t)strtol(arg, NULL, 0))) { fclose(f); return 1; }\n        } else if (op == OP_LOAD || op == OP_STORE) {\n            char *arg = strtok(NULL, \" \\t\\r\\n\");\n            if (!arg) {\n                fprintf(stderr, \"%s requires an integer argument\\n\", tok);\n                fclose(f);\n                return 1;\n            }\n            if (emit_byte(a, (uint8_t)strtol(arg, NULL, 0))) { fclose(f); return 1; }\n        } else if (op == OP_JMP || op == OP_JZ || op == OP_JNZ || op == OP_CALL) {\n            char *arg = strtok(NULL, \" \\t\\r\\n\");\n            if (!arg) {\n                fprintf(stderr, \"%s requires a label argument\\n\", tok);\n                fclose(f);\n                return 1;\n            }\n            if (add_fixup(a, arg, a->code_len)) { fclose(f); return 1; }\n            if (emit_i32(a, 0)) { fclose(f); return 1; }\n        }\n    }\n    fclose(f);\n    for (int i = 0; i < a->num_fixups; i++) {\n        int32_t target;\n        if (find_label(a, a->fixups[i].name, &target) != 0) {\n            fprintf(stderr, \"Undefined label: %s\\n\", a->fixups[i].name);\n            return 1;\n        }\n        int32_t off = a->fixups[i].offset;\n        for (int j = 0; j < 4; j++) {\n            a->code[off + j] = (uint8_t)((target >> (8 * j)) & 0xff);\n        }\n    }\n    return 0;\n}\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 28,
+    "offset_sec": 3.3,
+    "keystrokes": "cat > /app/main.c <<'EOF'\n#include <stdio.h>\n#include <string.h>\n#include \"vm.h\"\n#include \"asm.h\"\n\nint main(int argc, char **argv) {\n    int trace = 0;\n    const char *file = NULL;\n    for (int i = 1; i < argc; i++) {\n        if (strcmp(argv[i], \"-t\") == 0 || strcmp(argv[i], \"--trace\") == 0) {\n            trace = 1;\n        } else {\n            file = argv[i];\n        }\n    }\n    if (!file) {\n        fprintf(stderr, \"Usage: %s <file.asm>\\n\", argv[0]);\n        return 1;\n    }\n    Assembler a;\n    asm_init(&a);\n    if (asm_assemble(&a, file) != 0) {\n        return 1;\n    }\n    VM vm;\n    vm_init(&vm);\n    vm_set_trace(&vm, trace);\n    vm_load(&vm, asm_get_code(&a), asm_get_code_len(&a));\n    return vm_run(&vm);\n}\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 28,
+    "offset_sec": 3.3,
+    "keystrokes": "cat > /app/Makefile <<'EOF'\nCC = gcc\nCFLAGS = -Wall -Wextra -O2\n\n.PHONY: all clean\n\nall: svm\n\nsvm: main.o asm.o vm.o\n\t$(CC) $(CFLAGS) -o svm main.o asm.o vm.o\n\nmain.o: main.c vm.h asm.h\n\t$(CC) $(CFLAGS) -c main.c\n\nasm.o: asm.c asm.h vm.h\n\t$(CC) $(CFLAGS) -c asm.c\n\nvm.o: vm.c vm.h\n\t$(CC) $(CFLAGS) -c vm.c\n\nclean:\n\trm -f *.o svm\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 28,
+    "offset_sec": 3.3,
+    "keystrokes": "cd /app && make clean && make\n",
+    "duration": 5.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 29,
+    "offset_sec": 8.6,
+    "keystrokes": "sed -i -e 's/^\\$(CC)/\\t$(CC)/' -e 's/^rm -f/\\trm -f/' Makefile && cat -A Makefile | sed -n '8,20p'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 29,
+    "offset_sec": 8.6,
+    "keystrokes": "make clean && make\n",
+    "duration": 5.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 30,
+    "offset_sec": 13.7,
+    "keystrokes": "for t in test_progs/*.asm; do echo \"== $t ==\"; ./svm $t; echo \"exit=$?\"; done\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 31,
+    "offset_sec": 14.2,
+    "keystrokes": "ls -la /app; ./svm test_progs/test_arith.asm\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 31,
+    "offset_sec": 14.3,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 32,
+    "offset_sec": 14.3,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

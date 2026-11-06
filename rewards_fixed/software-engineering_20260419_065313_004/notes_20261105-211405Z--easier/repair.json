@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The VM source documents PUSH immediates as high-byte then low-byte, but vm_read_imm16 actually decodes low-byte then high-byte; the same source contains both claims.",
+    "evidence": "environment/files/vm.c: the OP_PUSH and file-header comments conflict with vm_read_imm16; attempts 05, 08, 09, and 11 first execute malformed immediates/opcodes at turns 10, 10, 5, and 7.",
+    "change": "Correct the VM source comments to state low-byte then high-byte, matching execution.",
+    "kind": "other"
+  }
+]

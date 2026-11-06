@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The verifier expects conventional operand ordering, while NOTES.txt explicitly defines reversed SUB and comparison semantics.",
+    "evidence": "environment/files/NOTES.txt conflicts with tests/test_outputs.py test_arith and test_compare.",
+    "change": "Correct the discoverable instruction semantics in NOTES.txt and compile the starting binary with those semantics.",
+    "kind": "hidden_requirement"
+  }
+]

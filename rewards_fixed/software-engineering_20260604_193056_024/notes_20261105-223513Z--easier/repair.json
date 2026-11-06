@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The verifier required strong compression ratios for repetitive inputs although the public instruction required only successful round trips.",
+    "evidence": "instruction.md states only decompress(compress(input)) == input, while tests/test_outputs.py::TestCompressionRatio rejects valid but larger encodings.",
+    "change": "Remove the compression-ratio-only checks and explicitly permit a literal-only encoding, aligning grading with the stated round-trip goal.",
+    "kind": "hidden_requirement"
+  }
+]

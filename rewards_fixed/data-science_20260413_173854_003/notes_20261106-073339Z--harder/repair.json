@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The instruction called for summing revenue, but the required totals are net revenue after subtracting discounts.",
+    "evidence": "traces/revision/mixed/g1123-r2.jsonl turn 6 and g1123-r9.jsonl turn 11 implemented the literal gross-revenue sum and were rewarded 0.",
+    "change": "State that total_revenue is the sum of revenue less discount while preserving the existing output contract.",
+    "kind": "hidden_requirement"
+  }
+]

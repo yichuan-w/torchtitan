@@ -1,0 +1,79 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "cat analysis.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "head -5 orders.csv customers.csv products.csv; wc -l *.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.2,
+    "keystrokes": "cut -d, -f7 orders.csv | sort | uniq -c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.2,
+    "keystrokes": "cut -d, -f2 customers.csv | sort | uniq -c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.2,
+    "keystrokes": "ls -la; cut -d, -f3 products.csv | sort -u\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.5,
+    "keystrokes": "python3 -c \"import pandas; print(pandas.__version__)\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.5,
+    "keystrokes": "cat > /app/solution.py << 'EOF'\n\"\"\"Fast, correct revenue summary by customer segment and product category.\"\"\"\nimport time\nimport pandas as pd\n\n\ndef main():\n    t0 = time.time()\n\n    orders = pd.read_csv('/app/orders.csv')\n    customers = pd.read_csv('/app/customers.csv')\n    products = pd.read_csv('/app/products.csv')\n\n    # Only completed orders count as revenue\n    orders = orders[orders['status'] == 'completed']\n\n    # Exclude test customers\n    customers = customers[customers['segment'] != 'test']\n\n    df = (orders\n          .merge(customers[['customer_id', 'segment']], on='customer_id')\n          .merge(products[['product_id', 'category']], on='product_id'))\n\n    # Revenue uses the actual unit_price on the order, not list_price\n    df['line_total'] = df['quantity'] * df['unit_price']\n\n    summary = (df.groupby(['segment', 'category'])\n                 .agg(total_revenue=('line_total', 'sum'),\n                      order_count=('line_total', 'size'))\n                 .reset_index()\n                 .sort_values(['segment', 'category']))\n\n    summary['total_revenue'] = summary['total_revenue'].round(2)\n    summary['avg_order_value'] = (summary['total_revenue'] / summary['order_count']).round(2)\n\n    summary.to_csv('/app/output.csv', index=False)\n    print(f\"Done in {time.time() - t0:.2f}s, {len(summary)} rows\")\n\n\nif __name__ == '__main__':\n    main()\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.5,
+    "keystrokes": "python3 /app/solution.py\n",
+    "duration": 10.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.5,
+    "keystrokes": "head -15 /app/output.csv; wc -l /app/output.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 10.8,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 10.8,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

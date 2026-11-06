@@ -1,0 +1,14 @@
+[
+  {
+    "defect": "The instruction says example.bin contains three valid records, but the shipped 76-byte file contains exactly two complete records.",
+    "evidence": "instruction.md:3 conflicts with environment/files/example.bin; attempt-01.jsonl turn 15 explicitly discovers only two records, and the same false premise drives all attempts' initial boundary analysis.",
+    "change": "Ship a genuine third valid record in the example fixture so the stated example count is true.",
+    "kind": "broken_setup"
+  },
+  {
+    "defect": "The phrase 'number for metric/numeric types' suggests converting type 1 metric text, while the required result preserves type 1 and type 2 encoded UTF-8 values as strings.",
+    "evidence": "instruction.md:10 conflicts with environment/files/README.md type semantics and tests/test_outputs.py expected type-1 strings; attempt-12.jsonl turns 34-37 converts temperature and humidity text to numbers and is rejected.",
+    "change": "State output value representation directly by record type: type 3 is numeric, while types 1 and 2 are strings.",
+    "kind": "hidden_requirement"
+  }
+]

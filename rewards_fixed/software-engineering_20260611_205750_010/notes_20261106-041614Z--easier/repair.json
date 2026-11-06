@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The image says the requested gcc workflow is available, but it lacks the libc development headers and startup/linker files needed to compile an ordinary C program using libc.",
+    "evidence": "environment/Dockerfile installs gcc without libc6-dev; all 12 traces then report a fatal missing stdio.h on their first gcc compile (attempt-01 turn 7, attempt-02 turn 5, attempt-03 turn 6, attempt-04 turn 13, attempt-05 turn 4, attempt-06 turn 7, attempt-07 turn 38, attempt-08 turn 10, attempt-09 turn 14, attempt-10 turn 5, attempt-11 turn 6, attempt-12 turn 23).",
+    "change": "Install libc6-dev with gcc in the image so the stated compile command works from the initial workspace.",
+    "kind": "broken_setup"
+  }
+]

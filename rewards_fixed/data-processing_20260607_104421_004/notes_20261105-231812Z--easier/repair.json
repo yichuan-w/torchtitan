@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The public instruction only called for a 'correct' output, while grading required exact monetary formatting, row validity rules, quoted-field parsing, and ordering that were never stated.",
+    "evidence": "instruction.md states none of these semantics, while tests/test_outputs.py checks them; all twelve trace diagnostics reject exact two-decimal formatting, and attempts 03-08 and 11 otherwise pass every check.",
+    "change": "Clarify the output contract in instruction.md, including quoted semicolon parsing, omission of malformed or incomplete records, conversions, ordering, integer quantities, and exactly two decimal places for monetary fields.",
+    "kind": "hidden_requirement"
+  }
+]

@@ -1,0 +1,93 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "cat /app/README.md\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "ls -la /app/\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "od -A x -t x1z /app/example.bin\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.3,
+    "keystrokes": "python3 -c \"\ndata = open('/app/example.bin','rb').read()\nprint(len(data))\nprint(data.hex(' '))\n\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.4,
+    "keystrokes": "python3 << 'EOF'\nimport binascii\ndata = open('/app/example.bin','rb').read()\n\ndef parse(data, off):\n    t = data[off]\n    ts = int.from_bytes(data[off+1:off+9],'little')\n    kl = int.from_bytes(data[off+9:off+11],'little')\n    key = data[off+11:off+11+kl]\n    p = off+11+kl\n    vl = int.from_bytes(data[p:p+4],'little')\n    val = data[p+4:p+4+vl]\n    crc = data[p+4+vl:p+6+vl]\n    end = p+6+vl\n    return t, ts, key, vl, val, crc, end\n\noff = 0\nrecs = []\nwhile off < len(data):\n    t, ts, key, vl, val, crc, end = parse(data, off)\n    recs.append((off, end, crc))\n    print(f\"type={t} ts={ts} key={key} vlen={vl} val={val} crc={crc.hex()}\")\n    off = end\n\n# test crc variants on record bytes (excluding crc itself)\ndef crc16_ccitt(data, init=0xFFFF, poly=0x1021, xorout=0):\n    crc = init\n    for b in data:\n        crc ^= b << 8\n        for _ in range(8):\n            crc = ((crc << 1) ^ poly) & 0xFFFF if crc & 0x8000 else (crc << 1) & 0xFFFF\n    return crc ^ xorout\n\nfor (s, e, stored) in recs:\n    body = data[s:e-2]\n    stored_le = int.from_bytes(stored, 'little')\n    stored_be = int.from_bytes(stored, 'big')\n    print(\"stored LE=%04x BE=%04x\" % (stored_le, stored_be))\n    print(\"  crc_hqx FFFF=%04x  ccitt0=%04x  ibm(arc)=%04x  modbus=%04x\" % (\n        crc16_ccitt(body), crc16_ccitt(body, init=0),\n        binascii.crc_hqx(body, 0), binascii.crc_hqx(body, 0xFFFF)))\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.4,
+    "keystrokes": "python3 -c \"\nimport zlib\nraw = open('/app/sensor_data.bin','rb').read()\nd = zlib.decompress(raw, wbits=-15)\nprint(len(d))\nprint(d.hex(' '))\n\" | head -40\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 0.6,
+    "keystrokes": "python3 << 'EOF'\nimport zlib, struct\n\nraw = open('/app/sensor_data.bin','rb').read()\ndata = zlib.decompress(raw, wbits=-15)\nprint(\"decompressed len\", len(data))\n\ndef crc16(data):\n    crc = 0\n    for b in data:\n        crc ^= b << 8\n        for _ in range(8):\n            crc = ((crc << 1) ^ 0x1021) & 0xFFFF if crc & 0x8000 else (crc << 1) & 0xFFFF\n    return crc\n\noff = 0\nn = len(data)\ni = 0\nwhile off < n:\n    i += 1\n    t = data[off]\n    ts = int.from_bytes(data[off+1:off+9],'little')\n    kl = int.from_bytes(data[off+9:off+11],'little')\n    key = data[off+11:off+11+kl].decode('utf-8')\n    p = off+11+kl\n    vl = int.from_bytes(data[p:p+4],'little')\n    vl_actual = 8 if t == 3 else vl\n    val_bytes = data[p+4:p+4+vl_actual]\n    crc_stored = int.from_bytes(data[p+4+vl_actual:p+6+vl_actual],'little')\n    body = data[off:p+4+vl_actual]\n    crc_calc = crc16(body)\n    ok = crc_calc == crc_stored\n    if t == 3:\n        val = struct.unpack('<d', val_bytes)[0]\n    else:\n        val = val_bytes.decode('utf-8')\n    print(f\"[{i}] off={off} type={t} ts={ts} key={key!r} vlen={vl} val={val!r} stored={crc_stored:04x} calc={crc_calc:04x} {'OK' if ok else 'BAD'}\")\n    off = p + 6 + vl_actual\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 0.7,
+    "keystrokes": "python3 << 'EOF'\nimport zlib, struct, json\n\nraw = open('/app/sensor_data.bin','rb').read()\ndata = zlib.decompress(raw, wbits=-15)\n\ndef crc16(data):\n    crc = 0\n    for b in data:\n        crc ^= b << 8\n        for _ in range(8):\n            crc = ((crc << 1) ^ 0x1021) & 0xFFFF if crc & 0x8000 else (crc << 1) & 0xFFFF\n    return crc\n\nrecords = []\noff = 0\nn = len(data)\nwhile off < n:\n    t = data[off]\n    ts = int.from_bytes(data[off+1:off+9],'little')\n    kl = int.from_bytes(data[off+9:off+11],'little')\n    key = data[off+11:off+11+kl].decode('utf-8')\n    p = off+11+kl\n    vl = int.from_bytes(data[p:p+4],'little')\n    vl_actual = 8 if t == 3 else vl  # type 3 is fixed 8-byte float64; guards against damaged vlen\n    val_bytes = data[p+4:p+4+vl_actual]\n    crc_stored = int.from_bytes(data[p+4+vl_actual:p+6+vl_actual],'little')\n    body = data[off:p+4+vl_actual]\n    if crc16(body) == crc_stored:\n        if t == 3:\n            val = struct.unpack('<d', val_bytes)[0]\n        else:\n            val = val_bytes.decode('utf-8')\n        records.append({\"type\": t, \"timestamp\": ts, \"key\": key, \"value\": val})\n    off = p + 6 + vl_actual\n\nwith open('/app/valid_records.json','w') as f:\n    json.dump(records, f, indent=2)\nprint(f\"wrote {len(records)} valid records\")\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 0.7,
+    "keystrokes": "cat /app/valid_records.json\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 0.7,
+    "keystrokes": "python3 -c \"import json; d=json.load(open('/app/valid_records.json')); print(len(d), 'records'); print(all(set(r)=={'type','timestamp','key','value'} for r in d))\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 1.0,
+    "keystrokes": "ls -la /app/valid_records.json\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 1.1,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 1.1,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

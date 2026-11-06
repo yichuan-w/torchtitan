@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The container includes gcc and make but lacks the standard C development headers required to compile the supplied C reader.",
+    "evidence": "environment/Dockerfile installs gcc and make only; all twelve traces report fatal error stdio.h: No such file or directory at attempts 01/02/03/04/05/06/07/08/09/10/11/12 turns 11/9/8/13/11/12/8/12/12/13/11/12 respectively.",
+    "change": "Install build-essential in the image so the stated make-and-run workflow is available from the untouched starting environment.",
+    "kind": "broken_setup"
+  }
+]

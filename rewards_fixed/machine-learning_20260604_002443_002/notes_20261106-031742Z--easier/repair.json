@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The grader requires post-norm encoder layers, but the instruction only named layer normalization and described a standard transformer; both pre-norm and post-norm are reasonable transformer encoder designs.",
+    "evidence": "instruction.md names layer normalization without its placement, while tests/test_outputs.py:245 requires normalization after the residual; attempt-05.jsonl turn 2 explicitly recognized pre-norm as valid and retained it.",
+    "change": "State the required post-norm ordering in instruction.md.",
+    "kind": "hidden_requirement"
+  }
+]

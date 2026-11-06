@@ -1,0 +1,72 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "cat > /app/huff.c << 'EOF'\n#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\ntypedef unsigned long long u64;\ntypedef unsigned char u8;\nu64 f[256];u8 L[256];unsigned C[256];int par[512];\nint n;int ch[512][2];\nint build(){\n int nn=0,i;for(i=0;i<256;i++)if(f[i])ch[nn][0]=ch[nn][1]=-1,par[nn]=-1,nn++;\n if(nn==0)return 0;\n if(nn==1)return 0;\n u64 w[512];int m=0;for(i=0;i<256;i++)if(f[i])w[m++]=f[i];\n int nodes[512];for(i=0;i<m;i++)nodes[i]=i;\n int tot=m;\n while(m>1){\n  int a=-1,b=-1;\n  for(i=0;i<m;i++){if(a<0||w[i]<w[a]){b=a;a=i;}else if(b<0||w[i]<w[b])b=i;}\n  int na=nodes[a],nb=nodes[b];\n  ch[tot][0]=na;ch[tot][1]=nb;par[na]=tot;par[nb]=tot;w[a]=w[a]+w[b];nodes[a]=tot;\n  w[b]=w[m-1];nodes[b]=nodes[m-1];m--;tot++;\n }\n return tot-1;\n}\nvoid lens(int r,int d){\n if(r<0)return;\n if(ch[r][0]<0&&r<256)return;\n}\nvoid walk(int r,int d){\n if(ch[r][0]<0){if(d==0)d=1;/*leaf*/}\n if(ch[r][0]<0&&ch[r][1]<0){L[0];return;}\n}\nvoid assign(int r,int d){\n if(ch[r][0]<0&&ch[r][1]<0){int sym=-1;return;}\n}\nint findsym(int r){return -1;}\nvoid setlen(int r,int d,int sym){\n if(ch[r][0]<0&&ch[r][1]<0){L[sym]=d?d:1;return;}\n}\nvoid genlens(int r,int d,int map[]){\n if(ch[r][0]<0&&ch[r][1]<0){L[map[r]]=d?d:1;return;}\n genlens(ch[r][0],d+1,map);genlens(ch[r][1],d+1,map);\n}\nint leafsym[512];\nvoid codes(int r,unsigned c,int d){\n if(ch[r][0]<0&&ch[r][1]<0){C[leafsym[r]]=c;L[leafsym[r]]=d?d:1;return;}\n codes(ch[r][0],c<<1,d+1);codes(ch[r][1],(c<<1)|1,d+1);\n}\nint main(int argc,char**argv){\n if(argc<4)return 1;\n FILE*in=fopen(argv[2],\"rb\");if(!in)return 1;\n FILE*out=fopen(argv[3],\"wb\");if(!out)return 1;\n if(argv[1][0]=='c'){\n  u64 total=0;int c;\n  while((c=fgetc(in))!=EOF){f[c]++;total++;}\n  fwrite(f,sizeof(u64),256,out);\n  int i,symn=0;int map[256];\n  for(i=0;i<256;i++)if(f[i])map[symn++]=i;\n  for(i=0;i<256;i++)f[i]=0;\n  if(symn){\n   n=0;int m=0;\n   /* build tree manually with symbols */\n   u64 w[512];int nodes[512];\n   for(i=0;i<256;i++)if(0);\n  }\n  /* simpler: rebuild freq array */\n  rewind(in);\n  while((c=fgetc(in))!=EOF)f[c]++;\n  /* build tree over symbols */\n  int m=0;u64 w[512];int nodes[512];int tot;\n  for(i=0;i<256;i++)if(f[i]){ch[m][0]=ch[m][1]=-1;leafsym[m]=i;w[m]=f[i];nodes[m]=m;m++;}\n  tot=m;\n  if(m==0){fclose(in);fclose(out);return 0;}\n  while(m>1){\n   int a=-1,b=-1;\n   for(i=0;i<m;i++){if(a<0||w[i]<w[a]){b=a;a=i;}else if(b<0||w[i]<w[b])b=i;}\n   int na=nodes[a],nb=nodes[b];\n   ch[tot][0]=na;ch[tot][1]=nb;w[a]+=w[b];nodes[a]=tot;\n   w[b]=w[m-1];nodes[b]=nodes[m-1];m--;tot++;\n  }\n  int root=nodes[0];\n  memset(L,0,sizeof L);memset(C,0,sizeof C);\n  codes(root,0,0);\n  /* encode */\n  rewind(in);\n  unsigned buf=0;int nb=0;\n  while((c=fgetc(in))!=EOF){\n   buf=(buf<<L[c])|C[c];nb+=L[c];\n   while(nb>=8){nb-=8;fputc((buf>>nb)&255,out);}\n  }\n  if(nb)fputc((buf<<(8-nb))&255,out);\n } else {\n  u64 total=0;int i;\n  if(fread(f,sizeof(u64),256,in)!=256)return 1;\n  for(i=0;i<256;i++)total+=f[i];\n  if(total==0){fclose(in);fclose(out);return 0;}\n  int m=0;u64 w[512];int nodes[512];int tot;\n  for(i=0;i<256;i++)if(f[i]){ch[m][0]=ch[m][1]=-1;leafsym[m]=i;w[m]=f[i];nodes[m]=m;m++;}\n  tot=m;\n  if(m==1){while(total--)fputc(leafsym[nodes[0]],out);fclose(in);fclose(out);return 0;}\n  while(m>1){\n   int a=-1,b=-1;\n   for(i=0;i<m;i++){if(a<0||w[i]<w[a]){b=a;a=i;}else if(b<0||w[i]<w[b])b=i;}\n   int na=nodes[a],nb=nodes[b];\n   ch[tot][0]=na;ch[tot][1]=nb;w[a]+=w[b];nodes[a]=tot;\n   w[b]=w[m-1];nodes[b]=nodes[m-1];m--;tot++;\n  }\n  int root=nodes[0];\n  u64 k;int cur=root;int c;\n  for(k=0;k<total;k++){\n   while(ch[cur][0]>=0||ch[cur][1]>=0){\n    if(ch[cur][0]<0&&ch[cur][1]<0)break;\n    c=fgetc(in);if(c==EOF)return 1;\n    static int bitcount=0;static int bits=0;\n    /* use per-bit static handling */\n    if(bitcount==0){bits=c;bitcount=8;}\n    int b=(bits>>7)&1;bits=(bits<<1)&255;bitcount--;\n    cur=ch[cur][b];\n   }\n   fputc(leafsym[cur],out);cur=root;\n  }\n }\n fclose(in);fclose(out);return 0;\n}\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.1,
+    "keystrokes": "cat > /app/huff.c << 'EOF'\n#include <stdio.h>\n#include <string.h>\ntypedef unsigned long long u64;\ntypedef unsigned char u8;\nu64 f[256];u8 L[256];unsigned C[256];\nint ch[512][2],leafsym[512];\nint build(){\n int m=0,i;u64 w[512];int nodes[512],tot;\n for(i=0;i<256;i++)if(f[i]){ch[m][0]=ch[m][1]=-1;leafsym[m]=i;w[m]=f[i];nodes[m]=m;m++;}\n tot=m;\n if(m<2)return m?nodes[0]:-1;\n while(m>1){\n  int a=-1,b=-1;\n  for(i=0;i<m;i++){if(a<0||w[i]<w[a]){b=a;a=i;}else if(b<0||w[i]<w[b])b=i;}\n  ch[tot][0]=nodes[a];ch[tot][1]=nodes[b];w[a]+=w[b];nodes[a]=tot;\n  w[b]=w[m-1];nodes[b]=nodes[m-1];m--;tot++;\n }\n return nodes[0];\n}\nvoid codes(int r,unsigned c,int d){\n if(ch[r][0]<0&&ch[r][1]<0){C[leafsym[r]]=c;L[leafsym[r]]=d?d:1;return;}\n codes(ch[r][0],c<<1,d+1);codes(ch[r][1],(c<<1)|1,d+1);\n}\nint main(int argc,char**argv){\n if(argc<4)return 1;\n FILE*in=fopen(argv[2],\"rb\");if(!in)return 1;\n FILE*out=fopen(argv[3],\"wb\");if(!out)return 1;\n int c,i;\n if(argv[1][0]=='c'){\n  while((c=fgetc(in))!=EOF)f[c]++;\n  fwrite(f,sizeof(u64),256,out);\n  int r=build();\n  if(r<0)return 0;\n  codes(r,0,0);\n  rewind(in);\n  unsigned buf=0;int nb=0;\n  while((c=fgetc(in))!=EOF){\n   buf=(buf<<L[c])|C[c];nb+=L[c];\n   while(nb>=8){nb-=8;fputc((buf>>nb)&255,out);}\n  }\n  if(nb)fputc((buf<<(8-nb))&255,out);\n }else{\n  u64 total=0;\n  if(fread(f,sizeof(u64),256,in)!=256)return 1;\n  for(i=0;i<256;i++)total+=f[i];\n  int r=build();\n  if(r<0)return 0;\n  if(ch[r][0]<0){while(total--)fputc(leafsym[r],out);return 0;}\n  u64 k;int cur=r,bits=0,bc=0;\n  for(k=0;k<total;k++){\n   while(ch[cur][0]>=0){\n    if(!bc){c=fgetc(in);if(c==EOF)return 1;bits=c;bc=8;}\n    cur=ch[cur][(bits>>7)&1];bits=(bits<<1)&255;bc--;\n   }\n   fputc(leafsym[cur],out);cur=r;\n  }\n }\n fclose(in);fclose(out);return 0;\n}\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.1,
+    "keystrokes": "gcc -O3 -lm -o /app/huff /app/huff.c && wc -c /app/huff.c\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.1,
+    "keystrokes": "printf 'hello world hello world hello\\n' > /tmp/t1.txt; /app/huff c /tmp/t1.txt /tmp/t1.bin && /app/huff d /tmp/t1.bin /tmp/t1.out && cmp /tmp/t1.txt /tmp/t1.out && echo OK1\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.1,
+    "keystrokes": "printf '' > /tmp/t2.txt; /app/huff c /tmp/t2.txt /tmp/t2.bin && /app/huff d /tmp/t2.bin /tmp/t2.out && cmp /tmp/t2.txt /tmp/t2.out && echo OK2\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.1,
+    "keystrokes": "printf 'aaaaaaaaaaaaaaaa' > /tmp/t3.txt; /app/huff c /tmp/t3.txt /tmp/t3.bin && /app/huff d /tmp/t3.bin /tmp/t3.out && cmp /tmp/t3.txt /tmp/t3.out && echo OK3\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.1,
+    "keystrokes": "head -c 100000 /dev/urandom > /tmp/t4.bin; /app/huff c /tmp/t4.bin /tmp/t4.huf && /app/huff d /tmp/t4.huf /tmp/t4.out && cmp /tmp/t4.bin /tmp/t4.out && echo OK4\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 3.2,
+    "keystrokes": "cat /app/huff.c /usr/include/stdio.h /usr/include/stdlib.h > /tmp/big.txt; ls -l /tmp/big.txt; /app/huff c /tmp/big.txt /tmp/big.bin && /app/huff d /tmp/big.bin /tmp/big.out && cmp /tmp/big.txt /tmp/big.out && ls -l /tmp/big.bin && echo DONE\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 3.7,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 3.7,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

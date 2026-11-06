@@ -1,0 +1,70 @@
+{
+  "retained_skill": "Diagnose and modify docformatter's description-wrapping logic so overlong description lines are wrapped even when paragraph breaks are present, without regressing protected docstring structures.",
+  "bottleneck": "All twelve attempts chose paragraph-level reflow. Ten submitted implementations and two context-limited implementations repeatedly split on blank lines and passed each whole paragraph to the existing wrapper; this changes existing line boundaries and produces the wrong wrap point for the graded issue case.",
+  "change": "Instruction-level vague guidance at the original example's signal: state the required boundary behavior without naming a function, algorithm, patch, or expected output. The student must still locate and implement the wrapping change, but can distinguish line-preserving wrapping from whole-paragraph reflow.",
+  "restore": "Remove the standalone sentence beginning 'Keep the existing line boundaries' to restore the original open-ended issue report.",
+  "prediction": "Attempts currently respond to the paragraph-break symptom by reflowing complete paragraphs. The boundary cue should instead lead some agents to preserve each source line and wrap only overlong ones, making the issue example pass while retaining implementation and regression decisions. This is refuted if agents use the cue yet still submit whole-paragraph splitting/reflow or if no submitted attempt reaches the required issue behavior.",
+  "expected": "6 of 12",
+  "evidence": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turn": 17,
+      "observation": "First wrong decision: explicitly decides to split text by paragraph breaks and wrap each paragraph individually. Replayed its turn-23 submitted source edit after a fresh sandbox reset and ran ./sandbox grade; the sole failed check was the multi-paragraph issue case, whose diff showed an earlier wrap ('but it' / 'is not') than required. All 46 retained checks passed."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turn": 21,
+      "observation": "First wrong implementation direction after diagnosis: plans to modify wrap_description to split into paragraphs and process each as a whole, then spends many turns repairing indentation and whitespace consequences."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turn": 12,
+      "observation": "Chooses whole-paragraph processing after identifying blank lines as the blocker; later reports success against self-updated tests rather than the original line-boundary behavior."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turn": 116,
+      "observation": "Ends at the context limit after extensive iterations on paragraph splitting and unrelated expected-test rewrites; it never submits."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turn": 14,
+      "observation": "Removes blank-line list detection and proceeds to reflow complete paragraphs, preserving the dominant wrong abstraction."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turn": 116,
+      "observation": "Ends at the context limit while still debugging paragraph-wide whitespace normalization and existing-line joining; turns 103-116 restore and rewrite wrap_description yet do not finish."
+    },
+    {
+      "attempt": "attempt-07.jsonl",
+      "turn": 15,
+      "observation": "Implements splitting around blank lines and wrapping paragraph blocks; submitted behavior does not satisfy the grader despite local tests."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turn": 18,
+      "observation": "Selects paragraph-by-paragraph wrapping and later updates an existing test to that interpretation; grader still rejects the result."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turn": 13,
+      "observation": "Diagnoses blank lines as list markers but implements paragraph reflow, then declares the issue example fixed based on a visual diff rather than exact retained boundaries."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turn": 22,
+      "observation": "Builds a paragraph splitter and repeatedly adjusts whitespace/list handling; submits after local tests but receives reward zero."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turn": 23,
+      "observation": "Replacement explicitly says to wrap each paragraph individually and feeds each paragraph to do_preserve_links; submitted result remains incorrect."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turn": 9,
+      "observation": "First edit replaces wrap_description with paragraph splitting. Replayed this approach after a fresh reset and ran ./sandbox grade: only the issue test failed, showing the implementation splits the overlong line sooner than the required line-preserving behavior; 46 retained checks passed. After adding the boundary requirement, replayed the corrected line-preserving approach from a fresh reset via ./sandbox oracle; reward was 1.0, so the targeted approach now meets every check."
+    }
+  ]
+}

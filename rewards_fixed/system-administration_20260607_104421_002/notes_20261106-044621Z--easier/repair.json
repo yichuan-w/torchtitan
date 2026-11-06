@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The verifier requires an empty log to emit four zero-valued status_class lines, although the instruction only asks to count status classes and does not say that classes absent from the log must be printed.",
+    "evidence": "instruction.md states the report categories and sorting but no zero-row convention; tests/test_outputs.py:test_empty_log_report accepts only reports containing all four zero-valued status classes. Replayed attempt-11.jsonl through turn 10: all supplied-log and fresh-log checks passed, while only the empty-log check failed because its output was total_requests|0.",
+    "change": "Allow an empty-log report containing only total_requests|0, while retaining the existing accepted forms that explicitly print zero-valued status classes and optionally all zero-valued hours.",
+    "kind": "hidden_requirement"
+  }
+]

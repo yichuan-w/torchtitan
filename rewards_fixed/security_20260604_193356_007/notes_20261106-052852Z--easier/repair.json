@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The instruction says to recover all three passwords, but the supplied hash file contains four accounts and the verifier requires all four.",
+    "evidence": "instruction.md says 'all three'; environment/files/leaked_hashes.txt contains four records; tests/test_outputs.py requires four account passwords.",
+    "change": "Remove the service hash and its corresponding verifier check so the supplied input and grading both match the stated three-password task.",
+    "kind": "hidden_requirement"
+  }
+]

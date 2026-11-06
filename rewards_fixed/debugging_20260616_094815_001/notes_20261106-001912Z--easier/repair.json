@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The verifier mandates BT.601-style grayscale coefficients although the instruction only asks for grayscale conversion and leaves the conventional weighting open; its edge expectation silently mandates the same coefficients.",
+    "evidence": "instruction.md describes grayscale conversion without a coefficient standard, while tests/test_outputs.py compute_grayscale_expected and compute_edge_expected require 0.299/0.587/0.114; fresh replays of attempt-04 turn 44 and attempt-11 turn 41 pass 12 checks and fail only those two coupled checks.",
+    "change": "Clarify that conventional grayscale weighting is a permitted choice when used consistently, and verify grayscale semantics and Sobel output against the implementation's grayscale conversion rather than one unstated coefficient set.",
+    "kind": "hidden_requirement"
+  }
+]

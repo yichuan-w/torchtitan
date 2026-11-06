@@ -1,0 +1,70 @@
+{
+  "retained_skill": "Implementing a Node.js parser that navigates an Apple binary plist's trailer, offset table, object references, marker types, and nested values to emit JSON.",
+  "bottleneck": "All attempts implemented the parser, but the strongest attempts were rejected by two output-representation details not fixed by the public contract: exact unsafe JavaScript integers and one exact ISO timestamp spelling.",
+  "change": "Repair in the public contract and verifier: require exact integer output only in JavaScript's safe range and accept equivalent ISO 8601 UTC date spellings. This leaves binary-plist decoding with the student and removes only unsupported representation checks; the original signal remains the parser's output on supplied and fresh plist files.",
+  "restore": "A later version can define a canonical decimal-string representation for unsafe integers and require that representation; fractional-second spelling should not be restored unless the instruction also mandates it.",
+  "prediction": "Attempts that already decode every marker correctly but emit unsafe integers as ordinary JSON numbers and dates with .000Z can now proceed from valid parser output to submission; replayed attempts 02 and 11 should lose the date and unsafe-integer failures. This is refuted if either replay still fails any retained semantic parsing check.",
+  "expected": "3 of 12",
+  "evidence": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turn": 21,
+      "observation": "First stable output still garbles UTF-16BE text; this retained parsing failure remains."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turn": 18,
+      "observation": "Replayed all recorded commands from a fresh reset. Grade: 6 passed; generated-file and data/date checks rejected .000Z, and large-integer check rejected rounded unsafe values. No retained marker/structure check failed."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turn": 18,
+      "observation": "Date and signed integer handling were corrected, but stable output still garbles UTF-16BE text; retained failure remains."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turn": 21,
+      "observation": "Final output maps unicode_key to the key name rather than decoded text and rounds the unsafe integer."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turn": 23,
+      "observation": "Final output has a garbled Unicode value; retained parsing failure remains."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turn": 19,
+      "observation": "Final output has a garbled Unicode value; retained parsing failure remains."
+    },
+    {
+      "attempt": "attempt-07.jsonl",
+      "turn": 17,
+      "observation": "Replayed all recorded commands after the rewrite from a fresh reset. Grade: 6 passed and 3 failed; ordinary negative integers were decoded incorrectly in generated, simple, and safe-large-integer cases, so retained parser failures remain despite the relaxed unsafe-range contract."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turn": 19,
+      "observation": "Unicode and structures are correct; the visible mismatch is rounded unsafe integer output and the date uses a valid Z form."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turn": 31,
+      "observation": "Hit the time limit while repeatedly rewriting the parser and did not reach a working output; retained mechanics/parsing failure remains."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turn": 26,
+      "observation": "Final output has both a garbled Unicode value and a wrong-sign unsafe integer; retained Unicode failure remains."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turn": 8,
+      "observation": "Replayed all recorded commands from a fresh reset. Grade: 6 passed; only generated/date checks (.000Z spelling) and exact unsafe-integer checks failed. Every retained structural and marker-specific check passed. After the rewrite, the same replay graded 9/9 passed, so it now meets the targeted point and has no remaining failed check."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turn": 31,
+      "observation": "Final output misdecodes ordinary safe integers, references, UID, and date; retained parser failure remains."
+    }
+  ]
+}

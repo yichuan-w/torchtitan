@@ -1,0 +1,70 @@
+{
+  "retained_skill": "Compute a SAXS profile from atomic coordinates with q-dependent form factors and the Debye equation, analytically scale it to experimental data, and perform iterative Guinier analysis.",
+  "bottleneck": "The output contract was ambiguous at the final reporting stage: 11 of 12 attempts treated the third value in guinier_fit.txt as a Guinier-regression residual rather than the globally defined experimental-fit reduced chi-squared, while 9 attempts also wrote a conventional comment header that the verifier rejected even though the instruction did not forbid it.",
+  "change": "Repair the public output contract by clarifying, in the existing output bullet, that the third value is the global scaled-model-versus-experiment reduced chi-squared defined earlier. Repair the verifier to ignore blank and comment lines in saxs_profile.txt, preserving all numerical checks. This is instruction-level clarification at the original task's final reporting signal plus acceptance of a reasonable representation; it does not supply any computed value or any part of the retained SAXS calculation.",
+  "restore": "Remove the disambiguating sentence from the guinier_fit.txt output bullet after the student reliably connects the reported quality statistic to the globally defined chi-squared; comment-header acceptance is a permanent verifier repair and should not be restored.",
+  "prediction": "Attempts currently compute a correct profile, scale factor, and Guinier parameters but write the low Guinier regression residual as the third output value. Naming that value as the global fit statistic enables them to write the scaling reduced chi-squared they already compute (commonly about 0.696 in their logs); this is refuted if replayed approaches still report their Guinier-line residual or if fewer than 3 of 12 future attempts pass despite numerically correct profiles.",
+  "expected": "5 of 12",
+  "evidence": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turn": 24,
+      "observation": "First wrong output decision: writes a comment header and reports the Guinier fit residual as reduced chi-squared; the numerical profile and Rg shown later are otherwise correct."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turn": 20,
+      "observation": "Writes 0.000085 from the Guinier fit although turn 18 computes the global reduced chi-squared as 0.6963; this attempt does not add a profile header."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turn": 16,
+      "observation": "Writes a comment header and a near-zero Guinier regression statistic in guinier_fit.txt despite a correct profile."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turn": 21,
+      "observation": "Writes a comment header and uses a Guinier-fit statistic; it additionally has an independent model/scaling error, so the repair does not make this attempt pass."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turn": 11,
+      "observation": "Replayed from a fresh reset with its recorded commands and graded. All five checks initially failed because its comment header was parsed as data. Removing only the header made profile format, model accuracy, Guinier consistency, and form-factor checks pass; the remaining check rejected reported 0.000775 versus the global 0.696346. After the rewrite, replaying its targeted reporting decision by replacing only the third value with the already-computed global reduced chi-squared passed all five checks."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turn": 14,
+      "observation": "Produces a correct profile and explicitly logs global reduced chi-squared 0.6963, but writes the Guinier residual 8.45e-08 as the requested third value."
+    },
+    {
+      "attempt": "attempt-07.jsonl",
+      "turn": 42,
+      "observation": "Writes a comment header and a Guinier residual; it also has an independent model error, so the repair does not make this attempt pass."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turn": 31,
+      "observation": "Writes a comment header and reports a near-zero Guinier residual after computing the correct Debye profile and scale."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turn": 11,
+      "observation": "Produces a correct headerless profile but writes 0.288314 from its Guinier calculation rather than the global experimental-fit reduced chi-squared."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turn": 13,
+      "observation": "Writes a comment header and reports a zero Guinier regression residual despite correct profile values."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turn": 16,
+      "observation": "Replayed from its recorded commands and graded. The comment header caused all five checks to fail. Its terminal output separately shows the correct global 0.696346, but guinier_fit.txt contains the Guinier residual 0.000085."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turn": 15,
+      "observation": "Writes a comment header and reports a Guinier-fit statistic; it also incorrectly includes waters in the Debye model, so the repair does not make this attempt pass."
+    }
+  ]
+}

@@ -1,0 +1,352 @@
+[
+  {
+    "step_id": 3,
+    "offset_sec": 19.174586,
+    "keystrokes": "pwd\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 19.174586,
+    "keystrokes": "ls -la /app\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 19.174586,
+    "keystrokes": "sed -n '1,260p' /app/worker_pool.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 30.818583,
+    "keystrokes": "sed -n '260,520p' /app/worker_pool.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 30.818583,
+    "keystrokes": "python3 /app/worker_pool.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 61.018583,
+    "keystrokes": "C-c",
+    "duration": 0.2,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 61.018583,
+    "keystrokes": "pwd\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 61.018583,
+    "keystrokes": "grep -n -A8 -B3 'heartbeat_event' /app/worker_pool.py | head -80\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 75.209794,
+    "keystrokes": "sed -n '20,75p' /app/worker_pool.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 75.209794,
+    "keystrokes": "sed -n '90,125p' /app/worker_pool.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 75.209794,
+    "keystrokes": "sed -n '140,205p' /app/worker_pool.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 99.21112,
+    "keystrokes": "sed -n '20,70p' /app/worker_pool.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 99.21112,
+    "keystrokes": "sed -n '90,125p' /app/worker_pool.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 99.21112,
+    "keystrokes": "sed -n '145,200p' /app/worker_pool.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 128.922897,
+    "keystrokes": "grep -n 'heartbeat_event\\.set\\|heartbeat_event\\.clear\\|alive =\\|heartbeat_event = multiprocessing.Event()' /app/worker_pool.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 128.922897,
+    "keystrokes": "sed -n '35,60p' /app/worker_pool.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 128.922897,
+    "keystrokes": "sed -n '147,180p' /app/worker_pool.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 159.222897,
+    "keystrokes": "cp -f /app/worker_pool.py /app/worker_pool.py.bak\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 159.222897,
+    "keystrokes": "python3 - <<'PY'\nfrom pathlib import Path\nimport re\n\npath = Path('/app/worker_pool.py')\ntext = path.read_text()\n\nold_pulse = '''        # Send heartbeat pulse\n        heartbeat_event.set()\n        heartbeat_event.clear()\n'''\nnew_pulse = '''        # Send a durable heartbeat notification.  Leave the event set so\n        # the supervisor can reliably observe it with wait(timeout).  The\n        # old set-then-immediately-clear pulse could be missed entirely.\n        heartbeat_event.set()\n'''\nif old_pulse not in text:\n    raise SystemExit('worker heartbeat pulse block not found')\ntext = text.replace(old_pulse, new_pulse, 1)\n\nold_wait = '''                # Check heartbeat with timeout\n                # This should return True if the worker is alive and pulsing\n                alive = heartbeat_events[worker_id].wait(heartbeat_timeout)\n\n                if not alive:\n'''\nnew_wait = '''                # Check heartbeat with timeout.  Workers leave their event\n                # set until the supervisor consumes the notification.\n                alive = heartbeat_events[worker_id].wait(heartbeat_timeout)\n\n                if alive:\n                    # Consume this heartbeat.  The next wait must see a fresh\n                    # notification; if the worker is hung it will time out.\n                    heartbeat_events[worker_id].clear()\n                else:\n'''\nif old_wait not in text:\n    raise SystemExit('supervisor heartbeat wait block not found')\ntext = text.replace(old_wait, new_wait, 1)\n\nevent_pattern = re.compile(\n    r'(?P<indent>[ \\t]*)heartbeat_event = multiprocessing\\.Event\\(\\)\\n'\n    r'(?P=indent)shutdown_event = multiprocessing\\.Event\\(\\)'\n)\n\ndef seed_event(match):\n    indent = match.group('indent')\n    return '\\n'.join([\n        f'{indent}heartbeat_event = multiprocessing.Event()',\n        f'{indent}# Seed one heartbeat so process startup and scheduling delays',\n        f'{indent}# are not mistaken for a dead worker.',\n        f'{indent}heartbeat_event.set()',\n        f'{indent}shutdown_event = multiprocessing.Event()',\n    ])\n\ntext, seed_count = event_pattern.subn(seed_event, text)\nif seed_count < 1:\n    raise SystemExit('event creation block not found')\n\npath.write_text(text)\nprint(f'patched heartbeat logic; seeded {seed_count} event creation site(s)')\nPY\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 159.222897,
+    "keystrokes": "sed -n '35,60p' /app/worker_pool.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 159.222897,
+    "keystrokes": "sed -n '95,125p' /app/worker_pool.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 159.222897,
+    "keystrokes": "sed -n '155,195p' /app/worker_pool.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 13,
+    "offset_sec": 189.722897,
+    "keystrokes": "grep -n 'heartbeat_event\\.set\\|heartbeat_event\\.clear\\|heartbeat_event = multiprocessing.Event()\\|Send a durable\\|Consume this heartbeat' /app/worker_pool.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 13,
+    "offset_sec": 189.722897,
+    "keystrokes": "sed -n '35,65p' /app/worker_pool.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 13,
+    "offset_sec": 189.722897,
+    "keystrokes": "sed -n '95,125p' /app/worker_pool.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 13,
+    "offset_sec": 189.722897,
+    "keystrokes": "sed -n '150,185p' /app/worker_pool.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 212.495164,
+    "keystrokes": "clear\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 212.495164,
+    "keystrokes": "grep -n 'heartbeat_event\\.set\\|heartbeat_event\\.clear\\|heartbeat_event = multiprocessing.Event()\\|alive = heartbeat_events\\|if not alive\\|if alive' /app/worker_pool.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 212.495164,
+    "keystrokes": "sed -n '35,60p' /app/worker_pool.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 212.495164,
+    "keystrokes": "sed -n '98,122p' /app/worker_pool.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 212.495164,
+    "keystrokes": "sed -n '150,180p' /app/worker_pool.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 15,
+    "offset_sec": 228.588177,
+    "keystrokes": "python3 - <<'PY'\nfrom pathlib import Path\nfor i, line in enumerate(Path('/app/worker_pool.py').read_text().splitlines(), 1):\n    if any(s in line for s in ('heartbeat_event.set()', 'heartbeat_event.clear()', 'heartbeat_event = multiprocessing.Event()', 'alive = heartbeat_events', 'if not alive', 'if alive')):\n        print(f'{i}: {line}')\nPY\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 16,
+    "offset_sec": 254.63454,
+    "keystrokes": "cp -f /app/worker_pool.py /app/worker_pool.py.bak\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 16,
+    "offset_sec": 254.63454,
+    "keystrokes": "python3 - <<'PY'\nfrom pathlib import Path\n\npath = Path('/app/worker_pool.py')\ntext = path.read_text()\n\nold_pulse = '''        # Send heartbeat pulse\n        heartbeat_event.set()\n        heartbeat_event.clear()\n'''\nnew_pulse = '''        # Send a durable heartbeat notification.  Leave the event set so\n        # the supervisor can reliably observe it with wait(timeout).  A\n        # set-then-immediately-clear pulse can be missed by the supervisor.\n        heartbeat_event.set()\n'''\nif old_pulse not in text:\n    raise SystemExit('worker heartbeat pulse block not found')\ntext = text.replace(old_pulse, new_pulse, 1)\n\nold_wait = '''                # Check heartbeat with timeout\n                # This should return True if the worker is alive and pulsing\n                alive = heartbeat_events[worker_id].wait(heartbeat_timeout)\n\n                if not alive:\n'''\nnew_wait = '''                # Check heartbeat with timeout.  Workers leave their event\n                # set until the supervisor consumes the notification.\n                alive = heartbeat_events[worker_id].wait(heartbeat_timeout)\n\n                if alive:\n                    # Consume this heartbeat.  The next wait must see a fresh\n                    # notification; a genuinely hung worker will time out.\n                    heartbeat_events[worker_id].clear()\n                else:\n'''\nif old_wait not in text:\n    raise SystemExit('supervisor heartbeat wait block not found')\ntext = text.replace(old_wait, new_wait, 1)\n\nold_event = '''        heartbeat_event = multiprocessing.Event()\n        shutdown_event = multiprocessing.Event()\n'''\nnew_event = '''        heartbeat_event = multiprocessing.Event()\n        # Seed one heartbeat so process startup and scheduling delays are not\n        # mistaken for a dead worker.  The supervisor consumes this normally.\n        heartbeat_event.set()\n        shutdown_event = multiprocessing.Event()\n'''\nevent_count = text.count(old_event)\nif event_count < 1:\n    raise SystemExit('worker event creation block not found')\ntext = text.replace(old_event, new_event)\n\npath.write_text(text)\nprint(f'patched heartbeat pulse, supervisor wait, and {event_count} event creation site(s)')\nPY\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 16,
+    "offset_sec": 254.63454,
+    "keystrokes": "grep -n 'heartbeat_event\\.set\\|heartbeat_event\\.clear\\|alive = heartbeat_events\\|if alive\\|if not alive\\|Seed one heartbeat' /app/worker_pool.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 17,
+    "offset_sec": 267.860966,
+    "keystrokes": "python3 - <<'PY'\nfrom pathlib import Path\nimport re\n\npath = Path('/app/worker_pool.py')\ntext = path.read_text()\n\n# 1. Remove the racy immediate clear. The worker now leaves the event set.\nif '        heartbeat_event.clear()\\n' not in text:\n    raise SystemExit('immediate heartbeat clear not found')\ntext = text.replace('        heartbeat_event.clear()\\n', '', 1)\n\n# 2. Consume heartbeat only after a successful wait. If wait times out,\n#    the else branch handles the genuinely dead worker.\nold = ('                alive = heartbeat_events[worker_id].wait(heartbeat_timeout)\\n'\n       '\\n'\n       '                if not alive:\\n')\nnew = ('                alive = heartbeat_events[worker_id].wait(heartbeat_timeout)\\n'\n       '\\n'\n       '                if alive:\\n'\n       '                    # Consume this heartbeat.  The next wait must see a\\n'\n       '                    # fresh notification, so a hung worker still times out.\\n'\n       '                    heartbeat_events[worker_id].clear()\\n'\n       '                else:\\n')\nif old not in text:\n    raise SystemExit('supervisor heartbeat wait block not found')\ntext = text.replace(old, new, 1)\n\n# 3. Seed each newly created heartbeat event so startup scheduling delay\n#    cannot be mistaken for a dead worker.\npattern = re.compile(r'^([ \\t]*)heartbeat_event = multiprocessing\\.Event\\(\\)$', re.MULTILINE)\ndef seed(match):\n    indent = match.group(1)\n    return '\\n'.join([\n        f'{indent}heartbeat_event = multiprocessing.Event()',\n        f'{indent}# Seed one heartbeat to cover process startup and scheduling delays.',\n        f'{indent}heartbeat_event.set()',\n    ])\ntext, count = pattern.subn(seed, text)\nif count < 1:\n    raise SystemExit('heartbeat event creation site not found')\n\npath.write_text(text)\nprint(f'patched worker clear removal, supervisor consume logic, and {count} event seeding site(s)')\nPY\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 17,
+    "offset_sec": 267.860966,
+    "keystrokes": "grep -n 'heartbeat_event\\.set\\|heartbeat_event\\.clear()\\|alive = heartbeat_events\\|if alive\\|if not alive\\|Seed one heartbeat' /app/worker_pool.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 18,
+    "offset_sec": 280.595094,
+    "keystrokes": "python3 - <<'PY'\nfrom pathlib import Path\nlines = Path('/app/worker_pool.py').read_text().splitlines()\nfor i in range(149, 157):\n    print(i + 1, repr(lines[i]))\nPY\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 19,
+    "offset_sec": 296.466986,
+    "keystrokes": "python3 - <<'PY'\nfrom pathlib import Path\n\npath = Path('/app/worker_pool.py')\nlines = path.read_text().splitlines()\n\n# 1. Remove the worker's immediate clear, leaving each heartbeat event durably set.\nfor i, line in enumerate(lines):\n    if line.strip() == 'heartbeat_event.clear()':\n        del lines[i]\n        break\nelse:\n    raise SystemExit('immediate heartbeat clear not found')\n\n# 2. Supervisor consumes a heartbeat after a successful wait; timeout falls through to else.\nfor i, line in enumerate(lines):\n    if line.strip() == 'if not alive:':\n        indent = line[:len(line) - len(line.lstrip())]\n        lines[i] = f'{indent}if alive:'\n        lines.insert(i + 1, f'{indent}    # Consume this heartbeat so the next timeout detects a genuinely hung worker.')\n        lines.insert(i + 2, f'{indent}    heartbeat_events[worker_id].clear()')\n        lines.insert(i + 3, f'{indent}else:')\n        break\nelse:\n    raise SystemExit('supervisor if not alive branch not found')\n\n# 3. Seed each heartbeat event at creation so worker startup delays are covered.\nseeded = 0\ni = 0\nwhile i < len(lines):\n    line = lines[i]\n    if line.strip() == 'heartbeat_event = multiprocessing.Event()':\n        indent = line[:len(line) - len(line.lstrip())]\n        lines.insert(i + 1, f'{indent}heartbeat_event.set()')\n        seeded += 1\n        i += 2\n    else:\n        i += 1\nif seeded < 1:\n    raise SystemExit('heartbeat event creation site not found')\n\npath.write_text('\\n'.join(lines) + '\\n')\nprint(f'patched heartbeat logic; seeded {seeded} event creation site(s)')\nPY\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 19,
+    "offset_sec": 296.466986,
+    "keystrokes": "python3 - <<'PY'\nfrom pathlib import Path\nfor i, line in enumerate(Path('/app/worker_pool.py').read_text().splitlines(), 1):\n    if any(s in line for s in (\n        'heartbeat_event.set()', 'heartbeat_event.clear()', \n        'alive = heartbeat_events', 'if alive', 'if not alive', 'Consume this heartbeat')):\n        print(f'{i}: {line}')\nPY\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 20,
+    "offset_sec": 315.29116,
+    "keystrokes": "sed -n '30,40p' /app/worker_pool.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 20,
+    "offset_sec": 315.29116,
+    "keystrokes": "sed -n '100,108p' /app/worker_pool.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 20,
+    "offset_sec": 315.29116,
+    "keystrokes": "sed -n '150,180p' /app/worker_pool.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 20,
+    "offset_sec": 315.29116,
+    "keystrokes": "python3 /app/worker_pool.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 21,
+    "offset_sec": 331.230077,
+    "keystrokes": "",
+    "duration": 3.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 22,
+    "offset_sec": 363.736162,
+    "keystrokes": "python3 -m py_compile /app/worker_pool.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 22,
+    "offset_sec": 363.736162,
+    "keystrokes": "for i in 1 2 3; do\n  echo \"=== Test run $i ===\"\n  python3 /app/worker_pool.py > /tmp/heartbeat_test_$i.log 2>&1 || { cat /tmp/heartbeat_test_$i.log; exit 1; }\n  grep 'False restarts' /tmp/heartbeat_test_$i.log\n  grep 'SUCCESS' /tmp/heartbeat_test_$i.log\ndone\n",
+    "duration": 10.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 23,
+    "offset_sec": 385.405067,
+    "keystrokes": "diff -u /app/worker_pool.py.bak /app/worker_pool.py || true\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 24,
+    "offset_sec": 396.246674,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 25,
+    "offset_sec": 420.849884,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

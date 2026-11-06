@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The verifier required health status at /var/run/app/health.status, but the public instruction only said that healthcheck.sh writes status and did not identify the intended destination even indirectly.",
+    "evidence": "instruction.md healthcheck bullet conflicts with tests/test_outputs.py test_healthcheck_script_works destination requirement; attempts 01-05 and 07-12 reasonably accepted a status written under /var/run/ap.",
+    "change": "Clarify that healthcheck.sh writes status in the application's existing runtime directory, whose concrete location remains discoverable from the starting filesystem.",
+    "kind": "hidden_requirement"
+  }
+]

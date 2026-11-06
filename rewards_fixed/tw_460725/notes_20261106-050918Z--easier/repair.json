@@ -1,0 +1,14 @@
+[
+  {
+    "defect": "The supplied interactive prompt divides by the pseudo-terminal width, while verifier execution supplies a zero-width terminal and crashes the target before the animal prompt.",
+    "evidence": "attempt-10.jsonl turn 28 and attempt-11.jsonl turn 26 show working Fox sessions in the agent terminal; sandbox replays of those approaches fail in InquirerPy ListPrompt.extra_message_line_count with ZeroDivisionError during detached execution.",
+    "change": "Disable wrapped-message height calculation on this short supplied prompt so it remains the same interactive select widget but runs when terminal dimensions are unavailable.",
+    "kind": "broken_setup"
+  },
+  {
+    "defect": "The verifier requires the literal text Fox inside automate.tcl even though the instruction requires the script's behavior and transcript, and valid navigation can select Fox without embedding its label.",
+    "evidence": "tests/test_state.py test_automate_tcl_contents conflicts with instruction.md; attempt-12.jsonl turn 33 shows a complete Edwin/Fox transcript from a script using navigation bytes, and its grader rejects that script because the source does not contain Fox.",
+    "change": "Remove only the literal-Fox source assertion; retain checks that execute the Expect script and require the complete Edwin/Fox session.",
+    "kind": "hidden_requirement"
+  }
+]

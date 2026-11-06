@@ -1,0 +1,121 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "ls -la /app/bin/processor && file /app/bin/processor\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "echo \"hello\" | /app/bin/processor\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "echo \"hello\" | strace -f -o /tmp/trace.txt /app/bin/processor; tail -40 /tmp/trace.txt\n",
+    "duration": 2.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 3.1,
+    "keystrokes": "strings /app/bin/processor | grep -v \"^_\" | head -50\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 3.1,
+    "keystrokes": "ls -la /app/config 2>/dev/null; ls -la /app\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 3.7,
+    "keystrokes": "grep -aoE '[[:print:]]{4,}' /app/bin/processor | sort -u | head -80\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 4.2,
+    "keystrokes": "grep -aoE '[[:print:]]{4,}' /app/bin/processor | sort -u | tail -60\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 4.2,
+    "keystrokes": "grep -aoE '[[:print:]]{2,}' /app/bin/processor | grep -iE 'cfg|config|error|fail|open|read|prefix|mode|usage' \n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 5.2,
+    "keystrokes": "mkdir -p /app/config\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 5.2,
+    "keystrokes": "printf 'prefix=OUT: \\nmaxlen=4096\\n' > /app/config/processor.cfg && cat -A /app/config/processor.cfg\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 5.2,
+    "keystrokes": "printf 'hello\\nworld\\n' | /app/bin/processor; echo \"exit=$?\"\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 7.2,
+    "keystrokes": "printf 'hello\\nworld\\n' | strace -f -o /tmp/trace2.txt /app/bin/processor; echo \"exit=$?\"; tail -30 /tmp/trace2.txt\n",
+    "duration": 2.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 9.2,
+    "keystrokes": "mkdir -p /app/data\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 9.2,
+    "keystrokes": "printf 'hello\\nworld\\n' | /app/bin/processor; echo \"exit=$?\"\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 10.7,
+    "keystrokes": "printf 'test line 1\\n\\ntest line 3\\n' | /app/bin/processor | cat -A; echo \"exit=$?\"\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 11.7,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 11.7,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

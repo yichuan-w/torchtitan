@@ -1,0 +1,14 @@
+[
+  {
+    "defect": "The verifier runs the submitted pipeline with a uv-managed Python interpreter that lacks Polars, although Polars is installed in /opt/venv and the task's stated python invocation resolves there.",
+    "evidence": "tests/test.sh replaces PATH for pytest, tests/test_outputs.py invokes bare python, and replays of attempt-01.jsonl turn 28 and attempt-07.jsonl turn 11 both fail with ModuleNotFoundError before output semantics are checked.",
+    "change": "Run the pipeline checks with /opt/venv/bin/python, the interpreter provided by the image for the task.",
+    "kind": "broken_setup"
+  },
+  {
+    "defect": "The verifier requires the amount column's original decimal spelling even though the public requirement is to preserve its value and CSV readers may legally serialize the same numeric value with fewer trailing zeros.",
+    "evidence": "instruction.md requires preserving field values but does not mandate lexical CSV representation; after the runtime repair, replay of attempt-07.jsonl turn 11 selects every correct source row and fails only because Polars writes values such as 610.0 instead of 610.00.",
+    "change": "Compare amount fields as exact decimal values while retaining exact checks for transaction ID, customer ID, timestamp, columns, uniqueness, and latest-record selection.",
+    "kind": "hidden_requirement"
+  }
+]

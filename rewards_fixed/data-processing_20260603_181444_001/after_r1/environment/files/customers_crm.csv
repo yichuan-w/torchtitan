@@ -1,0 +1,38 @@
+customer_id,first_name,last_name,email,phone,address,city,state,zip,country,signup_date
+CRM-001,Mr. James,Wilson,james.wilson@email.com,212-555-0101,123 Park Ave Apt 4B,New York,NY,10001,US,2019-03-15
+CRM-002,JosÃ©,RamÃ­rez,jose.ramirez@email.com,212-555-0200,200 E 125th St,NuÃ±ez,NY,10035,US,2019-05-10
+CRM-003,Robert,Johnson,robert.j@email.com,,789 Michigan Ave Suite 300,Chicago,IL,60601,US,2020-01-12
+CRM-004,FranÃ§ois,BÃ©langer,francois.b@email.com,514-555-0400,1234 Rue Saint-Denis,MontrÃ©al,QC,H2X3K4,CA,2020-03-20
+CRM-005,Michael,Smith,mike.smith@email.com,617-555-0505,654 Beacon St,Boston,MA,02101,US,08/15/2020
+CRM-006,SÃ¶ren,MÃ¼ller,soren.muller@email.com,030-555-0600,KurfÃ¼rstendamm 42,KÃ¶ln,NRW,50667,DE,2020-11-01
+CRM-007,William,Anderson,will.anderson@email.com,206-555-0707,147 Pine St NW,Seattle,WA,98101,US,2021-02-14
+CRM-008,LucÃ­a,PeÃ±a,lucia.pena@email.com,011-52-55-5555,Av. Reforma 222,MÃ©xico,CDMX,06600,MX,2021-04-18
+CRM-009,Dr. Elizabeth,Taylor,eliz.taylor@email.com,,258 Broadway Blvd,Denver,CO,80201,US,2021-05-22
+CRM-010,Ãke,LindstrÃ¶m,ake.lindstrom@email.com,08-555-1000,Drottninggatan 15,GÃ¶teborg,VG,41103,SE,2021-08-05
+CRM-011,Karen,Davis,karen.davis@email.com,720-555-2500,5500 S Broadway,Littleton,CO,80121,US,11/15/2021
+CRM-012,JÃ¼rgen,SchÃ¤fer,jurgen.schafer@email.com,089-555-1100,Marienplatz 8,MÃ¼nchen,BY,80331,DE,2022-02-28
+CRM-013,Richard,White,rich.white@email.com,612-555-1111,591 Nicollet Mall #12,Minneapolis,MN,55401,US,2022-01-03
+CRM-014,Ana,SÃ£o Pedro,ana.spedro@email.com,+351-21-555-1200,Rua Augusta 100,Lisboa,11,1100-048,PT,2022-05-10
+CRM-015,Barbara,Harris,barb.harris@email.com,404-555-1212,705 Peachtree St NE,Atlanta,GA,30301,US,2022-03-20
+CRM-016,Amanda,Foster,amanda.f@email.com,512-555-2600,1201 S Congress Ave,Austin,TX,78704,US,07/14/2022
+CRM-017,Joseph,Martin,joe.martin@email.com,314-555-1313,813 Delmar Blvd #2,St. Louis,MO,63101,US,2022-06-25
+CRM-018,CÃ©line,Dubois,celine.dubois@email.com,01-55-55-1300,15 Rue de Rivoli,Paris,IDF,75004,FR,2022-09-01
+CRM-019,Susan,Thompson,sue.thompson@email.com,702-555-1414,927 Las Vegas Blvd S,Las Vegas,NV,89101,US,2022-08-09
+CRM-998,Corrupt,Record,,,,,,,,
+CRM-020,Mr. George,Peterson,george.p@email.com,202-555-2700,1600 Pennsylvania Ave,Washington,DC,20500,US,2022-12-01
+CRM-021,Thomas,Garcia,tom.garcia@email.com,210-555-1515,136 Alamo Plaza,San Antonio,TX,78201,US,2022-11-13
+CRM-022,Kevin,O'Brien,kevin.obrien@email.com,617-555-2800,1 Faneuil Hall Sq,Boston,MA,02109,US,02/14/2023
+CRM-023,Margaret,Robinson,maggie.r@email.com,,249 Temple Square,Salt Lake City,UT,84101,US,2023-01-20
+CRM-024,BjÃ¶rn,Andersson,bjorn.andersson@email.com,08-555-1400,SveavÃ¤gen 30,Stockholm,AB,11134,SE,2023-05-01
+CRM-025,Charles,Clark,chuck.clark@email.com,504-555-1717,357 Bourbon St,New Orleans,LA,70112,US,2023-04-16
+CRM-026,Theresa,Scott,theresa.scott@email.com,503-555-2900,3301 SE Belmont St,Portland,OR,97214,US,2023-08-22
+CRM-027,Dorothy,Lewis,dot.lewis@email.com,215-555-1818,468 Liberty Bell Dr,Philadelphia,PA,19101,US,2023-07-28
+CRM-028,Prof. Raymond,Chen,raymond.chen@email.com,408-555-3000,1 Infinite Loop,Cupertino,CA,95014,US,2023-11-10
+CRM-029,Sandra,Walker,sandra.w@email.com,202-555-2020,684 Capitol Hill SE,Washington,DC,20001,US,2024-01-14
+CRM-030,Paula,Nelson,paula.nelson@email.com,312-555-3100,233 S Wacker Dr,Chicago,IL,60606,US,2024-03-05
+CRM-031,Mark,Wright,mark.wright.alt@email.com,571-555-2600,218 Clarendon Blvd,Arlington,VA,22201,US,2025-01-15
+CRM-032,Theresa,Scott,theresa.scott.personal@email.com,,3301 SE Belmont St,Portland,OR,97214,US,2023-09-01
+CRM-033,Steven,Adams,steven.adams-email.com,650-555-6000,1600 Amphitheatre Pkwy,Mountain View,CA,94043,US,2024-11-01
+CRM-034,Theresa,Scott,theresa.scott.ny@email.com,212-555-6100,45 Rockefeller Plaza,New York,NY,10111,US,2024-08-15
+CRM-035,Vincent,Kim,vkim.personal@email.com,213-555-9999,123 Sunset Blvd,Los Angeles,CA,90028,US,2022-01-15
+CRM-036,Thomas,Anderson,thomas.anderson@cafÃ©.com,415-555-7000,50 Main Street,Palo Alto,CA,94301,US,2025-03-01

@@ -1,0 +1,25 @@
+{
+  "retained_skill": "Extract parameters from the supplied image, regularize and factor quadrant-local RBF covariance matrices, and expose their Cholesky traces through an authenticated HTTP service.",
+  "bottleneck": "A hidden contradictory grading value rejected correct extraction: all 12 attempts read lambda 0.006 from the image and implemented it, while the verifier computed expected traces with 0.005.",
+  "change": "Repair only, in the task's original signal: grading and package setup now use the parameter visible in the supplied specification image. No solver-facing hint or completed retained-skill work is added.",
+  "restore": "To restore the original difficulty after measuring the repair, no task help needs removal; this rewrite adds none.",
+  "prediction": "Correct implementations will no longer fail after acting on OCR output 0.006; they will instead receive matching trace checks. This is refuted if a replayed 0.006 implementation still fails any retained verifier check.",
+  "expected": "10 of 12",
+  "evidence": [
+    {
+      "attempt": "attempt-02.jsonl",
+      "turn": 4,
+      "observation": "OCR first exposed lambda 0.006. Replayed the submitted service after ./sandbox reset; ./sandbox grade passed authentication but failed bottom_left trace (expected 33.4438, got 36.3510). Running all checks showed only both trace cases failed for the same mismatch; unauthorized access passed. Commands used: extract turn 6 keystrokes, start /app/service.py, ./sandbox grade, then pytest without -x."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turn": 7,
+      "observation": "OCR exposed lambda 0.006. Before the repair, replaying turn 8 after ./sandbox reset and starting /app/gp_service.py passed authentication but failed bottom_left solely because grading expected 0.005 (33.4438 versus 36.3510). After the repair, the same fresh-reset replay reached the running service and ./sandbox grade passed all 3 checks."
+    },
+    {
+      "attempt": "attempt-01.jsonl",
+      "turn": 5,
+      "observation": "First OCR output reported lambda 0.006; the implementation subsequently used 0.006. The same first wrong-point pattern appears at attempt-03 turn 5, attempt-04 turn 3, attempt-05 turn 3, attempt-06 turn 5, attempt-07 turn 4, attempt-08 turn 4, attempt-09 turn 4, attempt-10 turn 4, and attempt-12 turn 4."
+    }
+  ]
+}

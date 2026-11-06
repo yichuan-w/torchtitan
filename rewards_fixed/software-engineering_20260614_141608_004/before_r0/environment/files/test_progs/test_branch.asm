@@ -1,0 +1,13 @@
+; Test branching
+
+PUSH 1
+PUSH 0
+GT
+JNZ print_100
+PUSH 200
+PRINT
+HALT
+print_100:
+PUSH 100
+PRINT
+HALT

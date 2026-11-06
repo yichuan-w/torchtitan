@@ -1,0 +1,152 @@
+{
+  "retained_skill": "Build a reusable normalizer that automatically distinguishes the stated UTF-8, UTF-8-with-BOM, Latin-1, and Windows-1252 cases at file or line scope, repairs ordinary UTF-8-as-single-byte mojibake, and safely handles an incomplete multibyte tail.",
+  "bottleneck": "The fixture set adds three specialty branches beyond the stated encoding families: Shift-JIS, ISO-8859-15, and serialized triple-encoded byte representations. All attempts repeatedly rewrote broad detectors; ten exhausted context or time, while two submitted scripts that satisfied 12 of 13 checks and failed only ISO-8859-15 decoding.",
+  "change": "Structural help in the original input signal: remove the Shift-JIS, ISO-8859-15, and serialized triple-encoding log fixtures, reducing the corpus from 10 files and 361 lines to 7 files and about 286 lines. The student still has to inspect raw decode failures and mojibake in the same logs the original exposes, then implement every stated encoding, mixed-line, BOM, mojibake, ordering, truncation, UTF-8 output, and summary requirement. This removes three unrelated detection/repair branches and about 21% of input, not the retained decision.",
+  "restore": "Restore archive_corrupted.log, tokyo_server.log, and euro_orders.log plus their corresponding semantic checks to return to the original difficulty after the student succeeds reliably.",
+  "prediction": "Attempts currently loop on triple serialization, Japanese detection, or a currency byte whose correct codec is not named; removing those branches lets them keep and submit their already-working normalizers instead of rewriting them. The prediction is refuted if attempts still spend repeated turns rewriting handling for the remaining stated encodings or if fewer than 3 of 12 submit passing outputs.",
+  "expected": "4 of 12",
+  "evidence": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turn": 40,
+      "observation": "Ended at the time limit while tracing the archive's triple-encoded byte representation after eight script rewrites; no submission."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turn": 46,
+      "observation": "Identified Japanese as working but Euro and escaped byte sequences as the remaining cases, then continued rewriting until the context limit."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turn": 52,
+      "observation": "Ended at the time limit debugging why Shift-JIS detection did not trigger."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turn": 51,
+      "observation": "Submitted. Rebuilt its final script on a fresh reset and ran grading: 12 checks passed; only ISO-8859-15 Euro-symbol decoding failed. The replay produced 361 UTF-8 lines and reached completion. After the rewrite, replaying the same final script on a fresh reset produced 286 lines and passed all 11 retained checks."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turn": 67,
+      "observation": "Reached the context limit after repeatedly revising broad encoding detection, including specialty files, without submitting."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turn": 47,
+      "observation": "Ended at the time limit tracing encoding corruption after nine full script writes."
+    },
+    {
+      "attempt": "attempt-07.jsonl",
+      "turn": 66,
+      "observation": "Reached the context limit while still reasoning about malformed multibyte handling after seven full script writes."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turn": 83,
+      "observation": "Reached the context limit after extensive per-file investigation and repeated runs focused on specialty encoding discrimination."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turn": 66,
+      "observation": "Ended at the time limit immediately after another script update, following eleven full rewrites."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turn": 40,
+      "observation": "Reached the context limit still fixing double/triple-encoded byte escapes after six script rewrites."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turn": 66,
+      "observation": "Submitted. Rebuilt its final script on a fresh reset and ran grading: 12 checks passed; only ISO-8859-15 Euro-symbol decoding failed. The replay produced 361 UTF-8 lines and reached completion. After the rewrite, replaying the same approach on a fresh reset produced 285 lines but still failed retained mojibake repair (2 of 4 expected patterns), so it is not counted as a predicted success."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turn": 95,
+      "observation": "Reached the context limit after twelve full script rewrites, still repairing archive_corrupted.log byte-literal escapes."
+    }
+  ],
+  "budget": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turns": [
+        2,
+        40
+      ],
+      "stage": "Investigating and repeatedly rewriting support for the three specialty fixtures; removing them eliminates 3 of 10 files and their codec/serialization branches."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turns": [
+        2,
+        68
+      ],
+      "stage": "Building and retesting broad detection for Japanese, currency, and serialized escapes; the reduced corpus removes those branches and 75 lines."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turns": [
+        2,
+        52
+      ],
+      "stage": "Investigating all ten files and ending on Shift-JIS detection; the reduced corpus removes that detector and two other specialty cases."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turns": [
+        2,
+        67
+      ],
+      "stage": "Repeated detector rewrites across ten heterogeneous files; removing three specialty files narrows implementation and validation to stated codecs."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turns": [
+        2,
+        47
+      ],
+      "stage": "Tracing cross-codec misclassification across the full corpus; the change removes three ambiguous specialty sources."
+    },
+    {
+      "attempt": "attempt-07.jsonl",
+      "turns": [
+        2,
+        66
+      ],
+      "stage": "Repeatedly handling edge encodings and malformed sequences across ten files; the change removes 3 files and 75 lines while retaining the incomplete-tail case."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turns": [
+        2,
+        83
+      ],
+      "stage": "Long per-file diagnosis and retesting of specialty encodings; the reduced corpus removes those three investigations."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turns": [
+        2,
+        66
+      ],
+      "stage": "Eleven implementation cycles for the broad heterogeneous corpus; three specialty branches are removed."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turns": [
+        2,
+        40
+      ],
+      "stage": "Debugging serialized triple-encoding through the context limit; removing archive_corrupted.log eliminates that entire stage."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turns": [
+        2,
+        95
+      ],
+      "stage": "Repeatedly rewriting and testing archive byte-literal recovery plus specialty detection; removing those files eliminates 75 lines and three branches."
+    }
+  ]
+}

@@ -1,0 +1,51 @@
+[
+  {
+    "model_name": "catboost",
+    "dataset_name": "bank_marketing",
+    "acc": 0.9135,
+    "n_rows": 45211,
+    "n_features": 16
+  },
+  {
+    "model_name": "catboost",
+    "dataset_name": "electricity",
+    "acc": 0.9049,
+    "n_rows": 45312,
+    "n_features": 8
+  },
+  {
+    "model_name": "ft_transformer",
+    "dataset_name": "mini_boone",
+    "acc": 0.857,
+    "n_rows": 130064,
+    "n_features": 50
+  },
+  {
+    "model_name": "lightgbm",
+    "dataset_name": "bank_marketing",
+    "acc": 0.9098,
+    "n_rows": 45211,
+    "n_features": 16
+  },
+  {
+    "model_name": "lightgbm",
+    "dataset_name": "credit_g",
+    "acc": 0.9063,
+    "n_rows": 1000,
+    "n_features": 20
+  },
+  {
+    "model_name": "lightgbm",
+    "dataset_name": "mini_boone",
+    "acc": 0.8413,
+    "n_rows": 130064,
+    "n_features": 50
+  },
+  {
+    "model_name": "mlp",
+    "dataset_name": "adult",
+    "acc": 0.8881,
+    "n_rows": 48842,
+    "n_features": 14
+  }
+]

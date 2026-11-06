@@ -1,0 +1,79 @@
+[
+  {
+    "step_id": 3,
+    "offset_sec": 0.0,
+    "keystrokes": "ls -la /home/user\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.0,
+    "keystrokes": "sed -n '1,240p' /home/user/mcmc.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.0,
+    "keystrokes": "python3 -c \"import numpy as np; x=np.load('/home/user/data.npy'); print(type(x), getattr(x,'shape',None), getattr(x,'dtype',None)); print(x[:5])\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.3,
+    "keystrokes": "cat > /home/user/mcmc.py <<'PY'\nimport numpy as np\n\n\ndef log_likelihood(data, mu, sigma):\n    if sigma <= 0:\n        return -np.inf\n\n    data = np.asarray(data)\n    residuals = data - mu\n    n = data.size\n\n    # Vectorized deterministic calculation. Using np.sum avoids\n    # non-deterministic Python set/loop reduction ordering.\n    return (\n        -0.5 * n * np.log(2 * np.pi * sigma**2)\n        - np.sum(residuals * residuals) / (2 * sigma**2)\n    )\n\n\ndef sample(data, iters=5000, seed=None):\n    if seed is not None:\n        np.random.seed(seed)\n\n    mu, sigma = 0.0, 1.0\n    chain = []\n    ll_current = log_likelihood(data, mu, sigma)\n\n    for _ in range(iters):\n        mu_prop = mu + np.random.normal(0, 0.1)\n        sigma_prop = sigma + np.random.normal(0, 0.1)\n\n        ll_prop = log_likelihood(data, mu_prop, sigma_prop)\n\n        if sigma_prop > 0:\n            log_accept_ratio = ll_prop - ll_current\n            accept_prob = np.exp(min(0, log_accept_ratio))\n        else:\n            accept_prob = 0.0\n\n        if np.random.rand() < accept_prob:\n            mu, sigma = mu_prop, sigma_prop\n            ll_current = ll_prop\n\n        chain.append((mu, sigma))\n\n    return np.array(chain)\nPY\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.3,
+    "keystrokes": "cat > /home/user/run_sampler.py <<'PY'\nimport numpy as np\n\nfrom mcmc import sample\n\n\ndef main():\n    data = np.load('/home/user/data.npy')\n    chain = sample(data, iters=5000, seed=42)\n\n    posterior_samples = chain[1000:]\n    mu_mean = float(np.mean(posterior_samples[:, 0]))\n    sigma_mean = float(np.mean(posterior_samples[:, 1]))\n\n    np.savetxt(\n        '/home/user/results.csv',\n        np.array([[mu_mean, sigma_mean]]),\n        delimiter=',',\n    )\n\n\nif __name__ == '__main__':\n    main()\nPY\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.3,
+    "keystrokes": "cat > /home/user/test_reproducibility.py <<'PY'\nimport numpy as np\n\nfrom mcmc import sample\n\n\ndef main():\n    data = np.load('/home/user/data.npy')\n\n    chain_1 = sample(data, iters=100, seed=42)\n    chain_2 = sample(data, iters=100, seed=42)\n\n    np.testing.assert_array_equal(chain_1, chain_2)\n    print('Reproducibility test passed: chains are exactly identical.')\n\n\nif __name__ == '__main__':\n    main()\nPY\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.3,
+    "keystrokes": "python3 /home/user/run_sampler.py\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.3,
+    "keystrokes": "python3 /home/user/test_reproducibility.py\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.3,
+    "keystrokes": "cat /home/user/results.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 2.7,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 2.7,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

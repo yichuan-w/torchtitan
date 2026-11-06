@@ -1,0 +1,10 @@
+# Cromer-Mann coefficients for X-ray atomic scattering factors
+# f(s) = c + sum_{i=1}^{4} a_i * exp(-b_i * s^2)
+# s = sin(theta)/lambda in Angstrom^{-1}
+# Valid for s < 2.0 Angstrom^{-1}
+# Source: International Tables for Crystallography, Vol. C
+# Format: element a1 a2 a3 a4 c b1 b2 b3 b4
+C   2.310000   1.020000   1.588600   0.865000   0.215600  20.843900  10.207500   0.568700  51.651200
+N  12.212600   3.132200   2.012500   1.166300 -11.529000   0.005700   9.893300  28.997500   0.582600
+O   3.048500   2.286800   1.546300   0.867000   0.250800  13.277100   5.701100   0.323900  32.908900
+S   6.905300   5.203400   1.437900   1.586300   0.866900   1.467900  22.215100   0.253600  56.172000

@@ -1,0 +1,170 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "ls -la /app /app/testdata | head -50\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "cat /app/parser.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.2,
+    "keystrokes": "for f in /app/testdata/*; do echo \"== $f\"; xxd \"$f\"; done\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.3,
+    "keystrokes": "for f in /app/testdata/*; do echo \"== $(basename $f)\"; od -A d -t x1 \"$f\"; done\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 0.4,
+    "keystrokes": "cd /app && cp parser.c parser.c.bak\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 0.4,
+    "keystrokes": "sed -i 's/(uint32_t)(unsigned char)data\\[pos\\]) |/(uint32_t)(unsigned char)data[pos] << 24) |/' parser.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 0.4,
+    "keystrokes": "sed -i 's/(uint32_t)(unsigned char)data\\[pos+1\\] << 8)/(uint32_t)(unsigned char)data[pos+1] << 16)/' parser.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 0.4,
+    "keystrokes": "sed -i 's/(uint32_t)(unsigned char)data\\[pos+2\\] << 16)/(uint32_t)(unsigned char)data[pos+2] << 8)/' parser.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 0.4,
+    "keystrokes": "sed -i 's/(uint32_t)(unsigned char)data\\[pos+3\\] << 24);/(uint32_t)(unsigned char)data[pos+3]);/' parser.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 0.4,
+    "keystrokes": "sed -i 's/(int32_t)(unsigned char)data\\[pos+2\\] << 24)/(int32_t)(unsigned char)data[pos+2] << 8)/' parser.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 0.4,
+    "keystrokes": "sed -i 's/for (size_t i = 1; i < count; i++)/for (size_t i = 0; i < count; i++)/' parser.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 0.4,
+    "keystrokes": "sed -i 's/tag & 0x0F/tag \\& 0x1F/' parser.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 0.4,
+    "keystrokes": "perl -0777 -i -pe 's/(tag == 0xE0.*?for \\(size_t i = 0; i < count; i\\+\\+\\) \\{\\n\\s*print_value\\(data, pos, indent \\+ 1\\);)(\\n\\s*\\})/$1\\n            print_value(data, pos, indent + 1);$2/s' parser.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 0.4,
+    "keystrokes": "grep -n \"0x1F\\|i = 0; i < count\\|<< 24\\|<< 16\\|<< 8\" parser.c | head -30\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 0.4,
+    "keystrokes": "make 2>&1 || gcc -o parser parser.c -Wall\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 0.4,
+    "keystrokes": "for f in testdata/*; do echo \"== $(basename $f)\"; ./parser \"$f\"; done\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 3.4,
+    "keystrokes": "sed -i 's/printf(\"%u\\\\n\", (unsigned int)data\\[\\*pos\\]);/printf(\"%u\\\\n\", (unsigned int)(unsigned char)data[*pos]);/' parser.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 3.4,
+    "keystrokes": "grep -n \"unsigned int)(unsigned char)data\\[\\*pos\\]\" parser.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 3.4,
+    "keystrokes": "gcc -o parser parser.c -Wall\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 3.4,
+    "keystrokes": "for f in testdata/*; do echo \"== $(basename $f)\"; ./parser \"$f\"; done 2>&1 | grep -i \"warning\\|error\" ; echo \"check done\"\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 3.4,
+    "keystrokes": "./parser testdata/t08_dbde6564.sbmf; ./parser testdata/t10_4fac696e.sbmf; ./parser testdata/t30_4b2991d2.sbmf; ./parser testdata/t33_38ceab40.sbmf\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 6.6,
+    "keystrokes": "\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 6.7,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 6.7,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

@@ -1,0 +1,44 @@
+[
+  {
+    "step_id": 1,
+    "offset_sec": 0.0,
+    "keystrokes": "sed -n '1,120p' /app/train_model.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.1,
+    "keystrokes": "sed -i 's/n_factors=20, n_epochs=20, lr_all=0.005, reg_all=0.02/n_factors=30, n_epochs=40, lr_all=0.006, reg_all=0.06/' /app/train_model.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.2,
+    "keystrokes": "/app/train_model.py\n",
+    "duration": 60.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 60.2,
+    "keystrokes": "ls -lh /app/model.pkl\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 60.3,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 60.3,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

@@ -1,0 +1,30 @@
+{
+  "retained_skill": "Diagnose the lossy multiprocessing.Event heartbeat pulse and implement race-free liveness monitoring that still detects a genuinely unresponsive worker.",
+  "bottleneck": "The verifier prescribed private attribute names and representations for heartbeat state, then leaked a child process when those names were absent; eleven behaviorally successful submissions failed that representation check, while two also failed an exact diagnostic-string check not required by the instruction.",
+  "change": "Repair the verifier and clarify the public contract: exercise genuine hung-worker detection by stopping a live worker and observing the supervisor through WorkerPool's public lifecycle, judge the supplied workload by successful execution with no reported false-heartbeat failure rather than one exact statistics sentence, and explicitly preserve freedom to choose private heartbeat representation. This removes an unfair grading obstacle while leaving the retained synchronization decision entirely with the student; the original timeout/restart signal remains the cue.",
+  "restore": "Restore the original verifier after training; no student-facing help or implementation scaffold is added, and the task's behavioral requirements remain unchanged.",
+  "prediction": "Submissions that replaced transient pulses with persistent heartbeat state already passed repeated healthy-worker runs; once private-name inspection is removed, their next action is simply submission rather than adapting to an undisclosed schema. A replay that still misses a SIGSTOP-induced timeout, or any next group remaining at 0 of 12, refutes this diagnosis.",
+  "expected": "10 of 12",
+  "evidence": [
+    {
+      "attempt": "attempt-06.jsonl",
+      "turn": 6,
+      "observation": "Rebuilt the final timestamp-based submission from turn 6 after ./sandbox reset and ran ./sandbox grade. Healthy workload and three stress runs passed; the only failed check was test_fix_preserves_hung_detection, where verifier access to absent private heartbeat_events raised AttributeError and leaked processes until its 60-second timeout. Stored full result in run/grade-attempt-06.json. After the verifier repair, replaying the same turn-6 file passed all three checks; run/replay-changed-attempt-06.json records reward 1.0, including observed SIGSTOP timeout detection and clean shutdown."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turn": 4,
+      "observation": "Rebuilt the final condition/counter submission from turn 4 after ./sandbox reset and ran ./sandbox grade. Healthy workload and three stress runs passed; the only failed check was test_fix_preserves_hung_detection because the verifier demanded private heartbeat_events instead of accepting heartbeat_conds, then timed out. Stored full result in run/grade-attempt-11.json."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turn": 5,
+      "observation": "Header diagnostics show hung-detection and stress checks passed, while the workload check rejected an otherwise successful run solely because its zero-restart statistics line used different wording."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turn": 29,
+      "observation": "Header diagnostics show repeated workload execution passed, but grading rejected both a differently worded zero-restart line and the verifier's direct access to an absent heartbeat_events private attribute."
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+[
+  {
+    "defect": "The hung-worker check requires an implementation-private heartbeat_events attribute before its documented fallback can run, so valid timestamp, counter, and condition implementations fail and leak their child pool until timeout.",
+    "evidence": "tests/test_outputs.py:86 conflicts with instruction.md requirements 1-3; attempt-06.jsonl turn 6 and attempt-11.jsonl turn 4 each pass healthy/stress behavior but fail with AttributeError followed by TimeoutExpired.",
+    "change": "Test genuine hung-worker behavior through WorkerPool's public start/shutdown lifecycle by stopping a worker process and observing timeout detection, without inspecting heartbeat representation.",
+    "kind": "hidden_requirement"
+  },
+  {
+    "defect": "The healthy-workload check requires one exact statistics sentence although the instruction requires correct behavior and only says the script reports false heartbeat failures.",
+    "evidence": "tests/test_outputs.py:39 conflicts with instruction.md's behavior-level contract; attempt-05.jsonl turn 5 and attempt-08.jsonl turn 29 report successful zero-failure runs but fail only the exact-string assertion.",
+    "change": "Retain exit-status and failure-report checks while removing the unstated exact diagnostic wording requirement.",
+    "kind": "hidden_requirement"
+  }
+]

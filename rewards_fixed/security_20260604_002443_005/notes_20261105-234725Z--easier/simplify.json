@@ -1,0 +1,70 @@
+{
+  "retained_skill": "Set up and validate an OpenSSH host-certificate authority, including inventory-driven host certificates and certificate revocation.",
+  "bottleneck": "Eleven of twelve attempts first diverged by selecting a supported ECDSA curve for db2 other than nistp256; the instruction and inventory specify only ECDSA, but the seed verifier silently requires nistp256.",
+  "change": "Verifier repair at the original task signal: preserve the inventory's ECDSA type requirement while accepting every ECDSA curve ssh-keygen supports. This removes no SSH CA, signing, principal, serial, KRL, reporting, or validation work and adds no student reading.",
+  "restore": "If later hardening is needed, explicitly require a particular ECDSA curve in the public task and then restore a curve-specific check.",
+  "prediction": "The change addresses the host-key generation action where attempts supplied -b 384 or -b 521. Those attempts can now continue from a valid ECDSA key instead of being rejected after completing the workflow; this is refuted if a replay with its own generated CA and nistp521 db2 key still fails the host-key-type check or another unchanged check.",
+  "expected": "8 of 12",
+  "evidence": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turn": 3,
+      "observation": "First wrong point: generated db2 as supported ECDSA nistp521. Fresh replay through turn 24 and ./sandbox grade passed 15 checks; failed test_host_keys_exist only because nistp256 was required, plus test_known_hosts because replaying the trace's literal randomized CA key cannot match the replay's newly generated CA. All certificate, KRL, report, and Python-check checks passed. Commands used: ./sandbox reset; replay turns 1-24 with ./sandbox exec; ./sandbox grade. After the verifier repair, a fresh replay of the same approach through turn 24, with the trace-specific stale randomized known_hosts key regenerated from that replay CA, passed all 17 checks under ./sandbox grade; the nistp521 key now meets the stated ECDSA requirement."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turn": 3,
+      "observation": "First wrong point: generated db2 as supported ECDSA nistp384; later work repeatedly investigated KRL mechanics, but the curve alone violates the hidden seed expectation."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turn": 3,
+      "observation": "First wrong point: generated db2 as supported ECDSA nistp521 rather than the verifier's unstated nistp256 choice."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turn": 3,
+      "observation": "First wrong point: generated db2 as supported ECDSA nistp521 rather than the verifier's unstated nistp256 choice."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turn": 8,
+      "observation": "First wrong point: generated db2 as supported ECDSA nistp521 rather than the verifier's unstated nistp256 choice."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turn": 4,
+      "observation": "First wrong point: generated db2 as supported ECDSA nistp521 rather than the verifier's unstated nistp256 choice."
+    },
+    {
+      "attempt": "attempt-07.jsonl",
+      "turn": 3,
+      "observation": "First wrong point: generated db2 as supported ECDSA nistp521 rather than the verifier's unstated nistp256 choice."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turn": 3,
+      "observation": "First wrong point: generated db2 as supported ECDSA nistp521 rather than the verifier's unstated nistp256 choice."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turn": 5,
+      "observation": "This attempt used nistp256, so its first evident divergence was writing an @revoked line without the required KRL reference; the curve repair does not remove that remaining failure."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turn": 3,
+      "observation": "First wrong point: generated db2 as supported ECDSA nistp521 rather than the verifier's unstated nistp256 choice."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turn": 2,
+      "observation": "First wrong point: generated db2 as supported ECDSA nistp521 rather than the verifier's unstated nistp256 choice."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turn": 3,
+      "observation": "First wrong point: generated db2 as supported ECDSA nistp384. Fresh replay through turn 28 and ./sandbox grade passed 15 checks; failed test_host_keys_exist only because nistp256 was required, plus test_known_hosts because replaying the trace's literal randomized CA key cannot match the replay's newly generated CA. All certificate, KRL, report, and Python-check checks passed. Commands used: ./sandbox reset; replay turns 1-28 with ./sandbox exec; ./sandbox grade."
+    }
+  ]
+}

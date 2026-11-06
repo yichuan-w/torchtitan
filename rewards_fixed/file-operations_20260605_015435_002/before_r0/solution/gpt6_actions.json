@@ -1,0 +1,149 @@
+[
+  {
+    "step_id": 3,
+    "offset_sec": 0.0,
+    "keystrokes": "ls -la /app\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.0,
+    "keystrokes": "file /app/data.db\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.0,
+    "keystrokes": "which sqlite3 || true\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.0,
+    "keystrokes": "python3 -c \"import sqlite3; print(sqlite3.sqlite_version)\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.0,
+    "keystrokes": "sqlite3 /app/data.db \".schema employees\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.0,
+    "keystrokes": "sqlite3 /app/data.db \"PRAGMA page_size; PRAGMA freelist_count; SELECT count(*) FROM employees;\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 0.6,
+    "keystrokes": "python3 - <<'PY'\nimport sqlite3\ncon = sqlite3.connect('/app/data.db')\ncur = con.cursor()\nprint('master:')\nfor row in cur.execute('SELECT type,name,tbl_name,rootpage,sql FROM sqlite_master ORDER BY rowid'):\n    print(row)\nprint('table_info:')\nfor row in cur.execute('PRAGMA table_info(employees)'):\n    print(row)\nprint('page_size', cur.execute('PRAGMA page_size').fetchone())\nprint('page_count', cur.execute('PRAGMA page_count').fetchone())\nprint('freelist_count', cur.execute('PRAGMA freelist_count').fetchone())\nprint('rows:')\nfor row in cur.execute('SELECT rowid,* FROM employees'):\n    print(row)\ncon.close()\nPY\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 0.7,
+    "keystrokes": "python3 - <<'PY'\nimport struct\npath='/app/data.db'\ndata=open(path,'rb').read()\nps=4096\nprint('size',len(data),'pages',len(data)//ps)\nfor p in range(1,len(data)//ps+1):\n    off=(p-1)*ps\n    hdr=0 if p==1 else 100\n    page=data[off:off+ps]\n    if p==1:\n        print(f'page {p}: sqlite header, page type byte at {hdr:#x} = {page[hdr]:#x}')\n    b=page[hdr]\n    print(f'page {p}: btree type {b:#x}, hdr_off {hdr}, first_free={struct.unpack(\">H\",page[hdr+1:hdr+3])[0]}, ncell={struct.unpack(\">H\",page[hdr+3:hdr+5])[0]}, cell_start={struct.unpack(\">H\",page[hdr+5:hdr+7])[0]}, frag={page[hdr+7]}')\n    if b==0x0d:\n        ptrs=[]\n        for i in range(struct.unpack('>H',page[hdr+3:hdr+5])[0]):\n            o=struct.unpack('>H',page[hdr+8+2*i:hdr+10+2*i])[0]\n            ptrs.append(o)\n        print('  leaf ptrs:',ptrs[:10],'...',ptrs[-10:])\n    elif b==0x05:\n        print('  right=',struct.unpack('>I',page[hdr+8:hdr+12])[0])\nPY\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 0.7,
+    "keystrokes": "strings -a -t d /app/data.db | head -80\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 0.9,
+    "keystrokes": "python3 - <<'PY'\nimport struct\npath='/app/data.db'\ndata=open(path,'rb').read()\nps=4096\nfor p in range(1,len(data)//ps+1):\n    off=(p-1)*ps\n    page=data[off:off+ps]\n    hdr=100 if p==1 else 0\n    b=page[hdr]\n    ncell=struct.unpack('>H',page[hdr+3:hdr+5])[0]\n    cstart=struct.unpack('>H',page[hdr+5:hdr+7])[0]\n    firstfree=struct.unpack('>H',page[hdr+1:hdr+3])[0]\n    frag=page[hdr+7]\n    print(f'page {p}: type {b:#04x} ncell={ncell} firstfree={firstfree} cstart={cstart} frag={frag}')\n    if b in (0x0d,0x0a):\n        ptr_off=hdr+8\n        cells=[struct.unpack('>H',page[ptr_off+2*i:ptr_off+2*i+2])[0] for i in range(min(ncell,12))]\n        print('  page ptrs first:',cells)\n    elif b in (0x05,0x02):\n        right=struct.unpack('>I',page[hdr+8:hdr+12])[0]\n        ptr_off=hdr+12\n        cells=[struct.unpack('>I',page[ptr_off+4*i:ptr_off+4*i+4])[0] for i in range(min(ncell,12))]\n        print('  child ptrs first:',cells,'right',right)\nPY\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 1.0,
+    "keystrokes": "python3 - <<'PY'\nimport struct\ndata=open('/app/data.db','rb').read(); ps=4096\nfor p in [3,4,5,6,7]:\n    page=data[(p-1)*ps:p*ps]\n    print(f'===== page {p} =====')\n    ff=struct.unpack('>H',page[1:3])[0]\n    seen=set()\n    while ff:\n        if ff in seen or ff+4>ps:\n            print('bad freeblock',ff); break\n        seen.add(ff)\n        nxt,sz=struct.unpack('>HH',page[ff:ff+4])\n        raw=page[ff:ff+sz]\n        print(f'freeblock off={ff} size={sz} next={nxt}')\n        print('  hex:',raw[:96].hex())\n        print('  repr:',repr(raw[:140]))\n        ff=nxt\nPY\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 1.0,
+    "keystrokes": "python3 - <<'PY'\nimport struct\ndata=open('/app/data.db','rb').read(); ps=4096\ndef varint(buf,pos):\n    val=0\n    for j in range(9):\n        b=buf[pos]; pos+=1\n        val=(val<<7)|(b&0x7f)\n        if not (b&0x80):\n            return val,pos\n    return val,pos\nfor p in [3,4,5,6,7]:\n    page=data[(p-1)*ps:p*ps]\n    n=struct.unpack('>H',page[3:5])[0]\n    rowids=[]\n    for i in range(n):\n        co=struct.unpack('>H',page[8+2*i:10+2*i])[0]\n        cell=page[co:]\n        payload,pos=varint(cell,0)\n        rowid,pos=varint(cell,pos)\n        rowids.append(rowid)\n    print('page',p,'n',n,'rowids',rowids)\nPY\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 1.2,
+    "keystrokes": "python3 - <<'PY'\nimport struct,re\ndata=open('/app/data.db','rb').read(); ps=4096\n# current emails\nimport sqlite3\ncon=sqlite3.connect('/app/data.db')\nvis={r[0]:r[1] for r in con.execute('SELECT rowid,email FROM employees')}\ncon.close()\n# freeblocks summary\nfor p in range(1,len(data)//ps+1):\n    page=data[(p-1)*ps:p*ps]\n    hdr=100 if p==1 else 0\n    if page[hdr] not in (0x0d,0x0a): continue\n    ff=struct.unpack('>H',page[hdr+1:hdr+3])[0]\n    while ff:\n        nxt,sz=struct.unpack('>HH',page[ff:ff+4])\n        raw=page[ff:ff+sz]\n        print(f'page {p} free off {ff} size {sz} next {nxt} data={raw[4:].hex()}')\n        ff=nxt\n# scan emails\nemails=[]\nfor m in re.finditer(rb'[A-Za-z0-9._%+-]+@corp\\.com',data):\n    e=m.group().decode('ascii')\n    off=m.start()\n    emails.append((off,e))\nprint('\\nEMAILS:')\nfor off,e in emails:\n    print(off,e,'VISIBLE' if e in vis.values() else '*** DELETED? ***')\nprint('visible count',len(vis),'email scan count',len(emails))\nPY\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 1.3,
+    "keystrokes": "python3 - <<'PY'\nimport sqlite3,re,collections\ndata=open('/app/data.db','rb').read()\ncon=sqlite3.connect('/app/data.db')\nrows=list(con.execute('SELECT rowid,id,name,department,salary,hire_date,email FROM employees'))\ncon.close()\nprint('visible rows',len(rows),'unique emails',len(set(r[6] for r in rows)))\nfor r in rows[:3]+rows[-3:]:\n    e=r[6]\n    cnt=len(re.findall(re.escape(e).encode(),data))\n    print('sample',r[0],e,'raw_occurrences',cnt)\nprint('empty?')\n# raw occurrences all emails\nocc=collections.defaultdict(list)\nfor m in re.finditer(rb'[A-Za-z0-9._%+-]+@corp\\.com',data):\n    occ[m.group().decode()].append(m.start())\nvis=set(r[6] for r in rows)\nextra=set(occ)-vis\nprint('raw unique emails',len(occ),'extra unique vs visible',len(extra))\nprint('extra first 30:',sorted(extra)[:30])\nfor target in ['kara.miller267@corp.com','quincy.mendez288@corp.com']:\n    print('\\nTARGET',target)\n    for off in occ.get(target,[]):\n        print('offset',off)\n        lo=max(0,off-90); hi=min(len(data),off+len(target)+40)\n        raw=data[lo:hi]\n        print('hex',raw.hex())\n        print('repr',repr(raw))\nPY\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 13,
+    "offset_sec": 1.4,
+    "keystrokes": "python3 - <<'PY'\nimport struct\ndata=open('/app/data.db','rb').read(); ps=4096\ndef varint(buf,pos):\n    v=0\n    for i in range(9):\n        b=buf[pos]; pos+=1\n        v=(v<<7)|(b&0x7f)\n        if not b&0x80: return v,pos\n    return v,pos\ndef parse_record(payload):\n    hlen,pos=varint(payload,0)\n    serials=[]; end=hlen\n    while pos<end:\n        st,pos=varint(payload,pos); serials.append(st)\n    vals=[]\n    for st in serials:\n        if st==0: vals.append(None)\n        elif st==1: vals.append(struct.unpack('>b',payload[pos:pos+1])[0]); pos+=1\n        elif st==2: vals.append(struct.unpack('>h',payload[pos:pos+2])[0]); pos+=2\n        elif st==3: \n            b=payload[pos:pos+3]; v=(b[0]<<16)|(b[1]<<8)|b[2]; v=v-(1<<24) if v&(1<<23) else v; vals.append(v); pos+=3\n        elif st==4: vals.append(struct.unpack('>i',payload[pos:pos+4])[0]); pos+=4\n        elif st==5:\n            b=payload[pos:pos+6]; v=int.from_bytes(b,'big',signed=True); vals.append(v); pos+=6\n        elif st==6: vals.append(struct.unpack('>q',payload[pos:pos+8])[0]); pos+=8\n        elif st==7: vals.append(struct.unpack('>d',payload[pos:pos+8])[0]); pos+=8\n        elif st==8: vals.append(0)\n        elif st==9: vals.append(1)\n        elif st>=12 and st%2==0:\n            n=(st-12)//2; vals.append(payload[pos:pos+n]); pos+=n\n        elif st>=13 and st%2==1:\n            n=(st-13)//2; vals.append(payload[pos:pos+n].decode('utf-8')); pos+=n\n        else: vals.append(('unknown',st))\n    return hlen,serials,vals\nfor p in [3,4,5,6,7]:\n    page=data[(p-1)*ps:p*ps]\n    n=struct.unpack('>H',page[3:5])[0]\n    print(f'--- page {p} cells ---')\n    for i in range(n):\n        co=struct.unpack('>H',page[8+2*i:10+2*i])[0]\n        cell=page[co:]\n        payload_len,pos=varint(cell,0)\n        rowid,pos=varint(cell,pos)\n        payload=cell[pos:pos+payload_len]\n        hlen,serials,vals=parse_record(payload)\n        if rowid in (5,23,47,72,98,123,156,189,201,234,267,288) or rowid in (1,2,287,289,290):\n            print('co',co,'plen',payload_len,'rowid',rowid,'hlen',hlen,'serials',serials,'vals',vals)\nPY\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 1.5,
+    "keystrokes": "python3 - <<'PY'\nimport struct\ndata=open('/app/data.db','rb').read(); ps=4096\nfor p in [3,4,5,6,7]:\n    page=data[(p-1)*ps:p*ps]\n    print(f'===== page {p} =====')\n    ff=struct.unpack('>H',page[1:3])[0]\n    seen=set()\n    while ff:\n        if ff in seen or ff+4>ps:\n            print('bad',ff); break\n        seen.add(ff)\n        nxt,sz=struct.unpack('>HH',page[ff:ff+4])\n        raw=page[ff:ff+sz]\n        print(f'off={ff} size={sz} next={nxt}')\n        print(' hex',raw.hex())\n        print(' txt',repr(raw))\n        ff=nxt\nPY\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 15,
+    "offset_sec": 1.6,
+    "keystrokes": "python3 - <<'PY'\nimport struct, re, sqlite3\ndata=open('/app/data.db','rb').read(); ps=4096\ncon=sqlite3.connect('/app/data.db')\nvis=set(r[0] for r in con.execute('SELECT rowid FROM employees'))\ncols=[r[1] for r in con.execute('PRAGMA table_info(employees)')]\ncon.close()\nmaxid=max(vis)\nmissing=set(range(min(vis), maxid+1))-vis\nprint('missing',sorted(missing))\n\ndef varint(buf,pos):\n    v=0\n    for i in range(9):\n        if pos>=len(buf): raise ValueError('trunc varint')\n        b=buf[pos]; pos+=1\n        v=(v<<7)|(b&0x7f)\n        if not b&0x80:\n            return v,pos\n    return v,pos\n\ndef parse_types(rem, skip_first_serial=False):\n    pos=0\n    serials=[]\n    if skip_first_serial:\n        serials.append(0)\n    while len(serials)<len(cols):\n        st,pos=varint(rem,pos)\n        serials.append(st)\n    body=pos\n    vals=[]\n    for st in serials:\n        if st==0: vals.append(None)\n        elif st==1:\n            v=struct.unpack('>b',rem[body:body+1])[0]; body+=1; vals.append(v)\n        elif st==2:\n            v=struct.unpack('>h',rem[body:body+2])[0]; body+=2; vals.append(v)\n        elif st==3:\n            b=rem[body:body+3]; v=int.from_bytes(b,'big',signed=True); body+=3; vals.append(v)\n        elif st==4:\n            v=struct.unpack('>i',rem[body:body+4])[0]; body+=4; vals.append(v)\n        elif st==5:\n            v=int.from_bytes(rem[body:body+6],'big',signed=True); body+=6; vals.append(v)\n        elif st==6:\n            v=struct.unpack('>q',rem[body:body+8])[0]; body+=8; vals.append(v)\n        elif st==7:\n            v=struct.unpack('>d',rem[body:body+8])[0]; body+=8; vals.append(v)\n        elif st==8: vals.append(0)\n        elif st==9: vals.append(1)\n        elif st>=12 and st%2==0:\n            n=(st-12)//2; vals.append(rem[body:body+n]); body+=n\n        elif st>=13 and st%2==1:\n            n=(st-13)//2; vals.append(rem[body:body+n].decode('utf-8')); body+=n\n        else: raise ValueError(('serial',st))\n    return serials, vals, body\n\nfor p in [3,4,5,6,7]:\n    page=data[(p-1)*ps:p*ps]\n    ff=struct.unpack('>H',page[1:3])[0]\n    while ff:\n        nxt,sz=struct.unpack('>HH',page[ff:ff+4])\n        rem=page[ff+4:ff+sz]\n        print(f'page {p} free off {ff} size {sz} rem_len {len(rem)}')\n        for label,skip in [('A',False),('B',True)]:\n            try:\n                st,vals,used=parse_types(rem,skip)\n                if used==len(rem) and vals[0] is None and all(isinstance(vals[i],str) for i in [1,2,4,5]) and isinstance(vals[3],int):\n                    print(' ',label,'OK used',used,'serials',st,'vals',vals)\n            except Exception as e:\n                pass\n        ff=nxt\nPY\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 16,
+    "offset_sec": 1.7,
+    "keystrokes": "cat > /app/recover.py <<'PY'\n#!/usr/bin/env python3\nimport json\nimport re\nimport sqlite3\nimport struct\nimport sys\n\n\ndef read_varint(buf, pos):\n    \"\"\"Read a SQLite variable-length integer.\"\"\"\n    value = 0\n    for _ in range(8):\n        if pos >= len(buf):\n            raise ValueError(\"truncated varint\")\n        byte = buf[pos]\n        pos += 1\n        value = (value << 7) | (byte & 0x7F)\n        if not (byte & 0x80):\n            return value, pos\n    if pos >= len(buf):\n        raise ValueError(\"truncated varint\")\n    byte = buf[pos]\n    pos += 1\n    value = (value << 8) | byte\n    return value, pos\n\n\ndef decode_serial_value(serial_type, buf, pos):\n    if serial_type == 0:\n        return None, pos\n    if serial_type == 1:\n        n = 1\n    elif serial_type == 2:\n        n = 2\n    elif serial_type == 3:\n        n = 3\n    elif serial_type == 4:\n        n = 4\n    elif serial_type == 5:\n        n = 6\n    elif serial_type == 6:\n        n = 8\n    elif serial_type == 7:\n        raw = buf[pos:pos + 8]\n        if len(raw) != 8:\n            raise ValueError(\"truncated float\")\n        return struct.unpack(\">d\", raw)[0], pos + 8\n    elif serial_type == 8:\n        return 0, pos\n    elif serial_type == 9:\n        return 1, pos\n    elif serial_type >= 12 and serial_type % 2 == 0:\n        n = (serial_type - 12) // 2\n        if pos + n > len(buf):\n            raise ValueError(\"truncated blob\")\n        return buf[pos:pos + n], pos + n\n    elif serial_type >= 13 and serial_type % 2 == 1:\n        n = (serial_type - 13) // 2\n        if pos + n > len(buf):\n            raise ValueError(\"truncated text\")\n        return buf[pos:pos + n].decode(\"utf-8\"), pos + n\n    else:\n        raise ValueError(\"unsupported serial type\")\n\n    raw = buf[pos:pos + n]\n    if len(raw) != n:\n        raise ValueError(\"truncated integer\")\n    return int.from_bytes(raw, \"big\", signed=True), pos + n\n\n\ndef parse_freeblock_record(rem, ncols):\n    \"\"\"Try to parse a record fragment from a b-tree leaf freeblock.\n\n    The four-byte freeblock header may have overwritten the start of the old\n    cell payload.  We attempt the two forms observed in SQLite b-tree pages:\n      1. The fragment already starts at the first column's serial type.\n      2. The first serial type was overwritten; since it represented the\n         INTEGER PRIMARY KEY alias rowid as NULL, reconstruct it as serial 0.\n    \"\"\"\n    variants = []\n    for leading_serials in ([], [0]):\n        try:\n            serials = list(leading_serials)\n            pos = 0\n            remaining = ncols - len(serials)\n            for _ in range(remaining):\n                serial_type, pos = read_varint(rem, pos)\n                serials.append(serial_type)\n\n            values = []\n            body_pos = pos\n            for serial_type in serials:\n                value, body_pos = decode_serial_value(serial_type, rem, body_pos)\n                values.append(value)\n\n            if body_pos == len(rem):\n                variants.append((serials, values))\n        except Exception:\n            pass\n    return variants\n\n\ndef valid_employee_record(values, columns):\n    if len(values) != len(columns):\n        return False\n\n    # id is INTEGER PRIMARY KEY, an alias for rowid.  Its record value is\n    # normally NULL and the actual id is stored as the cell rowid.\n    if values[0] is not None:\n        return False\n\n    for idx, ((name, decl_type), value) in enumerate(zip(columns, values)):\n        if idx == 0:\n            continue\n        decl_upper = decl_type.upper()\n        if \"INT\" in decl_upper:\n            if not isinstance(value, int) or isinstance(value, bool):\n                return False\n        elif any(token in decl_upper for token in (\"TEXT\", \"CHAR\", \"CLOB\")):\n            if not isinstance(value, str):\n                return False\n            if not value:\n                return False\n            if any(ord(ch) < 32 and ch not in \"\\t\\n\\r\" for ch in value):\n                return False\n        elif value is None:\n            return False\n\n    # Additional sanity checks when the expected employee columns are present.\n    names = [name for name, _ in columns]\n    if \"hire_date\" in names:\n        hire_date = values[names.index(\"hire_date\")]\n        if not isinstance(hire_date, str) or not re.fullmatch(r\"\\d{4}-\\d{2}-\\d{2}\", hire_date):\n            return False\n    return True\n\n\ndef page_header_offset(page_no):\n    return 100 if page_no == 1 else 0\n\n\ndef collect_leaf_pages(data, page_size, root_page):\n    leaves = []\n    stack = [root_page]\n    seen = set()\n\n    while stack:\n        page_no = stack.pop()\n        if page_no in seen:\n            continue\n        seen.add(page_no)\n\n        start = (page_no - 1) * page_size\n        page = data[start:start + page_size]\n        if len(page) != page_size:\n            continue\n\n        hdr = page_header_offset(page_no)\n        page_type = page[hdr]\n        ncell = struct.unpack(\">H\", page[hdr + 3:hdr + 5])[0]\n\n        if page_type in (0x02, 0x05):\n            # Interior b-tree page.\n            children = []\n            if page_type == 0x05:\n                right = struct.unpack(\">I\", page[hdr + 8:hdr + 12])[0]\n                for i in range(ncell):\n                    cell_off = struct.unpack(\">H\", page[hdr + 12 + 2 * i:hdr + 14 + 2 * i])[0]\n                    child = struct.unpack(\">I\", page[cell_off:cell_off + 4])[0]\n                    children.append(child)\n                children.append(right)\n            else:\n                right = struct.unpack(\">I\", page[hdr + 8:hdr + 12])[0]\n                for i in range(ncell):\n                    cell_off = struct.unpack(\">H\", page[hdr + 12 + 2 * i:hdr + 14 + 2 * i])[0]\n                    child = struct.unpack(\">I\", page[cell_off:cell_off + 4])[0]\n                    children.append(child)\n                children.append(right)\n            stack.extend(children)\n        elif page_type in (0x0A, 0x0D):\n            leaves.append(page_no)\n\n    return leaves\n\n\ndef freeblocks_in_leaf(page, page_size):\n    hdr = 0\n    off = struct.unpack(\">H\", page[hdr + 1:hdr + 3])[0]\n    seen = set()\n    while off:\n        if off in seen:\n            break\n        seen.add(off)\n        if off + 4 > page_size:\n            break\n        nxt, size = struct.unpack(\">HH\", page[off:off + 4])\n        if size < 4 or off + size > page_size:\n            break\n        yield page[off + 4:off + size]\n        off = nxt\n\n\ndef extract_deleted_rowids_from_text(value):\n    if not isinstance(value, str):\n        return None\n    match = re.search(r\"(\\d+)@\", value)\n    if not match:\n        return None\n    return int(match.group(1))\n\n\ndef main():\n    if len(sys.argv) != 2:\n        print(\"usage: python3 recover.py DATABASE\", file=sys.stderr)\n        return 2\n\n    db_path = sys.argv[1]\n\n    con = sqlite3.connect(f\"file:{db_path}?mode=ro\", uri=True)\n    try:\n        cur = con.cursor()\n        table_row = cur.execute(\n            \"SELECT rootpage, sql FROM sqlite_master WHERE type='table' AND name='employees'\"\n        ).fetchone()\n        if table_row is None:\n            raise SystemExit(\"employees table not found\")\n        root_page = table_row[0]\n        columns = [(row[1], row[2]) for row in cur.execute(\"PRAGMA table_info(employees)\")]\n        visible = {row[0] for row in cur.execute(\"SELECT rowid FROM employees\")}\n    finally:\n        con.close()\n\n    data = open(db_path, \"rb\").read()\n    page_size = struct.unpack(\">H\", data[16:18])[0]\n    if page_size == 1:\n        page_size = 65536\n\n    ncols = len(columns)\n    column_names = [name for name, _ in columns]\n\n    recovered = {}\n    for leaf_page in collect_leaf_pages(data, page_size, root_page):\n        start = (leaf_page - 1) * page_size\n        page = data[start:start + page_size]\n\n        for rem in freeblocks_in_leaf(page, page_size):\n            for _serials, values in parse_freeblock_record(rem, ncols):\n                if not valid_employee_record(values, columns):\n                    continue\n\n                # Find a plausible email-like text value and use its numeric\n                # suffix as the deleted rowid.  In this database the email\n                # format includes the rowid directly before the @ sign.\n                rowid = None\n                for value in values:\n                    candidate = extract_deleted_rowids_from_text(value)\n                    if candidate is not None:\n                        rowid = candidate\n                        break\n\n                if rowid is None or rowid in visible:\n                    continue\n\n                record = {\"rowid\": rowid}\n                for name, value in zip(column_names, values):\n                    if name == \"id\":\n                        record[name] = rowid\n                    else:\n                        record[name] = value\n\n                # If the same deleted cell was encountered twice, keep the\n                # first fully valid reconstruction.\n                recovered.setdefault(rowid, record)\n\n    records = [recovered[rowid] for rowid in sorted(recovered)]\n    print(json.dumps(records, indent=2))\n\n\nif __name__ == \"__main__\":\n    main()\nPY\npython3 /app/recover.py /app/data.db\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 17,
+    "offset_sec": 1.8,
+    "keystrokes": "python3 /app/recover.py /app/data.db > /tmp/recovered.json\npython3 - <<'PY'\nimport json, sqlite3\nwith open('/tmp/recovered.json') as f:\n    recs=json.load(f)\nprint('recovered_count', len(recs))\nprint('rowids', [r['rowid'] for r in recs])\nprint('keys', sorted(recs[0].keys()) if recs else [])\nprint('salary_types_ok', all(type(r['salary']) is int for r in recs))\nprint('text_types_ok', all(type(r['name']) is str and type(r['department']) is str and type(r['hire_date']) is str and type(r['email']) is str for r in recs))\ncon=sqlite3.connect('/app/data.db')\nvisible={r[0] for r in con.execute('SELECT rowid FROM employees')}\ncon.close()\nmissing=set(range(1,301))-visible\nprint('missing_from_visible', sorted(missing))\nprint('matches_missing', {r['rowid'] for r in recs} == missing)\nPY\nhead -35 /tmp/recovered.json\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 18,
+    "offset_sec": 1.9,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 19,
+    "offset_sec": 1.9,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

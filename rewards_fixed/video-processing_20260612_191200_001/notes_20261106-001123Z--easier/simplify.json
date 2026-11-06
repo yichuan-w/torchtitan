@@ -1,0 +1,70 @@
+{
+  "retained_skill": "Implement reusable video shot-boundary detection that distinguishes abrupt cuts from multi-frame fades, selects in-shot keyframes, and renders the required contact sheet.",
+  "bottleneck": "The task leaves ownership of fade frames unspecified although grading requires them excluded. The closest attempt detects all six shots and passes 13 of 14 checks, but reasonably assigns blend frames to adjacent shots and fails boundary placement.",
+  "change": "Repair the hidden requirement in the instruction: fade/dissolve frames are outside both adjacent shot ranges. This is instruction-level contract clarification, while the student still detects transition extents from the video's original visual signal.",
+  "restore": "Remove the added fade-frame ownership sentence to restore the original ambiguous wording; the video, output format, reference workflow, and correctness checks remain unchanged.",
+  "prediction": "Attempts that already identify sustained fade regions will now use their beginning and end as separate shot endpoints instead of choosing an interior split, enabling a different boundary-placement action. Refuted if such attempts continue assigning blend frames to shots or if no next-group attempt reaches correct six-shot boundaries.",
+  "expected": "2 of 12",
+  "evidence": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turn": 3,
+      "observation": "First execution under-detects; final turn 21 emits four shots. Replayed submitted commands and graded: shot count, boundaries, transition indexing, contact-sheet content, and white-border checks failed; nine checks passed."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turn": 37,
+      "observation": "Identifies both full fade regions as 239-269 and 419-449, but continues changing whether to use their starts or ends until the time budget. The clarified ownership rule resolves that boundary decision."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turn": 8,
+      "observation": "First completed detector emits four shots, merging across both gradual transitions; final turn 24 still emits four."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turn": 6,
+      "observation": "First completed detector emits four shots and does not recover the fade-separated shots before submission."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turn": 3,
+      "observation": "First detector output has two shots; later self-check reports four, still merging both fades."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turn": 3,
+      "observation": "First run under-detects the supplied scene structure; final output reports four shots and misses fade boundaries."
+    },
+    {
+      "attempt": "attempt-07.jsonl",
+      "turn": 3,
+      "observation": "The submitted short attempt detects only abrupt changes and leaves four shots, so both gradual transitions are merged."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turn": 5,
+      "observation": "Detects six shots. Replayed its submitted commands on the seed task: 13 checks pass and only shot boundaries fail because shot 2 ends at 268 rather than before the fade near 239. On the temporary stronger-signal diagnostic variant it still failed only this ownership decision, confirming wording\u2014not mechanics\u2014is the remaining obstacle for this approach. After editing, a fresh reset and replay through turn 5 again reached six shots; grading passed 13 checks and failed only boundary placement, exactly the clarified decision. Because the historical commands predate and cannot react to the new sentence, the remaining failure is expected rather than counted as a predicted solve."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turn": 3,
+      "observation": "Starts from severe under-detection and repeatedly rewrites thresholds until the time budget without a submitted result."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turn": 5,
+      "observation": "First run emits three shots; final turn 17 emits four and merges both fade-separated pairs."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turn": 5,
+      "observation": "First run emits four shots; diagnostics at turn 9 list only isolated cut spikes and omit both sustained fade regions."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turn": 3,
+      "observation": "Initial script has a syntax error; after mechanical repairs its final detector emits two shots. Replayed and graded: shot count, boundaries, transition indexing, contact dimensions, and contact content failed; nine checks passed."
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The instruction says the base implementation works for basic command execution, but PTYSession neither starts a bash process nor defines run() or close().",
+    "evidence": "instruction.md states that basic command execution works, while environment/files/pty_pool.py defines only _read_output and context methods; every scored attempt replaces the module beginning at turn 2, including attempt-05.jsonl and attempt-11.jsonl whose replayed submissions fail direct PTYSession construction.",
+    "change": "Complete the starter's non-cleanup mechanics: start bash during PTYSession construction, provide command framing/output capture, and provide an intentionally incomplete close() that terminates only the shell so the stated cleanup bug remains for the student.",
+    "kind": "broken_setup"
+  }
+]

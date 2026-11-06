@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The instruction said that two peaks are close but did not locate that pair, while grading requires the two lowest-wavelength reported peaks to be the close pair. The oscillatory spectrum also presents a plausible close pair near the middle, so solutions that reasonably resolved that pair were rejected.",
+    "evidence": "instruction.md described an unlocated close pair; tests/test_outputs.py requires centers[1]-centers[0] to be the close separation. attempt-01.jsonl turn 16 selected the apparent 529/536 nm pair and its submitted artifact passed seven checks but failed both checks that require the lowest two centers to be close.",
+    "change": "State that the close pair belongs to the lowest-wavelength absorption feature, without supplying its centers or the detection/fitting method.",
+    "kind": "hidden_requirement"
+  }
+]

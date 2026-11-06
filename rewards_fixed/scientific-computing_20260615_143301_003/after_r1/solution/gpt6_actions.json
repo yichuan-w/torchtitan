@@ -1,0 +1,163 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "ls -la /app\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "wc -l /app/library.tsv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "cat /app/library.tsv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.3,
+    "keystrokes": "python3 --version && python3 -c \"import rdkit; print(rdkit.__version__)\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.3,
+    "keystrokes": "pip install rdkit 2>&1 | tail -2\n",
+    "duration": 30.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 30.4,
+    "keystrokes": "pip3 install rdkit 2>&1 | tail -3\n",
+    "duration": 30.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 30.4,
+    "keystrokes": "python3 -m pip install rdkit 2>&1 | tail -3\n",
+    "duration": 60.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 120.4,
+    "keystrokes": "python3 -m ensurepip --upgrade 2>&1 | tail -3\n",
+    "duration": 30.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 120.4,
+    "keystrokes": "python3 -m pip --version\n",
+    "duration": 60.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 210.4,
+    "keystrokes": "python3 -m pip install rdkit 2>&1 | tail -3\n",
+    "duration": 60.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 210.4,
+    "keystrokes": "python3 -c \"import rdkit; print(rdkit.__version__)\"\n",
+    "duration": 30.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 300.4,
+    "keystrokes": "cat > /app/probe.py << 'EOF'\nimport csv\nfrom rdkit import Chem\nfrom rdkit import RDLogger\nRDLogger.DisableLog('rdApp.*')\n\nrows = []\nwith open('/app/library.tsv') as f:\n    reader = csv.reader(f, delimiter='\\t')\n    header = next(reader)\n    for r in reader:\n        if len(r) != 2:\n            print('SKIP malformed line:', r[:1], '...' if r else '')\n            continue\n        rows.append(r)\n\nprint('n rows:', len(rows))\nfor mid, smi in rows:\n    m = Chem.MolFromSmiles(smi)\n    if m is None:\n        print('PARSE FAIL:', mid, smi[:60])\nEOF\npython3 /app/probe.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 300.5,
+    "keystrokes": "cat > /app/curate.py << 'EOF'\nimport csv\nfrom rdkit import Chem\nfrom rdkit import RDLogger\nfrom rdkit.Chem import rdMolDescriptors, Crippen, Lipinski\nfrom rdkit.Chem.MolStandardize import rdMolStandardize\nfrom rdkit.Chem.FilterCatalog import FilterCatalog, FilterCatalogParams\nRDLogger.DisableLog('rdApp.*')\n\n# Corrections for SMILES that fail to parse (fix the underlying chemistry)\nFIXES = {\n    'M011': 'c1cc[nH]c1',  # pyrrole: 5-membered aromatic N must be [nH]\n    'M012': 'c1c[nH]cn1',  # imidazole: one ring N must be [nH]\n    'M013': 'CN(C)C',      # trimethylamine: neutral N cannot have 4 methyls\n}\n\nparams = FilterCatalogParams()\nparams.AddCatalog(FilterCatalogParams.FilterCatalogs.PAINS)\npains = FilterCatalog(params)\n\nchooser = rdMolStandardize.LargestFragmentChooser()\nuncharger = rdMolStandardize.Uncharger()\ntaut_enum = rdMolStandardize.TautomerEnumerator()\n\ndef standardize(mol):\n    # Cleanup: sanitization, metal disconnection, normalization, reionization\n    mol = rdMolStandardize.Cleanup(mol)\n    # Keep largest fragment -> drops counterions, solvents, metals\n    mol = chooser.choose(mol)\n    # Neutralize charges where chemically possible\n    mol = uncharger.uncharge(mol)\n    # Canonical tautomer\n    mol = taut_enum.Canonicalize(mol)\n    mol = Chem.RemoveHs(mol)\n    Chem.SanitizeMol(mol)\n    return mol\n\nrows = []\nwith open('/app/library.tsv') as f:\n    reader = csv.reader(f, delimiter='\\t')\n    next(reader)  # header\n    for r in reader:\n        if len(r) != 2:\n            continue  # junk continuation lines (M040 wrapping)\n        rows.append((r[0].strip(), r[1].strip()))\n\nresults = []\nfor mid, smi in rows:\n    mol = Chem.MolFromSmiles(smi)\n    if mol is None:\n        if mid in FIXES:\n            mol = Chem.MolFromSmiles(FIXES[mid])\n            print(f'{mid}: fixed unparsable SMILES -> {FIXES[mid]}')\n        if mol is None:\n            print(f'{mid}: UNFIXABLE, skipped')\n            continue\n    try:\n        std = standardize(mol)\n    except Exception as e:\n        print(f'{mid}: standardization failed ({e}), skipped')\n        continue\n    std_smi = Chem.MolToSmiles(std)\n    mw = rdMolDescriptors.CalcMolWt(std)\n    logp = Crippen.MolLogP(std)\n    hbd = Lipinski.NumHDonors(std)\n    hba = Lipinski.NumHAcceptors(std)\n    violations = sum([mw > 500, logp > 5, hbd > 5, hba > 10])\n    pains_hit = pains.HasMatch(std)\n    passes = (violations < 2) and (not pains_hit)\n    results.append((mid, smi, std_smi, mw, logp, hbd, hba, violations, pains_hit, passes))\n    flag = 'PASS' if passes else f'FAIL (Lipinski viol={violations}, PAINS={pains_hit})'\n    print(f'{mid}: {std_smi}  MW={mw:.1f} LogP={logp:.2f} HBD={hbd} HBA={hba} -> {flag}')\n\nresults.sort(key=lambda x: x[0])\nwith open('/app/curated_library.csv', 'w', newline='') as f:\n    w = csv.writer(f)\n    w.writerow(['MOL_ID','original_SMILES','standardized_SMILES','MW','LogP','HBD','HBA','passes_filter'])\n    for mid, smi, std_smi, mw, logp, hbd, hba, viol, ph, passes in results:\n        if passes:\n            w.writerow([mid, smi, std_smi, f'{mw:.1f}', f'{logp:.2f}', hbd, hba, True])\nprint('Wrote curated_library.csv with', sum(1 for r in results if r[9]), 'passing rows out of', len(results))\nEOF\npython3 /app/curate.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 300.6,
+    "keystrokes": "python3 -c \"\nfrom rdkit.Chem import rdMolDescriptors\nprint([x for x in dir(rdMolDescriptors) if 'MolWt' in x or 'HBD' in x or 'HBA' in x or 'HDonor' in x or 'HAcceptor' in x])\nimport rdkit.Chem.Descriptors as D\nprint(hasattr(D,'MolWt'), hasattr(D,'MolLogP'), hasattr(D,'NumHDonors'), hasattr(D,'NumHAcceptors'))\n\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 300.7,
+    "keystrokes": "sed -i 's/from rdkit.Chem import rdMolDescriptors, Crippen, Lipinski/import rdkit.Chem.Descriptors as Descriptors/; s/rdMolDescriptors.CalcMolWt(std)/Descriptors.MolWt(std)/; s/Crippen.MolLogP(std)/Descriptors.MolLogP(std)/; s/Lipinski.NumHDonors(std)/Descriptors.NumHDonors(std)/; s/Lipinski.NumHAcceptors(std)/Descriptors.NumHAcceptors(std)/' /app/curate.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 300.7,
+    "keystrokes": "python3 /app/curate.py\n",
+    "duration": 30.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 330.8,
+    "keystrokes": "cat > /app/diag.py << 'EOF'\nfrom rdkit import Chem\nfrom rdkit import RDLogger\nfrom rdkit.Chem.MolStandardize import rdMolStandardize\nfrom rdkit.Chem.FilterCatalog import FilterCatalog, FilterCatalogParams\nRDLogger.DisableLog('rdApp.*')\n\nparams = FilterCatalogParams()\nparams.AddCatalog(FilterCatalogParams.FilterCatalogs.PAINS)\npains = FilterCatalog(params)\nchooser = rdMolStandardize.LargestFragmentChooser()\nuncharger = rdMolStandardize.Uncharger()\nte = rdMolStandardize.TautomerEnumerator()\n\ncases = {\n 'M031': 'O=C1CSC(=S)N1CC(=O)O',\n 'M026': 'CN(C)C1=CC=C(C=C1)C(=C2C=CC(=[N+](C)C)C=C2)C3=CC=C(C=C3)N(C)C',\n 'M032': 'CC(=O)Nc1ccc(O)c(CN(C)C)c1',\n 'M039': 'CN1C(=O)C2=C(N1)C=CC=C2',\n}\nfor mid, smi in cases.items():\n    m = Chem.MolFromSmiles(smi)\n    m = rdMolStandardize.Cleanup(m)\n    m = chooser.choose(m)\n    m = uncharger.uncharge(m)\n    pre = m\n    post = te.Canonicalize(m)\n    for label, mm in [('pre-taut', pre), ('post-taut', post)]:\n        ms = pains.GetMatches(mm)\n        print(mid, label, Chem.MolToSmiles(mm), '->', [x.GetDescription() for x in ms])\nEOF\npython3 /app/diag.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 330.9,
+    "keystrokes": "cat > /app/curate.py << 'EOF'\nimport csv\nfrom rdkit import Chem\nfrom rdkit import RDLogger\nimport rdkit.Chem.Descriptors as Descriptors\nfrom rdkit.Chem.MolStandardize import rdMolStandardize\nfrom rdkit.Chem.FilterCatalog import FilterCatalog, FilterCatalogParams\nRDLogger.DisableLog('rdApp.*')\n\n# Corrections for SMILES that fail to parse (fix the underlying chemistry)\nFIXES = {\n    'M011': 'c1cc[nH]c1',  # pyrrole: 5-membered aromatic N must be [nH]\n    'M012': 'c1c[nH]cn1',  # imidazole: one ring N must be [nH]\n    'M013': 'CN(C)C',      # trimethylamine: neutral N cannot bear 4 methyls\n}\n\nparams = FilterCatalogParams()\nparams.AddCatalog(FilterCatalogParams.FilterCatalogs.PAINS)\npains = FilterCatalog(params)\n\nchooser = rdMolStandardize.LargestFragmentChooser()\nuncharger = rdMolStandardize.Uncharger()\ntaut_enum = rdMolStandardize.TautomerEnumerator()\n\ndef standardize(mol):\n    # Cleanup: sanitize, disconnect metals, normalize, reionize\n    mol = rdMolStandardize.Cleanup(mol)\n    # Keep largest fragment -> drops counterions, solvents, metals\n    mol = chooser.choose(mol)\n    # Neutralize charges where chemically possible\n    mol = uncharger.uncharge(mol)\n    pre_taut = Chem.Mol(mol)\n    # Canonical tautomer\n    mol = taut_enum.Canonicalize(mol)\n    mol = Chem.RemoveHs(mol)\n    Chem.SanitizeMol(mol)\n    return mol, pre_taut\n\nrows = []\nwith open('/app/library.tsv') as f:\n    reader = csv.reader(f, delimiter='\\t')\n    next(reader)  # header\n    for r in reader:\n        if len(r) != 2:\n            continue  # junk continuation lines (M040 wrapping)\n        rows.append((r[0].strip(), r[1].strip()))\n\nresults = []\nfor mid, smi in rows:\n    mol = Chem.MolFromSmiles(smi)\n    if mol is None:\n        if mid in FIXES:\n            mol = Chem.MolFromSmiles(FIXES[mid])\n            print(f'{mid}: fixed unparsable SMILES -> {FIXES[mid]}')\n        if mol is None:\n            print(f'{mid}: UNFIXABLE, skipped')\n            continue\n    try:\n        std, pre = standardize(mol)\n    except Exception as e:\n        print(f'{mid}: standardization failed ({e}), skipped')\n        continue\n    std_smi = Chem.MolToSmiles(std)\n    mw = Descriptors.MolWt(std)\n    logp = Descriptors.MolLogP(std)\n    hbd = Descriptors.NumHDonors(std)\n    hba = Descriptors.NumHAcceptors(std)\n    violations = sum([mw > 500, logp > 5, hbd > 5, hba > 10])\n    # PAINS liability in any drawn form (vendor form or canonical tautomer)\n    pains_hit = pains.HasMatch(std) or pains.HasMatch(pre)\n    passes = (violations < 2) and (not pains_hit)\n    results.append((mid, smi, std_smi, mw, logp, hbd, hba, violations, pains_hit, passes))\n    flag = 'PASS' if passes else f'FAIL (Lipinski viol={violations}, PAINS={pains_hit})'\n    print(f'{mid}: {std_smi}  MW={mw:.1f} LogP={logp:.2f} HBD={hbd} HBA={hba} -> {flag}')\n\nresults.sort(key=lambda x: x[0])\nn_pass = 0\nwith open('/app/curated_library.csv', 'w', newline='') as f:\n    w = csv.writer(f)\n    w.writerow(['MOL_ID','original_SMILES','standardized_SMILES','MW','LogP','HBD','HBA','passes_filter'])\n    for mid, smi, std_smi, mw, logp, hbd, hba, viol, ph, passes in results:\n        if passes:\n            w.writerow([mid, smi, std_smi, f'{mw:.1f}', f'{logp:.2f}', hbd, hba, True])\n            n_pass += 1\nprint(f'Wrote curated_library.csv with {n_pass} passing rows out of {len(results)}')\nEOF\npython3 /app/curate.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 13,
+    "offset_sec": 331.0,
+    "keystrokes": "cat /app/curated_library.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 13,
+    "offset_sec": 331.0,
+    "keystrokes": "wc -l /app/curated_library.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 331.2,
+    "keystrokes": "ls -la /app/curated_library.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 331.3,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 15,
+    "offset_sec": 331.3,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

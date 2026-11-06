@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The nonexistent-time repair convention expected by the reference and transition check was not stated, and the verifier did not check the transition aggregate values, allowing a materially different UTC interpretation to earn reward.",
+    "evidence": "traces/attempt-12.jsonl turn 8 explicitly interprets April 26 00:00-00:59 as fixed EET (UTC+02); the rollout received reward 1.",
+    "change": "State that nonexistent firmware wall times are shifted forward to the first valid Cairo wall time, and validate the aggregate values produced at the transition.",
+    "kind": "hidden_requirement"
+  }
+]

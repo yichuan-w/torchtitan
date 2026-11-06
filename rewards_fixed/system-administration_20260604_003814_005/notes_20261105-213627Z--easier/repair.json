@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The verifier requires /var/www/repo/dists/stable/InRelease and requires apt output to report stable InRelease, while the instruction permits any repository implementation for which apt-get update is clean and the named packages are installable.",
+    "evidence": "tests/test_outputs.py requires InRelease in test_inrelease_valid_and_apt_trusts_key and test_apt_update_works_cleanly; attempt-11.jsonl turns 32-53 instead creates and trusts a detached Release.gpg, a standard apt representation, and the sandbox replay graded only those two InRelease-specific checks as failures.",
+    "change": "Remove the InRelease representation test and accept a successful local stable Release or InRelease fetch while retaining clean-update, metadata, dependency, serving, and package-availability checks.",
+    "kind": "hidden_requirement"
+  }
+]

@@ -1,0 +1,128 @@
+{
+  "retained_skill": "Recovering fully reconstructable deleted SQLite table records by parsing raw database-page remnants, including SQLite record headers, serial types, and freeblock or unallocated content.",
+  "bottleneck": "The student could begin raw-page recovery but could not reliably extend it across all scattered leaf pages: four submitted approaches reconstructed exactly rowids 5, 23, and 47, while seven attempts spent nearly their whole episode repeatedly probing and rewriting parsers for later records.",
+  "change": "Structural help in the original supplied-data signal: reduce /app/data.db from twelve deleted records spread across the table to three deleted records that still require raw SQLite recovery, and grade only that supplied database. This removes the later-page recovery stage on which limit-ending attempts spent roughly 30-40 turns; the student must still identify and decode deleted cells rather than query live rows. The original signal it learns to act on is the recoverable record content left in SQLite page free space.",
+  "restore": "Restore the additional nine scattered deletions first, then restore reusable operation on fresh databases after the student succeeds on the smaller supplied instance.",
+  "prediction": "Attempts currently stall after implementing a parser that recovers the earliest three deleted cells, then keep changing offsets and scanning heuristics for later pages. Limiting the supplied target to those three lets such an attempt validate complete recovery and submit instead of entering that retry loop. This is refuted if attempts still produce empty or malformed output for the three-record database, or if the next group remains 0 of 12 despite reaching the same three records.",
+  "expected": "3 of 12",
+  "evidence": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turn": 38,
+      "observation": "The approach eventually output rowids 5, 23, and 47 but no later deleted records, then spent turns 39-42 validating and printing the incomplete script before hitting the time limit."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turn": 38,
+      "observation": "After repeated parser rewrites, a direct search still reported Found: 0 at turn 38; turns 39-40 continued rewriting as the time limit arrived."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turn": 51,
+      "observation": "Replayed the final recover.py from turn 44 after ./sandbox reset and ran ./sandbox grade. Script existence and JSON/type checks passed; supplied-database content failed because rowids 72, 98, 123, 156, 189, 201, 234, 267, and 288 were missing from output [5, 23, 47], and the fresh-database check failed with an IndexError."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turn": 34,
+      "observation": "The attempt was still manually searching byte regions for the first deleted record near the end of its time budget and never reached a complete reconstruction."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turn": 33,
+      "observation": "The submitted script printed fully typed records for exactly rowids 5, 23, and 47, showing a foothold on the retained raw-record decoding skill but not the later scattered records."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turn": 30,
+      "observation": "The parser still returned an empty array while the attempt continued searching email bytes for individual missing IDs until the context limit."
+    },
+    {
+      "attempt": "attempt-07.jsonl",
+      "turn": 19,
+      "observation": "Replayed the final recover.py from turn 11 after ./sandbox reset and ran ./sandbox grade. Script existence and JSON/type checks passed; supplied-database content failed because it emitted live rows while still missing nine deleted rows, and the fresh-database recovery check failed."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turn": 39,
+      "observation": "After repeated structure probes, the latest parser reported Total records: 0 and the attempt exhausted its time budget without a valid recovery."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turn": 38,
+      "observation": "The script returned [] at turn 37; turn 38 finally identified a page-3 freeblock but the time limit arrived before that discovery became a working parser."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turn": 37,
+      "observation": "The submitted script reported Count: 3 with a correctly typed sample and recovered exactly the same first-three foothold as attempts 03 and 05. After the rewrite, replayed its final recover.py from turn 27 from a fresh ./sandbox reset; ./sandbox grade passed all three checks, including complete supplied-database recovery and required schema/types."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turn": 41,
+      "observation": "The near-final script crashed with TypeError while interpreting candidate records, and another full rewrite consumed the remaining time without a successful run."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turn": 38,
+      "observation": "The final script produced valid JSON containing exactly rowids 5, 23, and 47; it submitted after spending most of the episode trying to locate later records."
+    }
+  ],
+  "budget": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turns": [
+        5,
+        42
+      ],
+      "stage": "Building and repeatedly probing a parser for all twelve page-scattered deletions; the three-record fixture removes the later-record chase after its demonstrated first-three recovery."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turns": [
+        4,
+        40
+      ],
+      "stage": "Repeated raw scans and parser rewrites for all twelve deletions; the smaller fixture removes the unresolved later-page stage."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turns": [
+        5,
+        35
+      ],
+      "stage": "Manual byte-region searches across the full database for scattered deleted rows; reducing deletions to three removes nine searches and their parser adjustments."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turns": [
+        5,
+        45
+      ],
+      "stage": "Hex inspection and per-ID email searches while trying to cover twelve deletions; the smaller fixture removes the nine later targets."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turns": [
+        5,
+        40
+      ],
+      "stage": "Repeated candidate-record parsing across many pages; the three-record fixture removes the later-page coverage stage."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turns": [
+        4,
+        39
+      ],
+      "stage": "Iterative freeblock parser debugging across pages; the smaller target ends after the first recoverable set instead of requiring broader page handling."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turns": [
+        3,
+        43
+      ],
+      "stage": "Repeated whole-parser rewrites to handle candidates for all twelve records; the reduced fixture removes the later-candidate parsing work."
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+# Chemical Library Manifest
+# This directory contains compounds from multiple sources.
+# Formats: .smi (SMILES), .sdf (MDL SDF), .mol (MDL MOL)
+# Some compounds may have issues: salts, duplicates, non-standard forms.
+
+batch1_kinase.smi
+batch2_fda.sdf
+batch3_fragments.smi
+batch4_natural.mol
+batch5_hts.sdf
+batch6_supplier.smi

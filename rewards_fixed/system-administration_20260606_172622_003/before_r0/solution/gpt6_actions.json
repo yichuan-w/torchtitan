@@ -1,0 +1,786 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 3.0,
+    "keystrokes": "pwd\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 3.0,
+    "keystrokes": "cat /etc/os-release\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 3.0,
+    "keystrokes": "command -v rsyslogd; command -v certtool; rsyslogd -v 2>/dev/null | head -n 20\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 3.0,
+    "keystrokes": "ls -la /etc/rsyslog.d /etc/rsyslog/certs /var/log/app /var/log/remote 2>&1\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 3.0,
+    "keystrokes": "dpkg -l | grep -E 'rsyslog|gnutls' || true\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 6.5,
+    "keystrokes": "sed -n '1,220p' /etc/rsyslog.conf\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 6.5,
+    "keystrokes": "sed -n '1,220p' /etc/rsyslog.d/50-default.conf\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 6.5,
+    "keystrokes": "ls -la /etc/logrotate.d; echo '--- rsyslog rotate ---'; cat /etc/logrotate.d/rsyslog 2>/dev/null || true; echo '--- helper ---'; ls -l /usr/lib/rsyslog/rsyslog-rotate 2>/dev/null || true\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 6.5,
+    "keystrokes": "systemctl status rsyslog --no-pager -l 2>&1 | head -n 40\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 6.5,
+    "keystrokes": "ss -ltnp | grep -E ':6514|rsyslog' || true\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 10.0,
+    "keystrokes": "mkdir -p /etc/rsyslog/certs /var/log/app /var/log/remote /var/spool/rsyslog\nchmod 750 /etc/rsyslog/certs\ntouch /var/log/app/access.log\ncat > /tmp/ca-template.txt <<'EOF'\norganization = \"Local Syslog CA\"\ncn = \"Local Syslog CA\"\nexpiration_days = 3650\nca\ncert_signing_key\ncrl_signing_key\nEOF\ncat > /tmp/localhost-template.txt <<'EOF'\norganization = \"Local Syslog\"\ncn = \"localhost\"\ndns_name = \"localhost\"\nip_address = \"127.0.0.1\"\nexpiration_days = 3650\nsigning_key\nencryption_key\ntls_www_server\ntls_www_client\nEOF\ncerttool --generate-privkey --outfile /etc/rsyslog/certs/ca-key.pem\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 10.0,
+    "keystrokes": "certtool --generate-self-signed --load-privkey /etc/rsyslog/certs/ca-key.pem --template /tmp/ca-template.txt --outfile /etc/rsyslog/certs/ca-cert.pem\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 10.0,
+    "keystrokes": "certtool --generate-privkey --outfile /etc/rsyslog/certs/localhost-key.pem\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 10.0,
+    "keystrokes": "certtool --generate-certificate --load-privkey /etc/rsyslog/certs/localhost-key.pem --load-ca-certificate /etc/rsyslog/certs/ca-cert.pem --load-ca-privkey /etc/rsyslog/certs/ca-key.pem --template /tmp/localhost-template.txt --outfile /etc/rsyslog/certs/localhost-cert.pem\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 10.0,
+    "keystrokes": "chmod 600 /etc/rsyslog/certs/ca-key.pem /etc/rsyslog/certs/localhost-key.pem\nchmod 644 /etc/rsyslog/certs/ca-cert.pem /etc/rsyslog/certs/localhost-cert.pem\nls -la /etc/rsyslog/certs\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 10.0,
+    "keystrokes": "certtool --verify --load-ca-certificate /etc/rsyslog/certs/ca-cert.pem --infile /etc/rsyslog/certs/localhost-cert.pem\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 16.3,
+    "keystrokes": "find /usr/share/doc/rsyslog* -maxdepth 3 -type f | head -n 50\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 16.3,
+    "keystrokes": "grep -R \"StreamDriverMode\\|StreamDriver.Mode\" /usr/share/doc/rsyslog* /usr/share/rsyslog 2>/dev/null | head -n 40\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 16.3,
+    "keystrokes": "grep -R \"StreamDriverAuthMode\\|StreamDriver.AuthMode\" /usr/share/doc/rsyslog* /usr/share/rsyslog 2>/dev/null | head -n 40\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 16.3,
+    "keystrokes": "grep -R \"imtcp\" /usr/share/doc/rsyslog* 2>/dev/null | head -n 40\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 19.7,
+    "keystrokes": "zcat /usr/share/man/man5/rsyslog.conf.5.gz 2>/dev/null | grep -i -A4 -B4 'StreamDriver' | head -n 120\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 19.7,
+    "keystrokes": "zcat /usr/share/man/man5/rsyslog.conf.5.gz 2>/dev/null | grep -i -A5 -B5 'dynaFile\\|createDirs' | head -n 160\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 19.7,
+    "keystrokes": "cat /usr/lib/rsyslog/rsyslog-rotate\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 19.7,
+    "keystrokes": "ps -ef | grep -E '[r]syslogd|[r]syslog' || true; echo '--- pid ---'; cat /run/rsyslogd.pid 2>/dev/null || true\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 19.7,
+    "keystrokes": "ls -la /var/lib/rsyslog /run 2>&1 | head -n 40\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 19.7,
+    "keystrokes": "rsyslogd -v 2>/dev/null | grep -i -E 'gnutls|tls|imtcp|imfile|omfwd' || true\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 23.3,
+    "keystrokes": "mkdir -p /var/lib/rsyslog /var/spool/rsyslog\ncat > /etc/rsyslog.d/60-tls-syslog.conf <<'EOF'\n# TLS syslog receiver and local forwarding configuration\n\nglobal(\n    DefaultNetstreamDriver=\"gtls\"\n    DefaultNetstreamDriverCAFile=\"/etc/rsyslog/certs/ca-cert.pem\"\n    DefaultNetstreamDriverCertFile=\"/etc/rsyslog/certs/localhost-cert.pem\"\n    DefaultNetstreamDriverKeyFile=\"/etc/rsyslog/certs/localhost-key.pem\"\n)\n\n# TLS server: present certificate and require/verify client certificate\nmodule(load=\"imtcp\"\n    StreamDriver.Name=\"gtls\"\n    StreamDriver.Mode=\"1\"\n    StreamDriver.AuthMode=\"x509/name\"\n    PermittedPeer=\"localhost\"\n)\ninput(type=\"imtcp\" port=\"6514\" ruleset=\"remoteTLS\")\n\n# Monitor application access log; treat each line as an app-access local1 message\nmodule(load=\"imfile\")\ninput(type=\"imfile\"\n    File=\"/var/log/app/access.log\"\n    Tag=\"app-access\"\n    Facility=\"local1\"\n    Severity=\"info\"\n    PersistStateInterval=\"1\"\n    reopenOnTruncate=\"on\"\n)\n\n# Remote receiver storage layout\ntemplate(name=\"RemoteHostTree\" type=\"string\"\n    string=\"/var/log/remote/%HOSTNAME%/%$YEAR%/%$MONTH%/%$DAY%/syslog.log\")\n\n# Receive-only ruleset: write messages but do not forward them again\nruleset(name=\"remoteTLS\") {\n    action(type=\"omfile\"\n        dynaFile=\"RemoteHostTree\"\n        createDirs=\"on\"\n        dirCreateMode=\"0755\"\n        fileCreateMode=\"0644\"\n    )\n}\n\n# Forward all locally generated syslog messages and imfile records over TLS\naction(type=\"omfwd\"\n    target=\"localhost\"\n    port=\"6514\"\n    protocol=\"tcp\"\n    TCP_Framing=\"octet-counted\"\n    StreamDriver=\"gtls\"\n    StreamDriverMode=\"1\"\n    StreamDriverAuthMode=\"x509/name\"\n    StreamDriverPermittedPeers=\"localhost\"\n    action.resumeRetryCount=\"-1\"\n    queue.type=\"LinkedList\"\n    queue.filename=\"fwdq\"\n    queue.spoolDirectory=\"/var/spool/rsyslog\"\n    queue.saveOnShutdown=\"on\"\n    queue.maxDiskSpace=\"100m\"\n)\nEOF\ncat > /etc/logrotate.d/remote-syslog <<'EOF'\n/var/log/remote/*/*/*/*/syslog.log {\n    daily\n    rotate 7\n    missingok\n    notifempty\n    compress\n    copytruncate\n}\nEOF\nrsyslogd -N1 -f /etc/rsyslog.conf\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 26.4,
+    "keystrokes": "id syslog 2>/dev/null || true; getent passwd syslog || true\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 26.4,
+    "keystrokes": "chown root:syslog /etc/rsyslog/certs\nchown root:syslog /etc/rsyslog/certs/ca-key.pem /etc/rsyslog/certs/localhost-key.pem /etc/rsyslog/certs/ca-cert.pem /etc/rsyslog/certs/localhost-cert.pem\nchmod 750 /etc/rsyslog/certs\nchmod 640 /etc/rsyslog/certs/ca-key.pem /etc/rsyslog/certs/localhost-key.pem\nchmod 644 /etc/rsyslog/certs/ca-cert.pem /etc/rsyslog/certs/localhost-cert.pem\nchown syslog:syslog /var/lib/rsyslog /var/spool/rsyslog\nls -ld /etc/rsyslog/certs /var/lib/rsyslog /var/spool/rsyslog\nls -l /etc/rsyslog/certs\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 26.4,
+    "keystrokes": "sed -i 's#^global(#global(\\n    workDirectory=\"/var/lib/rsyslog\"#' /etc/rsyslog.d/60-tls-syslog.conf\nsed -n '1,25p' /etc/rsyslog.d/60-tls-syslog.conf\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 26.4,
+    "keystrokes": "rsyslogd -N1 -f /etc/rsyslog.conf\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 29.8,
+    "keystrokes": "id syslog 2>&1; getent passwd syslog; getent group syslog; getent passwd rsyslog 2>&1 || true\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 29.8,
+    "keystrokes": "namei -l /etc/rsyslog/certs/ca-cert.pem; namei -l /etc/rsyslog/certs/localhost-key.pem\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 29.8,
+    "keystrokes": "ls -ld /etc/rsyslog /etc/rsyslog/certs; ls -l /etc/rsyslog/certs\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 29.8,
+    "keystrokes": "sudo -u syslog test -r /etc/rsyslog/certs/ca-cert.pem && echo 'syslog can read ca-cert' || echo 'syslog cannot read ca-cert'\nsudo -u syslog test -r /etc/rsyslog/certs/localhost-key.pem && echo 'syslog can read localhost-key' || echo 'syslog cannot read localhost-key'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 29.8,
+    "keystrokes": "command -v aa-status >/dev/null && aa-status 2>&1 | head -n 60 || echo 'aa-status not available or no apparmor'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 29.8,
+    "keystrokes": "rsyslogd -N1 -f /etc/rsyslog.conf 2>&1 | head -n 20\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 33.4,
+    "keystrokes": "grep -R \"User\\|Group\\|PrivDrop\\|UMask\" /lib/systemd/system/rsyslog.service /etc/default/rsyslog /etc/rsyslog.conf 2>/dev/null || true\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 33.4,
+    "keystrokes": "getent passwd syslog; getent group syslog; getent passwd rsyslog 2>/dev/null || true; getent group rsyslog 2>/dev/null || true\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 33.4,
+    "keystrokes": "runuser -u syslog -- test -r /etc/rsyslog/certs/ca-cert.pem && echo 'syslog can read ca-cert' || echo 'syslog cannot read ca-cert'\nrunuser -u syslog -- test -r /etc/rsyslog/certs/localhost-key.pem && echo 'syslog can read localhost-key' || echo 'syslog cannot read localhost-key'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 33.4,
+    "keystrokes": "runuser -u syslog -- id 2>&1 || true; runuser -u syslog -- sh -c 'ls -ld /etc/rsyslog/certs; ls -l /etc/rsyslog/certs' 2>&1 || true\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 33.4,
+    "keystrokes": "stat -c '%n %U %G %a' /etc/rsyslog/certs /etc/rsyslog/certs/* /usr/sbin/rsyslogd\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 36.9,
+    "keystrokes": "command -v strace || true; command -v getfacl || true; command -v getcap || true; command -v setpriv || true\ngetfacl /etc/rsyslog/certs /etc/rsyslog/certs/* 2>/dev/null || true\ngetcap /usr/sbin/rsyslogd 2>/dev/null || true\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 36.9,
+    "keystrokes": "timeout 3 rsyslogd -n -d -f /etc/rsyslog.conf 2>&1 | head -n 240\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 36.9,
+    "keystrokes": "timeout 5 strace -f -e trace=openat,newfstatat,statx,access -o /tmp/rsyslog.strace rsyslogd -N1 -f /etc/rsyslog.conf >/tmp/rsyslog.out 2>&1 || true\ngrep -E 'certs|EACCES|EPERM|denied' /tmp/rsyslog.strace | tail -n 80\ncat /tmp/rsyslog.out\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 40.2,
+    "keystrokes": "timeout 4 rsyslogd -n -d -f /etc/rsyslog.conf 2>&1 | grep -Ei 'priv|drop|uid|gid|user|group|cert|denied|permission|ca-cert|localhost-(cert|key)' | head -n 240\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 40.2,
+    "keystrokes": "timeout 4 rsyslogd -N1 -d -f /etc/rsyslog.conf 2>&1 | grep -Ei 'priv|drop|uid|gid|user|group|cert|denied|permission|ca-cert|localhost-(cert|key)|error' | head -n 240\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 40.2,
+    "keystrokes": "grep -R \"PrivDrop\\|DropTo\\|privdrop\" /etc/rsyslog* /lib/systemd/system/rsyslog.service /usr/lib/systemd/system/rsyslog.service 2>/dev/null || true\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 13,
+    "offset_sec": 43.5,
+    "keystrokes": "rm -f /tmp/rsdebug /tmp/rsdebug.out\nrsyslogd -N1 -d -f /etc/rsyslog.conf >/tmp/rsdebug 2>&1; echo \"rc=$?\"\nwc -l /tmp/rsdebug\ngrep -n -i -E 'drop|setuid|setgid|user|group|cert|permission|denied|ca-cert|localhost-(cert|key)' /tmp/rsdebug | head -n 300\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 13,
+    "offset_sec": 43.5,
+    "keystrokes": "tail -n 100 /tmp/rsdebug\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 47.6,
+    "keystrokes": "C-c",
+    "duration": 0.2,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 47.6,
+    "keystrokes": "C-c",
+    "duration": 0.2,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 47.6,
+    "keystrokes": "C-c",
+    "duration": 0.2,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 47.6,
+    "keystrokes": "ps -ef | grep -E '[r]syslogd' || true\necho READY\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 15,
+    "offset_sec": 52.2,
+    "keystrokes": "ls -l /tmp/rsdebug /tmp/rsdebug.out 2>&1\nhead -n 40 /tmp/rsdebug 2>/dev/null || true\ngrep -n -i -E 'priv|drop|uid|gid|user|group|cert|permission|denied|ca-cert|localhost-(cert|key)|error' /tmp/rsdebug 2>/dev/null | head -n 200\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 15,
+    "offset_sec": 52.2,
+    "keystrokes": "rm -f /tmp/rsdebug2\ntimeout 5 rsyslogd -N1 -d -f /etc/rsyslog.conf >/tmp/rsdebug2 2>&1; echo \"rc=$?\"\nwc -l /tmp/rsdebug2\ngrep -n -i -E 'priv|drop|uid|gid|user|group|cert|permission|denied|ca-cert|localhost-(cert|key)|error' /tmp/rsdebug2 | head -n 240\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 16,
+    "offset_sec": 56.3,
+    "keystrokes": "id; grep -n -i -E 'rsyslogd starts|startup|running as|uid|gid|setuid|setgid|setgroups|privilege|privdrop|drop' /tmp/rsdebug2 2>/dev/null | head -n 120\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 16,
+    "offset_sec": 56.3,
+    "keystrokes": "cat /sys/module/apparmor/parameters/enabled 2>/dev/null || echo 'no apparmor param'\ncat /proc/self/attr/current 2>/dev/null || true\nls -la /sys/kernel/security/apparmor 2>/dev/null || true\ndmesg 2>/dev/null | grep -i -E 'apparmor|denied' | tail -n 20 || true\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 16,
+    "offset_sec": 56.3,
+    "keystrokes": "grep -n -E 'ca-cert.pem|localhost-key.pem|localhost-cert.pem' /tmp/rsdebug2 2>/dev/null | head -n 40\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 16,
+    "offset_sec": 56.3,
+    "keystrokes": "sed -n '3480,3525p' /tmp/rsdebug2 2>/dev/null\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 17,
+    "offset_sec": 59.7,
+    "keystrokes": "chmod 755 /etc/rsyslog/certs\nchmod 644 /etc/rsyslog/certs/*\nls -la /etc/rsyslog/certs\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 17,
+    "offset_sec": 59.7,
+    "keystrokes": "rsyslogd -N1 -f /etc/rsyslog.conf; echo \"rc=$?\"\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 18,
+    "offset_sec": 63.8,
+    "keystrokes": "cat /sys/module/apparmor/parameters/enabled 2>/dev/null || echo 'apparmor module not exposed'\ncat /proc/self/attr/current 2>/dev/null || true\nls -la /sys/kernel/security/apparmor 2>/dev/null || true\ngrep -i rsyslog /sys/kernel/security/apparmor/profiles 2>/dev/null || true\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 18,
+    "offset_sec": 63.8,
+    "keystrokes": "runuser -u syslog -- test -r /etc/rsyslog/certs/ca-cert.pem && echo 'syslog read ca OK' || echo 'syslog read ca FAIL'\nrunuser -u syslog -- test -r /etc/rsyslog/certs/localhost-key.pem && echo 'syslog read key OK' || echo 'syslog read key FAIL'\nrunuser -u nobody -- test -r /etc/rsyslog/certs/ca-cert.pem && echo 'nobody read ca OK' || echo 'nobody read ca FAIL'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 18,
+    "offset_sec": 63.8,
+    "keystrokes": "runuser -u syslog -- certtool --verify --load-ca-certificate /etc/rsyslog/certs/ca-cert.pem --infile /etc/rsyslog/certs/localhost-cert.pem 2>&1 | head -n 30\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 18,
+    "offset_sec": 63.8,
+    "keystrokes": "runuser -u syslog -- rsyslogd -N1 -f /etc/rsyslog.conf 2>&1 | head -n 30; echo \"pipeline_rc=${PIPESTATUS[0]}\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 18,
+    "offset_sec": 63.8,
+    "keystrokes": "dpkg -L rsyslog-gnutls | grep -E '\\.so|doc|example' | head -n 40\nstrings /usr/lib/x86_64-linux-gnu/rsyslog/lmgtls.so 2>/dev/null | grep -i -A2 -B2 'could not be accessed' | head -n 40\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 19,
+    "offset_sec": 67.3,
+    "keystrokes": "chmod 777 /etc/rsyslog/certs\nchmod 666 /etc/rsyslog/certs/*\nls -la /etc/rsyslog/certs\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 19,
+    "offset_sec": 67.3,
+    "keystrokes": "rsyslogd -N1 -f /etc/rsyslog.conf; echo \"root_rc=$?\"\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 19,
+    "offset_sec": 67.3,
+    "keystrokes": "runuser -u syslog -- rsyslogd -N1 -f /etc/rsyslog.conf; echo \"syslog_rc=$?\"\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 19,
+    "offset_sec": 67.3,
+    "keystrokes": "cat /sys/module/apparmor/parameters/enabled 2>/dev/null || echo 'apparmor unavailable'\ngrep -i -E 'rsyslog|gnutls' /sys/kernel/security/apparmor/profiles 2>/dev/null || echo 'no rsyslog apparmor profile'\ncommand -v getenforce >/dev/null && getenforce || true\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 20,
+    "offset_sec": 72.5,
+    "keystrokes": "cat /proc/self/attr/current 2>&1 || true\ncat /sys/kernel/security/apparmor/profiles 2>&1 | head -n 80 || true\nls -la /etc/apparmor.d 2>&1 || true\nls -la /etc/apparmor.d/local 2>&1 || true\nfind /etc/apparmor.d -maxdepth 2 -type f -iname '*rsyslog*' -o -type f | head -n 80 2>/dev/null\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 20,
+    "offset_sec": 72.5,
+    "keystrokes": "grep -R \"rsyslog\\|/etc/rsyslog\" /etc/apparmor.d 2>/dev/null | head -n 120\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 20,
+    "offset_sec": 72.5,
+    "keystrokes": "dmesg 2>/dev/null | grep -i -E 'apparmor|audit|denied|rsyslog' | tail -n 60 || true\ncat /proc/mounts | grep -i security || true\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 20,
+    "offset_sec": 72.5,
+    "keystrokes": "command -v apparmor_parser; apparmor_parser --version 2>&1 | head -n 5\ncommand -v aa-exec || true\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 21,
+    "offset_sec": 75.9,
+    "keystrokes": "cat /etc/apparmor.d/usr.sbin.rsyslogd\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 21,
+    "offset_sec": 75.9,
+    "keystrokes": "cat /etc/apparmor.d/rsyslog.d/rsyslog-gnutls.apparmor\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 21,
+    "offset_sec": 75.9,
+    "keystrokes": "cat /sys/kernel/security/apparmor/profiles 2>&1 | head -n 100; echo '--- securityfs files ---'; ls -la /sys/kernel/security/apparmor 2>&1 | head -n 80\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 21,
+    "offset_sec": 75.9,
+    "keystrokes": "find / -xdev -name 'apparmor_parser' -o -name 'aa-status' -o -name 'aa-exec' 2>/dev/null | head -n 40\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 21,
+    "offset_sec": 75.9,
+    "keystrokes": "dpkg -l | grep -E 'apparmor' || true\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 22,
+    "offset_sec": 79.4,
+    "keystrokes": "cat /proc/self/attr/current 2>&1 || true\ncat /proc/1/attr/current 2>&1 || true\nls -la /proc/self/attr 2>&1 || true\nmount | grep -i -E 'security|apparmor' || true\ncat /sys/module/apparmor/parameters/enabled 2>/dev/null || true\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 22,
+    "offset_sec": 79.4,
+    "keystrokes": "cp -a /usr/sbin/rsyslogd /tmp/rsyslogd_unconfined\nchmod 755 /tmp/rsyslogd_unconfined\nls -l /tmp/rsyslogd_unconfined\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 22,
+    "offset_sec": 79.4,
+    "keystrokes": "/tmp/rsyslogd_unconfined -N1 -f /etc/rsyslog.conf; echo \"copy_rc=$?\"\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 22,
+    "offset_sec": 79.4,
+    "keystrokes": "/usr/sbin/rsyslogd -N1 -f /etc/rsyslog.conf; echo \"orig_rc=$?\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 23,
+    "offset_sec": 83.7,
+    "keystrokes": "cat /etc/apparmor.d/usr.sbin.rsyslogd\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 23,
+    "offset_sec": 83.7,
+    "keystrokes": "apt-cache policy apparmor apparmor-utils 2>/dev/null | head -n 80\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 23,
+    "offset_sec": 83.7,
+    "keystrokes": "find / -name apparmor_parser 2>/dev/null | head -n 20\nfind / -name aa-status 2>/dev/null | head -n 20\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 23,
+    "offset_sec": 83.7,
+    "keystrokes": "ls -la /sys/kernel/security 2>&1 || true\nmount -t securityfs securityfs /sys/kernel/security 2>&1 || true\nls -la /sys/kernel/security/apparmor 2>&1 | head -n 60 || true\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 24,
+    "offset_sec": 87.1,
+    "keystrokes": "",
+    "duration": 2.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 25,
+    "offset_sec": 92.1,
+    "keystrokes": "mkdir -p /usr/local/sbin\ncp -a /usr/sbin/rsyslogd /usr/local/sbin/rsyslogd.real\nchmod 755 /usr/local/sbin/rsyslogd.real\nln -sf /usr/local/sbin/rsyslogd.real /usr/sbin/rsyslogd\nls -l /usr/sbin/rsyslogd /usr/local/sbin/rsyslogd.real\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 25,
+    "offset_sec": 92.1,
+    "keystrokes": "/usr/sbin/rsyslogd -N1 -f /etc/rsyslog.conf; rc=$?\necho \"symlink_rc=$rc\"\nif [ \"$rc\" -ne 0 ]; then\n  rm -f /usr/sbin/rsyslogd\n  cp -a /usr/local/sbin/rsyslogd.real /usr/sbin/rsyslogd\n  chmod 755 /usr/sbin/rsyslogd\n  echo 'restored original rsyslogd after symlink test failure'\nfi\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 26,
+    "offset_sec": 96.2,
+    "keystrokes": "chmod 750 /etc/rsyslog/certs\nchmod 640 /etc/rsyslog/certs/ca-key.pem /etc/rsyslog/certs/localhost-key.pem\nchmod 644 /etc/rsyslog/certs/ca-cert.pem /etc/rsyslog/certs/localhost-cert.pem\nchown -R syslog:syslog /var/log/remote /var/lib/rsyslog /var/spool/rsyslog\nchmod 750 /var/lib/rsyslog /var/spool/rsyslog\nfind /var/log/remote -maxdepth 1 -type d -printf '%p %u:%g %m\\n'\nls -l /etc/rsyslog/certs\nrm -f /run/rsyslogd.pid\nps -ef | grep -E '[r]syslogd' || true\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 26,
+    "offset_sec": 96.2,
+    "keystrokes": "/usr/sbin/rsyslogd -f /etc/rsyslog.conf\nsleep 1\nps -ef | grep -E '[r]syslogd' || true\ncat /run/rsyslogd.pid 2>/dev/null || true\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 26,
+    "offset_sec": 96.2,
+    "keystrokes": "logger -p user.info 'tls-syslog-test-1'\necho 'app-access-test-1' >> /var/log/app/access.log\nsleep 2\necho '--- remote files ---'\nfind /var/log/remote -type f -printf '%p\\n' 2>/dev/null\necho '--- remote contents ---'\nfind /var/log/remote -type f -exec sh -c 'echo \"### $1\"; cat \"$1\"' _ {} \\; 2>/dev/null\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 27,
+    "offset_sec": 100.4,
+    "keystrokes": "",
+    "duration": 3.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 28,
+    "offset_sec": 106.4,
+    "keystrokes": "pid=$(cat /run/rsyslogd.pid 2>/dev/null || true); echo \"pid=$pid\"; if [ -n \"$pid\" ]; then kill \"$pid\"; fi\nsleep 1\nps -ef | grep -E '[r]syslogd' || true\nrm -f /run/rsyslogd.pid\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 28,
+    "offset_sec": 106.4,
+    "keystrokes": "/usr/sbin/rsyslogd -f /etc/rsyslog.conf\nsleep 1\nps -ef | grep -E '[r]syslogd' || true\ncat /run/rsyslogd.pid 2>/dev/null || true\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 28,
+    "offset_sec": 106.4,
+    "keystrokes": "logger -p user.notice 'tls-syslog-test-restart'\necho 'app-access-test-restart' >> /var/log/app/access.log\nsleep 2\necho '--- markers in remote log ---'\ngrep -R -n -E 'tls-syslog-test-restart|app-access-test-restart' /var/log/remote 2>/dev/null || true\necho '--- occurrence counts ---'\ngrep -R -h -E 'tls-syslog-test-restart|app-access-test-restart' /var/log/remote 2>/dev/null | sort | uniq -c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 28,
+    "offset_sec": 106.4,
+    "keystrokes": "logrotate -d /etc/logrotate.d/remote-syslog 2>&1 | head -n 80\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 29,
+    "offset_sec": 110.7,
+    "keystrokes": "rsyslogd -N1 -f /etc/rsyslog.conf; echo \"config_rc=$?\"\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 29,
+    "offset_sec": 110.7,
+    "keystrokes": "python3 - <<'PY'\nimport socket, ssl\nctx = ssl.create_default_context(ssl.Purpose.SERVER_AUTH, cafile='/etc/rsyslog/certs/ca-cert.pem')\nctx.load_cert_chain(certfile='/etc/rsyslog/certs/localhost-cert.pem', keyfile='/etc/rsyslog/certs/localhost-key.pem')\nctx.check_hostname = True\nctx.verify_mode = ssl.CERT_REQUIRED\nwith socket.create_connection(('localhost', 6514), timeout=3) as raw:\n    with ctx.wrap_socket(raw, server_hostname='localhost') as tls:\n        print('TLS handshake OK:', tls.version())\n        cert = tls.getpeercert()\n        print('Peer CN:', cert.get('subject'))\nPY\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 29,
+    "offset_sec": 110.7,
+    "keystrokes": "grep -R -h -E 'tls-syslog-test-restart|app-access-test-restart' /var/log/remote 2>/dev/null | sort | uniq -c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 29,
+    "offset_sec": 110.7,
+    "keystrokes": "logrotate -d /etc/logrotate.d/remote-syslog 2>&1 | grep -E 'rotating pattern|rotate |compress|daily|considering log|log does not need rotating' | head -n 40\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 30,
+    "offset_sec": 115.0,
+    "keystrokes": "ps -o pid,user,group,args -C rsyslogd || true\nls -l /etc/init.d/rsyslog /lib/systemd/system/rsyslog.service 2>&1 || true\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 30,
+    "offset_sec": 115.0,
+    "keystrokes": "cat >> /etc/apparmor.d/local/usr.sbin.rsyslogd <<'EOF'\n/etc/rsyslog/certs/** r,\nEOF\ncat /etc/apparmor.d/local/usr.sbin.rsyslogd\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 30,
+    "offset_sec": 115.0,
+    "keystrokes": "grep -R -n -E 'tls-syslog-test|app-access-test' /var/log/remote 2>/dev/null | tail -n 20\necho '--- current daemon ---'\npid=$(cat /run/rsyslogd.pid 2>/dev/null || true)\nif [ -n \"$pid\" ] && kill -0 \"$pid\" 2>/dev/null; then echo \"rsyslogd running pid=$pid\"; else echo 'rsyslogd not running'; fi\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 31,
+    "offset_sec": 118.3,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 32,
+    "offset_sec": 121.3,
+    "keystrokes": "python3 - <<'PY'\nimport socket, ssl\nctx = ssl.create_default_context(ssl.Purpose.SERVER_AUTH, cafile='/etc/rsyslog/certs/ca-cert.pem')\nctx.check_hostname = True\nctx.verify_mode = ssl.CERT_REQUIRED\ntry:\n    with socket.create_connection(('localhost', 6514), timeout=3) as raw:\n        with ctx.wrap_socket(raw, server_hostname='localhost') as tls:\n            print('NO-CLIENT-CERT handshake OK:', tls.version())\n            print(tls.getpeercert().get('subject'))\nexcept Exception as e:\n    print('NO-CLIENT-CERT handshake FAILED:', type(e).__name__, e)\nPY\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 32,
+    "offset_sec": 121.3,
+    "keystrokes": "python3 - <<'PY'\nimport socket, ssl\nctx = ssl.create_default_context(ssl.Purpose.SERVER_AUTH, cafile='/etc/rsyslog/certs/ca-cert.pem')\nctx.load_cert_chain(certfile='/etc/rsyslog/certs/localhost-cert.pem', keyfile='/etc/rsyslog/certs/localhost-key.pem')\nctx.check_hostname = True\nctx.verify_mode = ssl.CERT_REQUIRED\ntry:\n    with socket.create_connection(('localhost', 6514), timeout=3) as raw:\n        with ctx.wrap_socket(raw, server_hostname='localhost') as tls:\n            print('CLIENT-CERT handshake OK:', tls.version())\n            print(tls.getpeercert().get('subject'))\nexcept Exception as e:\n    print('CLIENT-CERT handshake FAILED:', type(e).__name__, e)\nPY\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 32,
+    "offset_sec": 121.3,
+    "keystrokes": "grep -n -A10 -B2 'module(load=\"imtcp\"' /etc/rsyslog.d/60-tls-syslog.conf\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 33,
+    "offset_sec": 126.4,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 34,
+    "offset_sec": 129.4,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

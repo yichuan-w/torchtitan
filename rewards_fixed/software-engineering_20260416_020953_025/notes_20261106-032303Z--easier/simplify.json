@@ -1,0 +1,144 @@
+{
+  "retained_skill": "Diagnose and remove alignment-related undefined behavior in optimized C binary parsing while preserving the parser's checksum and validation behavior.",
+  "bottleneck": "The shipped sample files use a byte-wise checksum, while binparse.c computes a word-wise checksum and verifies a header containing its own nonzero checksum; the documented test path is also absent. All 12 attempts therefore encounter IO or checksum failures unrelated to the retained alignment decision, and nine spend their remaining turns reverse-engineering or rewriting checksums until the time limit.",
+  "change": "Structural help in the original program signal: make fixture generation and header-checksum verification agree with the existing word-wise format, and make the documented testdata path present. This removes the checksum-format and path investigation stage (roughly 24-52 turns in the nine limited attempts) so the original sanitizer/alignment signal is reached immediately; the student must still identify and fix every unsafe access to arbitrarily offset binary data.",
+  "restore": "Restore the original checksum generator, checksum verification block, and absent libbinparse/testdata path to withdraw the structural help after the student can reliably fix alignment-related undefined behavior.",
+  "prediction": "Attempts currently react to initial IO/checksum mismatch by regenerating fixtures or inventing checksum algorithms instead of finishing the alignment repair. With valid supplied samples at the documented path, their next build reaches the alignment/undefined-behavior failure directly and some will submit an alignment-safe parser. This is refuted if changed-task replays still encounter checksum mismatch before an alignment diagnostic or if the next group remains 0 of 12 for the same checksum investigation.",
+  "expected": "4 of 12",
+  "evidence": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turn": 24,
+      "observation": "After the documented command first produced IO errors, the attempt began comparing invented checksum variants and continued checksum work through turn 47; it hit the time budget without submission."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turn": 27,
+      "observation": "The attempt moved from the alignment issue into regenerating and tracing checksums, continuing through turn 67 before hitting the time budget."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turn": 34,
+      "observation": "The attempt spent its final 30 turns investigating checksum values and did not submit before the time limit."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turn": 66,
+      "observation": "Replayed the submitted binparse.c with ./sandbox grade: optimized parsing and the misalignment case passed, but test_no_undefined_behavior failed because signed byte shifts remained undefined; original grading reported the same 2-pass/1-fail result. After the rewrite, a fresh reset followed by replaying that submitted source and ./sandbox grade still reaches optimized parsing and the misalignment check, but fails only test_no_undefined_behavior; the removed checksum/path obstacle no longer appears."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turn": 16,
+      "observation": "Checksum mismatch redirected the attempt into checksum experiments through turn 54, where it hit the time budget."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turn": 29,
+      "observation": "The submitted approach fixed gross alignment behavior but original grading passed optimized parsing and misalignment while test_no_undefined_behavior failed, showing the later retained-skill boundary after checksum work."
+    },
+    {
+      "attempt": "attempt-07.jsonl",
+      "turn": 25,
+      "observation": "The attempt began sustained checksum reverse-engineering and continued through turn 55, ending at the time limit without submission."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turn": 15,
+      "observation": "The attempt repeatedly changed checksum handling through turn 61 and hit the time budget."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turn": 29,
+      "observation": "Replayed the submitted binparse.c with ./sandbox grade: optimized parsing and misalignment passed, while test_no_undefined_behavior failed due to remaining signed-shift UB, matching original grading's 2-pass/1-fail result."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turn": 16,
+      "observation": "The attempt entered checksum diagnosis and spent most remaining turns there, hitting the time limit at turn 55."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turn": 26,
+      "observation": "The attempt repeatedly rewrote and tested checksum logic through turn 71, then hit the time budget."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turn": 24,
+      "observation": "The attempt pursued checksum fixed points and regenerated files through turn 78; one sample passed but it ran out of time before resolving the supplied-data mismatch."
+    }
+  ],
+  "budget": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turns": [
+        24,
+        47
+      ],
+      "stage": "Checksum reverse-engineering; consistent supplied checksums remove this 24-turn stage."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turns": [
+        27,
+        67
+      ],
+      "stage": "Fixture regeneration and checksum tracing; consistent supplied checksums remove this 41-turn stage."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turns": [
+        34,
+        63
+      ],
+      "stage": "Checksum algorithm investigation; consistent supplied checksums remove this 30-turn stage."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turns": [
+        16,
+        54
+      ],
+      "stage": "Checksum mismatch experiments; consistent supplied checksums remove this 39-turn stage."
+    },
+    {
+      "attempt": "attempt-07.jsonl",
+      "turns": [
+        25,
+        55
+      ],
+      "stage": "Checksum reconstruction; consistent supplied checksums remove this 31-turn stage."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turns": [
+        15,
+        61
+      ],
+      "stage": "Repeated checksum rewrites; consistent supplied checksums remove this 47-turn stage."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turns": [
+        16,
+        55
+      ],
+      "stage": "Checksum debugging and rewrites; consistent supplied checksums remove this 40-turn stage."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turns": [
+        26,
+        71
+      ],
+      "stage": "Checksum algorithm and fixture work; consistent supplied checksums remove this 46-turn stage."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turns": [
+        24,
+        78
+      ],
+      "stage": "Checksum fixed-point and fixture regeneration work; consistent supplied checksums remove this 55-turn stage."
+    }
+  ]
+}

@@ -1,0 +1,149 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 3.0,
+    "keystrokes": "ls -la /etc/supervisor/conf.d/ /opt/webapp/\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 3.0,
+    "keystrokes": "cat /etc/supervisor/conf.d/*.conf\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 3.0,
+    "keystrokes": "cat /opt/webapp/init_db.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 6.3,
+    "keystrokes": "cat /opt/webapp/app.py /opt/webapp/worker.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 6.3,
+    "keystrokes": "grep -n 'local' /etc/supervisor/conf.d/appserver.conf; cat /etc/nginx/sites-enabled/* 2>/dev/null; ls /etc/nginx/sites-enabled /etc/nginx/conf.d 2>/dev/null\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 6.3,
+    "keystrokes": "supervisorctl status; ps aux | grep -E 'supervisord|postgres|redis|nginx' | grep -v grep\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 9.6,
+    "keystrokes": "ls /var/lib/postgresql/16/main 2>/dev/null | head; ls /opt/appenv/bin/ | head; cat /etc/supervisor/supervisord.conf | tail -20\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 9.6,
+    "keystrokes": "cat > /opt/webapp/wait_for_db.sh <<'EOF'\n#!/bin/bash\n# Wait until the database has been initialized (items table exists) and redis is up\nexport DB_HOST=localhost DB_PORT=5432 DB_NAME=appdb DB_USER=appuser DB_PASSWORD=apppass123\nfor i in $(seq 1 60); do\n  /opt/appenv/bin/python -c \"\nimport psycopg2, redis, sys\ntry:\n    c = psycopg2.connect(host='localhost', port=5432, database='appdb', user='appuser', password='apppass123')\n    cur = c.cursor()\n    cur.execute(\\\"SELECT to_regclass('items'), to_regclass('task_queue')\\\")\n    row = cur.fetchone()\n    assert row[0] and row[1]\n    c.close()\n    redis.Redis(host='localhost', port=6379, password='cachepass456').ping()\nexcept Exception:\n    sys.exit(1)\n\" && exec \"$@\"\n  sleep 1\ndone\necho \"Timed out waiting for database initialization\" >&2\nexit 1\nEOF\nchmod +x /opt/webapp/wait_for_db.sh\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 9.6,
+    "keystrokes": "cat > /etc/supervisor/conf.d/dbinit.conf <<'EOF'\n; Database initialization (runs after PostgreSQL is up, before appserver/appworker)\n[program:dbinit]\ncommand=/opt/appenv/bin/python /opt/webapp/init_db.py\ndirectory=/opt/webapp\nuser=root\nautostart=true\nautorestart=false\nstartsecs=0\npriority=200\nstdout_logfile=/var/log/supervisor/dbinit.log\nstderr_logfile=/var/log/supervisor/dbinit_err.log\nenvironment=PATH=\"/opt/appenv/bin:/usr/bin:/bin\",DB_HOST=\"localhost\",DB_PORT=\"5432\",DB_NAME=\"appdb\",DB_USER=\"appuser\",DB_PASSWORD=\"apppass123\"\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 9.6,
+    "keystrokes": "sed -i 's/^priority=50/priority=300/; s|^command=/opt/appenv/bin/gunicorn|command=/opt/webapp/wait_for_db.sh env REDIS_PASSWORD=cachepass456 /opt/appenv/bin/gunicorn|' /etc/supervisor/conf.d/appserver.conf\nsed -i 's/^priority=50/priority=300/; s|^command=/opt/appenv/bin/python /opt/webapp/worker.py|command=/opt/webapp/wait_for_db.sh env REDIS_PASSWORD=cachepass456 /opt/appenv/bin/python /opt/webapp/worker.py|' /etc/supervisor/conf.d/appworker.conf\nsed -i 's/^priority=10/priority=400/' /etc/supervisor/conf.d/appproxy.conf\ngrep -E 'priority|command' /etc/supervisor/conf.d/*.conf\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 13.0,
+    "keystrokes": "supervisord -c /etc/supervisor/supervisord.conf\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 13.0,
+    "keystrokes": "sleep 15; supervisorctl status\n",
+    "duration": 15.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 13.0,
+    "keystrokes": "curl -s http://localhost/ ; echo; curl -s http://localhost/health; echo\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 28.2,
+    "keystrokes": "supervisorctl status dbinit; cat /var/log/supervisor/dbinit.log; tail -5 /var/log/supervisor/appworker.log\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 28.2,
+    "keystrokes": "sudo -u postgres psql -d appdb -c '\\dt' 2>/dev/null || psql -h localhost -U appuser -d appdb -c '\\dt'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 28.2,
+    "keystrokes": "curl -s http://localhost/api/data; echo\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 31.5,
+    "keystrokes": "tail -5 /var/log/supervisor/appworker.log; curl -s http://localhost/api/data; echo\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 31.5,
+    "keystrokes": "PGPASSWORD=apppass123 psql -h 127.0.0.1 -U appuser -d appdb -c '\\dt'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 31.5,
+    "keystrokes": "supervisorctl status\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 34.8,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 37.8,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

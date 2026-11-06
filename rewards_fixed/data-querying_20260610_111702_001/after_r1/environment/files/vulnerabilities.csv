@@ -1,0 +1,6 @@
+vuln_id,package_name,severity,cve_id,description
+1,foundation-lib,HIGH,CVE-2024-0001,Remote code execution via crafted input in foundation-lib
+2,encryption-lib,CRITICAL,CVE-2024-0002,Weak key generation allows private key recovery in encryption-lib
+3,config-parser,MEDIUM,CVE-2024-0003,Denial of service via deeply nested configuration in config-parser
+4,serialization-lib,HIGH,CVE-2024-0004,Untrusted deserialization leads to arbitrary code execution in serialization-lib
+5,core-utils,MEDIUM,CVE-2024-0005,Path traversal in file operations of core-utils

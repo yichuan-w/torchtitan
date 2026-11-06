@@ -1,0 +1,14 @@
+[
+  {
+    "defect": "The verifier requires malformed.dat to reach header output even though the instruction only asks that the crashing input be handled; a clean rejection before opening the vulnerable parser is a reasonable result.",
+    "evidence": "instruction.md asks to get the crashing reader working without requiring malformed.dat to be fully processed, while tests/test_outputs.py requires the text 'Dataset: 2 items'; attempt-01.jsonl turn 22 cleanly rejects the dangerous length and its replay failed that header assertion.",
+    "change": "State explicitly that malformed.dat may be processed or rejected cleanly, and remove the header-output requirement for that file while retaining the no-crash and normal-file checks.",
+    "kind": "hidden_requirement"
+  },
+  {
+    "defect": "The Valgrind check mistakes an intentional nonzero application exit for a Valgrind memory-error exit, so memory-safe rejection fails despite Valgrind reporting zero errors.",
+    "evidence": "tests/test_outputs.py sets Valgrind's error exit code to 1 and requires return code 0; replaying attempt-01.jsonl produced 'ERROR SUMMARY: 0 errors' but failed because the reader cleanly returned 1.",
+    "change": "Use a distinct Valgrind error exit code and accept ordinary nonnegative reader exits, while still rejecting signals and Valgrind-detected memory errors.",
+    "kind": "other"
+  }
+]

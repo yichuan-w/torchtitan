@@ -1,0 +1,88 @@
+NUMUTILS - Numerical Utilities Library
+======================================
+Version 1.2.3
+Released: 2005-03-15
+
+NUMUTILS is a lightweight numerical computing library providing
+common algorithms for scientific and engineering applications.
+
+FEATURES
+--------
+- Basic statistics (mean, variance, stddev, median, percentiles)
+- Array sorting and manipulation
+- Matrix operations (create, free, determinant, LU decomposition, multiply)
+- Interpolation (linear and cubic)
+- Root finding (bisection and Newton-Raphson methods)
+- Numerical integration (trapezoid and Simpson's rules)
+- Random number generation (uniform and normal distributions)
+- Correlation and covariance
+
+BUILDING
+--------
+Requirements:
+- GCC 3.x or 4.x
+- GNU Make
+
+To build the static library:
+  $ make
+
+To build the shared library:
+  $ make shared
+
+INSTALLATION
+------------
+As root:
+  $ make install          # for static library
+  $ make install-shared   # for shared library
+
+This installs:
+- libnumutils.a or libnumutils.so to /usr/local/lib
+- numutils.h to /usr/local/include
+
+USAGE
+-----
+Include the header:
+  #include <numutils.h>
+
+Link with:
+  $ gcc myprogram.c -lnumutils -lm
+
+TESTING
+--------
+A test program is provided in the parent directory:
+  $ gcc test_numutils.c -lnumutils -lm -o test_numutils
+  $ ./test_numutils
+
+LICENSE
+-------
+This library is released under the MIT License.
+See the file LICENSE for details.
+
+AUTHORS
+-------
+Original development team (2001-2005)
+
+CHANGELOG
+---------
+1.2.3 (2005-03-15)
+  - Fixed memory leak in percentile calculation
+  - Improved numerical stability in determinant
+
+1.2.2 (2004-11-20)
+  - Added cubic interpolation
+  - Fixed bug in matrix multiplication
+
+1.2.1 (2004-06-10)
+  - Added covariance function
+  - Documentation updates
+
+1.2.0 (2004-02-15)
+  - Added random number generation
+  - Added root finding algorithms
+
+1.1.0 (2003-08-01)
+  - Added matrix operations
+  - Added integration functions
+
+1.0.0 (2001-05-01)
+  - Initial release

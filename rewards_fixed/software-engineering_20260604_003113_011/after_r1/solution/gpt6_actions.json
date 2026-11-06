@@ -1,0 +1,37 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "cat /app/ws_server.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.2,
+    "duration": 0.1,
+    "kind": "terminal_action",
+    "keystrokes": "python3 - <<'PY'\nfrom pathlib import Path\np = Path('/app/ws_server.py')\ns = p.read_text()\ns = s.replace('urlsafe_b64encode', 'b64encode')\ns = s.replace('elif opcode == 0x9:  # Ping\\n                pass', 'elif opcode == 0x9:  # Ping\\n                self._send_pong(client_socket, payload)')\ns = s.replace('elif payload_len == 127:\\n            ext_data = self._recv_exact(client_socket, 2)\\n            if ext_data is None:\\n                return None\\n            payload_len = struct.unpack(\"!H\", ext_data)[0]', 'elif payload_len == 127:\\n            ext_data = self._recv_exact(client_socket, 8)\\n            if ext_data is None:\\n                return None\\n            payload_len = struct.unpack(\"!Q\", ext_data)[0]')\ns = s.replace('258EAFA5-E914-47DA-95CA-C5AB0DC85B12', '258EAFA5-E914-47DA-95CA-C5AB0DC85B11')\np.write_text(s)\nPY\n"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.4,
+    "duration": 0.1,
+    "kind": "terminal_action",
+    "keystrokes": "cd /app && python3 -c \"from ws_server import WebSocketServer; print('import OK')\"\n"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 0.6,
+    "duration": 0,
+    "kind": "completion_marker",
+    "keystrokes": ""
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 0.6,
+    "duration": 0,
+    "kind": "completion_marker",
+    "keystrokes": ""
+  }
+]

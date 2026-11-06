@@ -1,0 +1,170 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "head -3 /app/ratings.csv; wc -l /app/ratings.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "pip install scikit-surprise 2>&1 | tail -2\n",
+    "duration": 60.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 60.1,
+    "keystrokes": "which python3; python3 -c \"import sklearn, numpy, pandas; print('ok')\" 2>&1\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 60.1,
+    "keystrokes": "python3 -m pip install scikit-surprise 2>&1 | tail -3\n",
+    "duration": 60.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 120.2,
+    "keystrokes": "python3 -c \"import numpy; print(numpy.__version__)\" 2>&1; python3 -c \"import pandas; print('pandas ok')\" 2>&1\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 120.2,
+    "keystrokes": "ls /usr/bin/python* 2>/dev/null; /usr/bin/python3 -c \"import numpy, sklearn; print('sys ok')\" 2>&1\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 120.2,
+    "keystrokes": "python3 -m ensurepip 2>&1 | tail -2\n",
+    "duration": 30.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 150.4,
+    "keystrokes": "python3 -m pip install scikit-surprise 2>&1 | tail -3\n",
+    "duration": 60.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 210.4,
+    "keystrokes": "cat > /app/train.py <<'EOF'\nimport pickle\nfrom surprise import Dataset, Reader, SVD\nfrom surprise.model_selection import train_test_split\nfrom surprise.accuracy import rmse\n\nreader = Reader(line_format='user item rating timestamp', sep=',', skip_lines=1, rating_scale=(1,5))\ndata = Dataset.load_from_file('/app/ratings.csv', reader)\ntrainset, testset = train_test_split(data, test_size=0.2, random_state=42)\nalgo = SVD(n_factors=50, n_epochs=30, lr_all=0.005, reg_all=0.02, random_state=42)\nalgo.fit(trainset)\npreds = algo.test(testset)\nprint('RMSE:', rmse(preds))\nwith open('/app/model.pkl','wb') as f:\n    pickle.dump(algo, f)\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 210.4,
+    "keystrokes": "python3 /app/train.py\n",
+    "duration": 60.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 210.4,
+    "keystrokes": "ls -la /app/model.pkl\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 270.6,
+    "keystrokes": "cat > /app/grid.py <<'EOF'\nfrom surprise import Dataset, Reader, SVD\nfrom surprise.model_selection import train_test_split\nfrom surprise.accuracy import rmse\n\nreader = Reader(line_format='user item rating timestamp', sep=',', skip_lines=1, rating_scale=(1,5))\ndata = Dataset.load_from_file('/app/ratings.csv', reader)\ntrainset, testset = train_test_split(data, test_size=0.2, random_state=42)\nfor nf, ne, lr, reg in [(20,100,0.005,0.02),(30,80,0.008,0.05),(50,100,0.005,0.1),(15,100,0.01,0.05),(30,60,0.01,0.08)]:\n    algo = SVD(n_factors=nf, n_epochs=ne, lr_all=lr, reg_all=reg, random_state=42)\n    algo.fit(trainset)\n    r = rmse(algo.test(testset), verbose=False)\n    print(nf, ne, lr, reg, '->', r, flush=True)\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 270.6,
+    "keystrokes": "python3 /app/grid.py\n",
+    "duration": 60,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 330.7,
+    "keystrokes": "cat > /app/train.py <<'EOF'\nimport pickle\nfrom surprise import Dataset, Reader, SVD\nfrom surprise.model_selection import train_test_split\nfrom surprise.accuracy import rmse\n\nreader = Reader(line_format='user item rating timestamp', sep=',', skip_lines=1, rating_scale=(1,5))\ndata = Dataset.load_from_file('/app/ratings.csv', reader)\ntrainset, testset = train_test_split(data, test_size=0.2, random_state=42)\nalgo = SVD(n_factors=50, n_epochs=100, lr_all=0.005, reg_all=0.1, random_state=42)\nalgo.fit(trainset)\nprint('RMSE:', rmse(algo.test(testset), verbose=False))\nalgo.trainset = None\nwith open('/app/model.pkl','wb') as f:\n    pickle.dump(algo, f)\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 330.7,
+    "keystrokes": "python3 /app/train.py\n",
+    "duration": 60.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 330.7,
+    "keystrokes": "ls -la /app/model.pkl; python3 -c \"\nimport pickle\na = pickle.load(open('/app/model.pkl','rb'))\nprint('pred:', a.predict(196, 242).est)\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 390.9,
+    "keystrokes": "cat > /app/grid2.py <<'EOF'\nfrom surprise import Dataset, Reader, SVD\nfrom surprise.model_selection import train_test_split\nfrom surprise.accuracy import rmse\n\nreader = Reader(line_format='user item rating timestamp', sep=',', skip_lines=1, rating_scale=(1,5))\ndata = Dataset.load_from_file('/app/ratings.csv', reader)\ntrainset, testset = train_test_split(data, test_size=0.2, random_state=42)\nfor nf, ne, lr, reg in [(30,100,0.005,0.1),(25,100,0.005,0.1),(30,150,0.005,0.1)]:\n    algo = SVD(n_factors=nf, n_epochs=ne, lr_all=lr, reg_all=reg, random_state=42)\n    algo.fit(trainset)\n    r = rmse(algo.test(testset), verbose=False)\n    print(nf, ne, lr, reg, '->', r, flush=True)\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 390.9,
+    "keystrokes": "python3 /app/grid2.py\n",
+    "duration": 60,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 451.0,
+    "keystrokes": "cat > /app/train.py <<'EOF'\nimport pickle\nfrom surprise import Dataset, Reader, SVD\nfrom surprise.model_selection import train_test_split\nfrom surprise.accuracy import rmse\n\nreader = Reader(line_format='user item rating timestamp', sep=',', skip_lines=1, rating_scale=(1,5))\ndata = Dataset.load_from_file('/app/ratings.csv', reader)\ntrainset, testset = train_test_split(data, test_size=0.2, random_state=42)\nalgo = SVD(n_factors=30, n_epochs=100, lr_all=0.005, reg_all=0.1, random_state=42)\nalgo.fit(trainset)\nprint('RMSE:', rmse(algo.test(testset), verbose=False))\nwith open('/app/model.pkl','wb') as f:\n    pickle.dump(algo, f)\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 451.0,
+    "keystrokes": "python3 /app/train.py\n",
+    "duration": 60.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 451.0,
+    "keystrokes": "ls -la /app/model.pkl; python3 -c \"\nimport pickle\na = pickle.load(open('/app/model.pkl','rb'))\nprint('pred:', a.predict(196, 242).est)\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 511.2,
+    "keystrokes": "echo done\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 511.3,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 511.3,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

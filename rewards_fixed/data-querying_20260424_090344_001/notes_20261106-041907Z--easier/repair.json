@@ -1,0 +1,14 @@
+[
+  {
+    "defect": "The public conversion_id example `user_id_#` looks like a literal hash suffix, while the verifier accepts only a digit-only sequential suffix.",
+    "evidence": "instruction.md output format conflicts with tests/test_outputs.py conversion-ID numeric-suffix check; attempt-01.jsonl turn 5, attempt-03.jsonl turn 6, and attempt-09.jsonl turn 5 followed the literal-hash reading and failed that check.",
+    "change": "Clarify in instruction.md that # is the sequential conversion number and the emitted example is user_001_1.",
+    "kind": "hidden_requirement"
+  },
+  {
+    "defect": "The verifier's fixed 0.01 revenue-product tolerance is narrower than the uncertainty caused by the explicitly required four-decimal point output, so valid independently rounded points and revenue are rejected.",
+    "evidence": "instruction.md requires all numeric fields rounded to 4 decimals; tests/test_outputs.py uses Decimal(0.01). Replayed attempt-08.jsonl turn 5 failed only this check with a 0.01290 difference while all other checks passed.",
+    "change": "Compute the allowed product difference from half a unit in the last displayed decimal place for the point and revenue fields.",
+    "kind": "other"
+  }
+]

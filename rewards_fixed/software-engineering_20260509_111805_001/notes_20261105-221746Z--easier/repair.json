@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The verifier rejected packed or compressed executables, but the instruction only required a static stripped binary under 1.2 MB and never prohibited packing.",
+    "evidence": "instruction.md omits a no-compression requirement while tests/test_outputs.py::test_no_compression enforces one; attempt-05.jsonl turn 50, attempt-07.jsonl turn 42, and attempt-09.jsonl turn 53 used UPX to satisfy the stated size and static behavior.",
+    "change": "State that the deliverable must be an ordinary uncompressed ELF and that executable packers or compression may not be used.",
+    "kind": "hidden_requirement"
+  }
+]

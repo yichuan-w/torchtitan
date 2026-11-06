@@ -1,0 +1,17 @@
+﻿Product ID,Name,Category,Price,Cost,Supplier,Last Updated
+PROD-001,Wireless Mouse,Electronics,29.99,18.50,TechSource Inc,2024-03-15
+PROD-002,Mechanical Keyboard,Electronics,89.99,52.00,"KeyTech
+Solutions",2024-02-28
+PROD-003,USB-C Hub 7-Port,Electronics,45.00,28.75,TechSource Inc,2024-03-10
+PROD-004,"Ergonomic Chair, Deluxe",Furniture,399.99,210.00,OfficePro Ltd,2024-01-20
+PROD-005,Standing Desk 48",Furniture,549.00,320.00,OfficePro Ltd,2024-02-05
+PROD-006,LED Monitor 27"",Electronics,299.99,175.50,DisplayMax,2024-04-01
+PROD-007,Webcam 1080p,Electronics,59.99,32.00,TechSource Inc,2024-03-20
+PROD-008,Desk Lamp LED,Office Supplies,39.99,18.25,BrightIdeas Co,2024-02-15
+PROD-009,Notebook Premium A5,Office Supplies,12.99,5.50,PaperWorks GmbH,2024-03-01
+PROD-010,Whiteboard 36x24,Office Supplies,85.00,42.00,OfficePro Ltd,2024-01-10
+PROD-011,Noise-Cancelling Headphones,Electronics,149.99, 89.00,AudioTech,2024-04-05
+PROD-012, Monitor Arm Mount,Electronics,79.99,38.50,DisplayMax,2024-03-12
+PROD-013, Cable Management Tray,Office Supplies,24.99,10.00,OfficePro Ltd,2024-02-20
+PROD-014,Desk Pad 90x40cm,Office Supplies,19.99,8.25,BrightIdeas Co,2024-03-08
+PROD-015,USB Microphone,Electronics,69.99,40.00,AudioTech,2024-04-10

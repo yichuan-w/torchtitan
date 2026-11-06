@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The instructed first run crashes before producing the described physically wrong output because NumPy in the image no longer provides np.trapz.",
+    "evidence": "environment/files/simulation.py calls np.trapz while environment/Dockerfile installs the current NumPy; all twelve traces fail there on their first run (attempt-01.jsonl turn 3 through attempt-12.jsonl turn 3/4).",
+    "change": "Use the supported np.trapezoid API in the starting simulation.",
+    "kind": "broken_setup"
+  }
+]

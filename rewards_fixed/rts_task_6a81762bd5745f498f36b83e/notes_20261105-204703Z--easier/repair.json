@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The verifier requires exactly 50 embedding dimensions, but instruction.md only asks the summary to report the embedding dimension and leaves CADE model size open.",
+    "evidence": "instruction.md:4 conflicts with tests/test_state.py:66; all attempt-01.jsonl through attempt-12.jsonl grading diagnostics report expected 50, got 100 after their otherwise passing submissions.",
+    "change": "Replace the exact value check with a semantic check that the reported embedding dimension is positive, retaining the existing integer-type requirement.",
+    "kind": "hidden_requirement"
+  }
+]

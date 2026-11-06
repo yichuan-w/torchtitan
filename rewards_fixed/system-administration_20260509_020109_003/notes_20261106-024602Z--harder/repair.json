@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The seed verifier requires copytruncate even though the public task only requires successful policy-correct rotation and leaves the rotation method open.",
+    "evidence": "traces/attempt-01.jsonl turn 13 passed after using copytruncate, while instruction.md never requires that directive or in-place truncation.",
+    "change": "Make scratch checks validate successful rotation, retained content, and continued usability of the live log without requiring a particular logrotate directive.",
+    "kind": "hidden_requirement"
+  }
+]

@@ -1,0 +1,14 @@
+[
+  {
+    "defect": "The grader requires Shift-JIS decoding although the public encoding list names only UTF-8, Latin-1, and Windows-1252.",
+    "evidence": "instruction.md encoding requirement conflicts with tests/test_outputs.py test_japanese_content_processed; attempt-03.jsonl turn 52 ends debugging this unstated codec.",
+    "change": "Remove the Shift-JIS fixture and its codec-specific check from this variant.",
+    "kind": "hidden_requirement"
+  },
+  {
+    "defect": "The grader requires ISO-8859-15 Euro decoding although that codec is absent from the public encoding list.",
+    "evidence": "instruction.md encoding requirement conflicts with tests/test_outputs.py test_euro_symbol_processed; fresh replays of attempt-04.jsonl turn 51 and attempt-11.jsonl turn 66 each passed 12 checks and failed only this check.",
+    "change": "Remove the ISO-8859-15 fixture and its codec-specific check from this variant.",
+    "kind": "hidden_requirement"
+  }
+]

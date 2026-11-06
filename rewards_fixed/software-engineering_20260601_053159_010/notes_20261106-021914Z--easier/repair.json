@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The verifier required byte-for-byte deterministic compressed output even though the public task only requires a self-contained Huffman format that decompresses to the original; valid Huffman implementations may choose ties differently between executions.",
+    "evidence": "instruction.md states self-containment and round-trip behavior but no determinism requirement, while tests/test_outputs.py::test_compressed_format_deterministic rejects differing valid encodings.",
+    "change": "Removed the deterministic-byte-output check while retaining compilation, all round-trip checks, compression checks, empty and single-symbol cases, and self-contained decompression behavior.",
+    "kind": "hidden_requirement"
+  }
+]

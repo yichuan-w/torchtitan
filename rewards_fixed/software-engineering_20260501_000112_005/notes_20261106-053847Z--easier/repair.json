@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The verifier requires a build to recover after src/parser.h is manually deleted, although the instruction requires incremental rebuilds after editing source files and does not require arbitrary generated-artifact deletion recovery.",
+    "evidence": "instruction.md requirement 3 conflicts with tests/test_outputs.py test_generated_header_dependency; full-state replays of attempt-01.jsonl turn 43 and attempt-02.jsonl turn 45 each passed the other four checks and failed only after this deletion.",
+    "change": "Replace the manual generated-header deletion scenario with editing src/parser.y, rebuilding in parallel, and checking that the parser still works.",
+    "kind": "hidden_requirement"
+  }
+]

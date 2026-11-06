@@ -1,0 +1,10 @@
+algo	data	score	size_rows	num_features
+catboost	bank_marketing	0.9135	45211	16
+catboost	electricity	0.9049	45312	8
+catboost	gesture	0.8302	9873	32
+ftt	helena	0.8881	65196	27
+lightgbm	albert	0.8864	425240	78
+lightgbm	bank_marketing	0.9098	45211	16
+lightgbm	credit_g	0.9063	1000	20
+lightgbm	jungle	0.874	44819	6
+lightgbm	mini_boone	0.8413	130064	50

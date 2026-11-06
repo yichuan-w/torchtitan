@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "rsyslog cannot read certificates from the exact /etc/rsyslog/certs location required by the instruction, even when ordinary ownership and mode bits permit access.",
+    "evidence": "instruction.md requires /etc/rsyslog/certs; attempts 05 turn 13, 06 turn 7, 08 turn 15, 09 turn 19, 10 turn 8, and 12 turn 16 report Permission denied there; the reference workflow also has to relocate certificates under /etc/rsyslog.d before validation succeeds.",
+    "change": "Prepare the certificate material at the required path and stage copies under rsyslog's readable configuration tree, with the fallback location disclosed only in response to rsyslog's own access error.",
+    "kind": "broken_setup"
+  }
+]

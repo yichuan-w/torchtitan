@@ -1,0 +1,135 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 3.0,
+    "keystrokes": "pwd\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 3.0,
+    "keystrokes": "ls -la /app\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 3.0,
+    "keystrokes": "file /app/spec.png\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 3.0,
+    "keystrokes": "which tesseract || true\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 3.0,
+    "keystrokes": "python3 -c \"from PIL import Image; im=Image.open('/app/spec.png'); print(im.size)\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 7.4,
+    "keystrokes": "tesseract /app/spec.png stdout",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 11.4,
+    "keystrokes": "python3 -c \"from PIL import Image; im=Image.open('/app/spec.png'); print(im.mode, im.getbbox(), im.getextrema())\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 11.4,
+    "keystrokes": "tesseract /app/spec.png stdout --psm 6 2>&1\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 11.4,
+    "keystrokes": "python3 -c \"from PIL import Image,ImageEnhance,ImageFilter; im=Image.open('/app/spec.png').convert('L'); im=im.resize((2400,600)); im=ImageEnhance.Contrast(im).enhance(3); im=im.filter(ImageFilter.SHARPEN); im.save('/tmp/spec-enhanced.png')\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 11.4,
+    "keystrokes": "for psm in 3 4 6 11 12 13; do echo \"PSM=$psm\"; tesseract /tmp/spec-enhanced.png stdout --psm $psm 2>/dev/null; done\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 15.7,
+    "keystrokes": "python3 -c \"import numpy; print('numpy', numpy.__version__)\"\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 15.7,
+    "keystrokes": "cat > /app/service.py <<'PY'\nimport json\nfrom http.server import BaseHTTPRequestHandler, HTTPServer\n\nimport numpy as np\n\nN = 40\nLAMBDA = 0.006\nTOKEN = \"gp-data-token-2024\"\n\ncoords = np.linspace(0, 1, N)\nX, Y = np.meshgrid(coords, coords)\npoints = np.column_stack((X.ravel(), Y.ravel()))\nmasks = {\n    \"bottom_left\": (points[:, 0] <= 0.5) & (points[:, 1] <= 0.5),\n    \"bottom_right\": (points[:, 0] > 0.5) & (points[:, 1] <= 0.5),\n    \"top_left\": (points[:, 0] <= 0.5) & (points[:, 1] > 0.5),\n    \"top_right\": (points[:, 0] > 0.5) & (points[:, 1] > 0.5),\n}\n\nfactors = {}\nfor name, mask in masks.items():\n    local = points[mask]\n    delta = local[:, None, :] - local[None, :, :]\n    squared_distances = np.sum(delta * delta, axis=2)\n    covariance = np.exp(-squared_distances / 0.1)\n    covariance.flat[::len(local) + 1] += LAMBDA\n    factors[name] = np.linalg.cholesky(covariance)\n\n\nclass Handler(BaseHTTPRequestHandler):\n    def respond(self, status, payload):\n        data = json.dumps(payload).encode()\n        self.send_response(status)\n        self.send_header(\"Content-Type\", \"application/json\")\n        self.send_header(\"Content-Length\", str(len(data)))\n        self.end_headers()\n        self.wfile.write(data)\n\n    def do_POST(self):\n        if self.headers.get(\"Authorization\") != f\"Bearer {TOKEN}\":\n            return self.respond(401, {\"error\": \"Unauthorized\"})\n        if self.path != \"/factorize\":\n            return self.respond(404, {\"error\": \"Not found\"})\n        try:\n            length = int(self.headers.get(\"Content-Length\", \"0\"))\n            body = json.loads(self.rfile.read(length))\n        except (ValueError, json.JSONDecodeError):\n            return self.respond(400, {\"error\": \"Invalid JSON\"})\n        name = body.get(\"quadrant\") if isinstance(body, dict) else None\n        if name not in factors:\n            return self.respond(400, {\"error\": \"Invalid quadrant\"})\n        return self.respond(200, {\"trace\": float(np.trace(factors[name]))})\n\n    def log_message(self, fmt, *args):\n        print(\"%s - %s\" % (self.address_string(), fmt % args), flush=True)\n\n\nif __name__ == \"__main__\":\n    print(f\"Prepared Cholesky factors for N={N}, lambda={LAMBDA}\", flush=True)\n    HTTPServer((\"127.0.0.1\", 8050), Handler).serve_forever()\nPY\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 15.7,
+    "keystrokes": "nohup python3 /app/service.py >/app/service.log 2>&1 & echo $! >/app/service.pid; sleep 2; cat /app/service.log\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 15.7,
+    "keystrokes": "curl -sS -X POST http://127.0.0.1:8050/factorize -H 'Authorization: Bearer gp-data-token-2024' -H 'Content-Type: application/json' -d '{\"quadrant\":\"bottom_left\"}'\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 15.7,
+    "keystrokes": "curl -sS -X POST http://127.0.0.1:8050/factorize -H 'Authorization: Bearer gp-data-token-2024' -H 'Content-Type: application/json' -d '{\"quadrant\":\"bottom_right\"}'; echo\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 22.8,
+    "keystrokes": "python3 - <<'PY'\nimport json\nimport urllib.request\nimport urllib.error\n\nurl = \"http://127.0.0.1:8050/factorize\"\nfor quadrant in (\"bottom_left\", \"bottom_right\", \"top_left\", \"top_right\"):\n    request = urllib.request.Request(\n        url,\n        data=json.dumps({\"quadrant\": quadrant}).encode(),\n        headers={\n            \"Authorization\": \"Bearer gp-data-token-2024\",\n            \"Content-Type\": \"application/json\",\n        },\n        method=\"POST\",\n    )\n    with urllib.request.urlopen(request) as response:\n        result = json.load(response)\n        print(quadrant, response.status, result, type(result[\"trace\"]).__name__)\n\nrequest = urllib.request.Request(\n    url, data=b'{\"quadrant\":\"bottom_left\"}',\n    headers={\"Content-Type\": \"application/json\"}, method=\"POST\"\n)\ntry:\n    urllib.request.urlopen(request)\nexcept urllib.error.HTTPError as error:\n    print(\"missing token status:\", error.code)\nPY\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 22.8,
+    "keystrokes": "cat /app/service.log; ps -p \"$(cat /app/service.pid)\" -o pid=,stat=,cmd=\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 26.336738,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 29.336738,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

@@ -1,0 +1,170 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "ls -la /app\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "cat -A /app/customers_mainframe.dat | head -30\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "wc -l /app/*\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.3,
+    "keystrokes": "awk '{print length}' /app/customers_mainframe.dat | sort | uniq -c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.3,
+    "keystrokes": "cat /app/customers_crm.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.3,
+    "keystrokes": "file /app/customers_crm.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.3,
+    "keystrokes": "cat /app/customers_web.jsonl\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.7,
+    "keystrokes": "sqlite3 /app/customers_support.db \".schema customers\" \"SELECT * FROM customers;\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.7,
+    "keystrokes": "sed -n '2,12p' /app/customers_web.jsonl\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 0.9,
+    "keystrokes": "python3 -c \"\nimport sqlite3\ncon = sqlite3.connect('/app/customers_support.db')\nprint(con.execute('SELECT sql FROM sqlite_master').fetchall())\ncur = con.execute('SELECT * FROM customers')\nprint([d[0] for d in cur.description])\nfor r in cur.fetchall(): print(r)\n\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 0.9,
+    "keystrokes": "python3 -c \"\nw=[8,20,20,45,15,45,25,2,5,3,10]\nfor line in open('/app/customers_mainframe.dat'):\n    line=line.rstrip('\\n')\n    if len(line)!=198: continue\n    parts=[];i=0\n    for x in w: parts.append(line[i:i+x].strip()); i+=x\n    print(parts)\n\" | head -30\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 1.1,
+    "keystrokes": "python3 -c \"\nimport re\nline=open('/app/customers_mainframe.dat').readline().rstrip('\\n')\nprint(len(line))\nfor m in re.finditer(r'\\d{3}-\\d{3}-\\d{4}', line): print('phone at', m.start())\nprint(repr(line[:8]), repr(line[8:28]), repr(line[28:48]))\nprint(repr(line[48:]))\n\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 1.1,
+    "keystrokes": "python3 -c \"\nimport sqlite3\ncon = sqlite3.connect('/app/customers_support.db')\nprint(con.execute('SELECT sql FROM sqlite_master').fetchall())\ncur = con.execute('SELECT * FROM customers')\nprint([d[0] for d in cur.description])\nfor r in cur.fetchall(): print(r)\n\" > /tmp/support.txt 2>&1; cat /tmp/support.txt\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 1.3,
+    "keystrokes": "cat > /app/integrate.py << 'EOF'\nimport csv, json, re, sqlite3, unicodedata\nfrom datetime import datetime\n\ndq = {\"invalid_emails\": [], \"date_format_issues\": [], \"encoding_issues_fixed\": [], \"corrupt_records_skipped\": []}\nrecords = []  # dicts with source, id, fields\n\ndef norm_date(d, rid):\n    d = (d or \"\").strip()\n    if not d: return d\n    m = re.match(r'^(\\d{1,2})/(\\d{1,2})/(\\d{4})$', d)\n    if m:\n        nd = f\"{m.group(3)}-{int(m.group(1)):02d}-{int(m.group(2)):02d}\"\n        dq[\"date_format_issues\"].append({\"record_id\": rid, \"original_value\": d, \"normalized_to\": nd})\n        return nd\n    return d\n\nCOUNTRY = {\"USA\": \"US\", \"United States\": \"US\", \"U.S.\": \"US\", \"U.S.A.\": \"US\"}\ndef norm_country(c):\n    c = (c or \"\").strip()\n    return COUNTRY.get(c, c)\n\n# --- mainframe ---\nwidths = [8,20,20,40,15,45,30,2,5,3,10]\nfnames = [\"customer_id\",\"first_name\",\"last_name\",\"email\",\"phone\",\"address\",\"city\",\"state\",\"zip\",\"country\",\"signup_date\"]\nfor line in open(\"/app/customers_mainframe.dat\"):\n    line = line.rstrip(\"\\n\")\n    if len(line) != 198:\n        rid = line[:8].strip() or \"UNKNOWN\"\n        dq[\"corrupt_records_skipped\"].append({\"source\": \"mainframe\", \"record_id\": rid, \"reason\": \"wrong line length\"})\n        continue\n    parts, i = [], 0\n    for w in widths:\n        parts.append(line[i:i+w].strip()); i += w\n    rec = dict(zip(fnames, parts))\n    rec[\"country\"] = norm_country(rec[\"country\"])\n    records.append({\"source\": \"mainframe\", \"id\": rec.pop(\"customer_id\"), **rec})\n\n# --- crm ---\ndef fix_enc(s):\n    if s and any(ch in s for ch in \"ÃÂâ\"):\n        try:\n            return s.encode(\"latin-1\").decode(\"utf-8\")\n        except Exception:\n            return s\n    return s\n\nwith open(\"/app/customers_crm.csv\", newline=\"\", encoding=\"utf-8\") as f:\n    rdr = csv.DictReader(f)\n    for row in rdr:\n        rid = row[\"customer_id\"]\n        if row is None or None in row.values():\n            dq[\"corrupt_records_skipped\"].append({\"source\": \"crm\", \"record_id\": rid, \"reason\": \"malformed row\"})\n            continue\n        if not (row.get(\"email\") or \"\").strip() and not (row.get(\"phone\") or \"\").strip():\n            dq[\"corrupt_records_skipped\"].append({\"source\": \"crm\", \"record_id\": rid, \"reason\": \"malformed row: missing required fields\"})\n            continue\n        enc_fields = []\n        rec = {}\n        for k in fnames[1:]:\n            v = (row.get(k) or \"\").strip()\n            nv = fix_enc(v)\n            if nv != v: enc_fields.append(k)\n            rec[k] = nv\n        if enc_fields:\n            dq[\"encoding_issues_fixed\"].append({\"record_id\": rid, \"fields\": enc_fields})\n        rec[\"first_name\"] = re.sub(r'^(Mr|Mrs|Ms|Dr|Prof)\\.\\s+', '', rec[\"first_name\"])\n        rec[\"signup_date\"] = norm_date(rec[\"signup_date\"], rid)\n        rec[\"country\"] = norm_country(rec[\"country\"])\n        records.append({\"source\": \"crm\", \"id\": rid, **rec})\n\n# --- web ---\ndef pick(d, *keys):\n    for k in keys:\n        if k in d and d[k] not in (None, \"\"):\n            return d[k]\n    return \"\"\nfor line in open(\"/app/customers_web.jsonl\"):\n    line = line.strip()\n    if not line: continue\n    try:\n        d = json.loads(line)\n    except Exception:\n        m = re.search(r'\"customer[Ii]d\"\\s*:\\s*\"([^\"]+)\"', line)\n        dq[\"corrupt_records_skipped\"].append({\"source\": \"web\", \"record_id\": m.group(1) if m else \"UNKNOWN\", \"reason\": \"invalid JSON\"})\n        continue\n    name = d.get(\"name\") or {}\n    rec = {\n        \"first_name\": pick(d, \"firstName\", \"first_name\") or pick(name, \"given\", \"first\", \"first_name\"),\n        \"last_name\": pick(d, \"lastName\", \"last_name\") or pick(name, \"surname\", \"last\", \"last_name\"),\n        \"email\": pick(d, \"email\"),\n        \"phone\": pick(d, \"phoneNumber\", \"phone\"),\n        \"address\": pick(d, \"streetAddress\", \"address\"),\n        \"city\": pick(d, \"city\"),\n        \"state\": pick(d, \"state\", \"state_province\"),\n        \"zip\": str(pick(d, \"postalCode\", \"zip\", \"zip_code\")),\n        \"country\": norm_country(pick(d, \"country\")),\n        \"signup_date\": norm_date(pick(d, \"signupDate\", \"signup_date\"), pick(d, \"customerId\", \"customer_id\")),\n    }\n    records.append({\"source\": \"web\", \"id\": pick(d, \"customerId\", \"customer_id\"), **rec})\n\n# --- support ---\ncon = sqlite3.connect(\"/app/customers_support.db\")\nfor row in con.execute(\"SELECT id,first_name,last_name,email,phone,address,city,state,zip,country,signup_date FROM customers\"):\n    rec = dict(zip(fnames, row))\n    rec[\"country\"] = norm_country(rec[\"country\"])\n    records.append({\"source\": \"support\", \"id\": rec.pop(\"customer_id\"), **{k: (v or \"\") for k, v in rec.items()}})\n\n# invalid emails\ndef valid_email(e):\n    return bool(e) and \"@\" in e\nfor r in records:\n    if r[\"email\"] and not valid_email(r[\"email\"]):\n        dq[\"invalid_emails\"].append(r[\"email\"])\n\n# --- dedup: union-find ---\nn = len(records)\nparent = list(range(n))\ndef find(x):\n    while parent[x] != x:\n        parent[x] = parent[parent[x]]; x = parent[x]\n    return x\ndef union(a, b):\n    ra, rb = find(a), find(b)\n    if ra != rb: parent[ra] = rb\n\ndef strip_acc(s):\n    return \"\".join(c for c in unicodedata.normalize(\"NFKD\", s) if not unicodedata.combining(c))\ndef norm_name(r):\n    return (strip_acc(r[\"first_name\"]) + \" \" + strip_acc(r[\"last_name\"])).strip().lower()\ndef addr_key(a):\n    a = strip_acc(a.lower())\n    a = re.sub(r'[^a-z0-9 ]', ' ', a)\n    toks = a.split()\n    if len(toks) >= 2: return toks[0] + \"|\" + toks[1]\n    return \" \".join(toks)\n\nby_email, by_phone, by_na = {}, {}, {}\nfor i, r in enumerate(records):\n    e = r[\"email\"].strip().lower()\n    if valid_email(e):\n        if e in by_email: union(i, by_email[e])\n        else: by_email[e] = i\n    ph = re.sub(r'\\D', '', r[\"phone\"])\n    if ph:\n        if ph in by_phone: union(i, by_phone[ph])\n        else: by_phone[ph] = i\n    nm = norm_name(r)\n    ak = addr_key(r[\"address\"])\n    if nm.strip() and ak:\n        k = (nm, ak)\n        if k in by_na: union(i, by_na[k])\n        else: by_na[k] = i\n\ngroups = {}\nfor i in range(n):\n    groups.setdefault(find(i), []).append(i)\n\nSRC_ORDER = {\"mainframe\": 0, \"crm\": 1, \"web\": 2, \"support\": 3}\ndef dkey(r):\n    try: return datetime.strptime(r[\"signup_date\"], \"%Y-%m-%d\")\n    except Exception: return datetime.min\n\ngroup_list = sorted(groups.values(), key=lambda g: min(g))\nunified, report = [], {}\nfields = [\"first_name\",\"last_name\",\"email\",\"phone\",\"address\",\"city\",\"state\",\"zip\",\"country\",\"signup_date\"]\nfor idx, g in enumerate(group_list, 1):\n    uid = f\"U{idx:04d}\"\n    recs = sorted((records[i] for i in g), key=lambda r: dkey(r), reverse=True)\n    merged = {}\n    for f in fields:\n        merged[f] = next((r[f] for r in recs if r[f]), \"\")\n    srcs = sorted({r[\"source\"] for r in recs}, key=lambda s: SRC_ORDER[s])\n    unified.append({\"unified_id\": uid, **{f: merged[f] for f in fields}, \"source_systems\": \",\".join(srcs)})\n    report[uid] = {\"merged_from\": [records[i][\"id\"] for i in sorted(g, key=lambda i: (SRC_ORDER[records[i][\"source\"]], records[i][\"id\"]))], \"email\": merged[\"email\"]}\n\nwith open(\"/app/customers_unified.csv\", \"w\", newline=\"\") as f:\n    w = csv.DictWriter(f, fieldnames=[\"unified_id\"] + fields + [\"source_systems\"])\n    w.writeheader()\n    w.writerows(unified)\n\nwith open(\"/app/dedup_report.json\", \"w\") as f:\n    json.dump(report, f, indent=2)\n\ndq_out = {k: v for k, v in dq.items() if v}\ndq_out[\"total_issues_found\"] = sum(len(v) for v in dq.values())\nwith open(\"/app/data_quality_report.json\", \"w\") as f:\n    json.dump(dq_out, f, indent=2)\n\nprint(f\"records={len(records)} unified={len(unified)}\")\nprint(json.dumps(dq_out, indent=2))\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 1.3,
+    "keystrokes": "python3 /app/integrate.py\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 2.4,
+    "keystrokes": "cat /app/customers_unified.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 2.4,
+    "keystrokes": "python3 -c \"\nimport json\nr=json.load(open('/app/dedup_report.json'))\nmulti={k:v for k,v in r.items() if len(v['merged_from'])>1}\nprint(len(r),'total;',len(multi),'merged')\nfor k,v in multi.items(): print(k,v)\n\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 2.6,
+    "keystrokes": "python3 -c \"\nimport csv\nrows=list(csv.DictReader(open('/app/customers_unified.csv')))\nprint(len(rows))\nfrom collections import Counter\nc=Counter()\nfor r in rows:\n    for s in r['source_systems'].split(','): c[s]+=1\nprint(c)\nfor r in rows:\n    if r['first_name'] in ('Steven','Theresa','Vincent','Thomas') or 'Jos' in r['first_name'] or 'ran' in r['first_name']:\n        print(r)\n\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 2.7,
+    "keystrokes": "head -12 /app/customers_unified.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 2.7,
+    "keystrokes": "cat /app/data_quality_report.json\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 2.7,
+    "keystrokes": "grep -E 'Ã|Â|â' /app/customers_unified.csv; grep -vE '^U[0-9]{4}' /app/customers_unified.csv | head -3; python3 -c \"\nimport csv,re\nrows=list(csv.DictReader(open('/app/customers_unified.csv')))\nbad=[r for r in rows if not re.match(r'^\\d{4}-\\d{2}-\\d{2}$', r['signup_date'])]\nprint('bad dates:', bad)\nprint('countries:', sorted({r['country'] for r in rows}))\n\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 3.0,
+    "keystrokes": "ls -la /app/customers_unified.csv /app/dedup_report.json /app/data_quality_report.json\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 3.1,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 3.1,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

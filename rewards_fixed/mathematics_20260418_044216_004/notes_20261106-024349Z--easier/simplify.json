@@ -1,0 +1,168 @@
+{
+  "retained_skill": "Implementing the PSLQ integer-relation algorithm with high-precision arithmetic.",
+  "bottleneck": "All 12 scored attempts spent their full time budget repeatedly recreating and debugging imports, normalization, file output, validation, and PSLQ together; each rewrote find_relation.py between 8 and 15 times and none submitted.",
+  "change": "Environment structural help supplies a starter find_relation.py containing imports, coefficient normalization, input/output plumbing, and result validation. The PSLQ function itself remains wholly unimplemented, so the student must still implement the retained algorithm. This removes the repeatedly rewritten wrapper stage (roughly 60 lines and 8-15 whole-file rewrites per attempt) and lets the original simple-case failures directly cue work on PSLQ.",
+  "restore": "Remove the starter file and restore the request to create find_relation.py from scratch; the original full-program mechanics return while the PSLQ requirement remains unchanged.",
+  "prediction": "The starter addresses repeated whole-program rewrites: students can move immediately from a simple PSLQ trial failure to correcting the algorithm rather than rebuilding normalization and output code. A next group with no completed valid relation file despite spending most turns only inside the supplied pslq function would refute this diagnosis.",
+  "expected": "5 of 12",
+  "evidence": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turn": 38,
+      "observation": "The attempt began implementation at turn 4, rewrote find_relation.py 15 times through turn 38, and timed out at turn 39. Replaying its turn-38 submitted file then grading produced reward 0; the task verifier could not validate the required relation. (The captured output was contaminated by the seed test harness selecting an unrelated installed tests directory, so this replay establishes failure but not task-check names.)"
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turn": 40,
+      "observation": "The attempt rewrote find_relation.py 11 times from turn 3 through turn 40 and timed out at turn 47. On a fresh reset, replaying its turn-40 file and running ./sandbox grade passed all four task checks: file existence, six-line integer format, exact hidden relation, and high-precision equation. This shows a near-success lost to the mechanics/time bottleneck and supports predicting some successes after wrapper work is removed. After the rewrite, replaying the same turn-40 approach from a fresh reset passed all five changed checks, including local PSLQ implementation; it now meets the targeted stage and leaves no failed requirement."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turn": 5,
+      "observation": "Its first implementation divided by zero at turn 5, then it rewrote the whole program nine times through turn 35 before timing out."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turn": 4,
+      "observation": "Its first run failed on a nonexistent mp.round API at turn 4; it rewrote the whole program eight times through turn 43 and timed out."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turn": 6,
+      "observation": "Its first implementation imported nonexistent round_int at turn 6; it rewrote the whole program 13 times through turn 42 and timed out."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turn": 5,
+      "observation": "Its first run had a NameError at turn 5; it rewrote the whole program seven times through turn 16 and continued algorithm debugging until timeout."
+    },
+    {
+      "attempt": "attempt-07.jsonl",
+      "turn": 5,
+      "observation": "It began the program at turn 5, rewrote it 11 times through turn 70, and timed out at turn 71."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turn": 7,
+      "observation": "Its first run had a missing mpf import at turn 7; it rewrote the whole program 12 times through turn 47 and timed out."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turn": 5,
+      "observation": "Its first implementation reported no relation at turn 5; it rewrote the whole program ten times through turn 37 and timed out."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turn": 4,
+      "observation": "Its first implementation reported no relation at turn 4; it rewrote the whole program nine times through turn 32 and timed out."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turn": 4,
+      "observation": "Its first run had a NameError at turn 4; it rewrote the whole program 11 times through turn 45 and timed out."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turn": 3,
+      "observation": "Its first run had a missing mpf import at turn 3; it rewrote the whole program 13 times through turn 36 and timed out."
+    }
+  ],
+  "budget": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turns": [
+        4,
+        38
+      ],
+      "stage": "Repeated full-file implementation and wrapper reconstruction; the starter removes wrapper construction."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turns": [
+        3,
+        40
+      ],
+      "stage": "Repeated full-file implementation and wrapper reconstruction; the starter removes wrapper construction."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turns": [
+        4,
+        35
+      ],
+      "stage": "Repeated full-file implementation and wrapper reconstruction; the starter removes wrapper construction."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turns": [
+        3,
+        43
+      ],
+      "stage": "Repeated full-file implementation and wrapper reconstruction; the starter removes wrapper construction."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turns": [
+        4,
+        42
+      ],
+      "stage": "Repeated full-file implementation and wrapper reconstruction; the starter removes wrapper construction."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turns": [
+        4,
+        16
+      ],
+      "stage": "Repeated full-file implementation and wrapper reconstruction; the starter removes wrapper construction."
+    },
+    {
+      "attempt": "attempt-07.jsonl",
+      "turns": [
+        5,
+        70
+      ],
+      "stage": "Repeated full-file implementation and wrapper reconstruction; the starter removes wrapper construction."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turns": [
+        4,
+        47
+      ],
+      "stage": "Repeated full-file implementation and wrapper reconstruction; the starter removes wrapper construction."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turns": [
+        4,
+        37
+      ],
+      "stage": "Repeated full-file implementation and wrapper reconstruction; the starter removes wrapper construction."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turns": [
+        3,
+        32
+      ],
+      "stage": "Repeated full-file implementation and wrapper reconstruction; the starter removes wrapper construction."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turns": [
+        3,
+        45
+      ],
+      "stage": "Repeated full-file implementation and wrapper reconstruction; the starter removes wrapper construction."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turns": [
+        2,
+        36
+      ],
+      "stage": "Repeated full-file implementation and wrapper reconstruction; the starter removes wrapper construction."
+    }
+  ]
+}

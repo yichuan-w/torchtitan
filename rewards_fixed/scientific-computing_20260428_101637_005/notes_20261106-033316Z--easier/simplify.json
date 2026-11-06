@@ -1,0 +1,117 @@
+{
+  "retained_skill": "Separate real absorption dips from an oscillatory varying background, resolve the close doublet, fit Gaussian profiles, and derive finite positive parameter uncertainties.",
+  "bottleneck": "A hidden location requirement made the apparent mid-spectrum 529/536 nm pair a reasonable interpretation of the unlocated close-pair clue, but grading accepts only a resolved doublet in the lowest-wavelength absorption feature. Eleven submissions therefore placed the close pair outside the required region; the twelfth merged the required pair.",
+  "change": "Instruction-level defect repair: identify only the spectral feature containing the close pair. This preserves the original data signal and leaves the student to discover both centers, distinguish the pair from oscillations and other depressions, choose the background model, fit the profiles, and compute uncertainties.",
+  "restore": "Remove the phrase 'in the lowest-wavelength absorption feature' to restore the original ambiguous request after the student can reliably infer the intended feature without it.",
+  "prediction": "Attempts currently commit to the apparent 529/536 nm pair or merge the broad low-wavelength feature. Locating the required pair redirects model comparison and multi-component fitting to that low-wavelength feature; submissions should then report two separated low-wavelength centers plus the retained higher-wavelength peaks. This is refuted if new submissions still report their only close pair in the middle of the spectrum or still merge the lowest feature.",
+  "expected": "6 of 12",
+  "budget": [
+    {
+      "attempt": "attempt-02.jsonl",
+      "turns": [4, 42],
+      "stage": "Locating which depression is the close pair and repeatedly revising the baseline and peak model around competing features; identifying the lowest-wavelength feature removes that location search and redirects the existing fitting work immediately."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turns": [3, 29],
+      "stage": "Exploring candidate minima and repeatedly selecting among plausible close peaks before finalizing four centers; the clarification removes the feature-selection search while retaining doublet resolution and fitting."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turns": [4, 40],
+      "stage": "Inspecting the spectrum and retrying peak choices through the final merged mid-spectrum candidates; naming the relevant feature removes those retries and leaves the Gaussian separation decision intact."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turns": [3, 46],
+      "stage": "Searching for the four real dips and deciding whether the low-wavelength candidates form the required pair; locating the pair eliminates the broad candidate-location stage and focuses the retained fitting work."
+    },
+    {
+      "attempt": "attempt-07.jsonl",
+      "turns": [3, 42],
+      "stage": "Testing candidate close pairs in multiple spectral regions through the late 632 nm pair and deduplication retry; the clarification removes cross-region pair hunting while preserving detection and resolution within the indicated feature."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turns": [3, 47],
+      "stage": "Analyzing minima and iterating fits around the apparent 529/536 nm close pair until the time limit; locating the required feature removes that wrong-region fitting loop."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turns": [4, 36],
+      "stage": "Examining the data and repeatedly revising candidate centers because the close pair's feature was unknown; identifying the feature removes candidate-region selection and leaves center estimation and fitting to the student."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turns": [2, 46],
+      "stage": "Analyzing and fitting competing depressions until committing to the 529/536 nm doublet at the limit; the clarification removes the wrong-feature investigation and directs those turns to resolving the retained low-wavelength doublet."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turns": [3, 47],
+      "stage": "Inspecting candidate minima and repeatedly rewriting fits around the 529/536 nm pair through the final turn; locating the pair removes the repeated region-selection stage without supplying its centers or fit."
+    }
+  ],
+  "evidence": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turn": 16,
+      "observation": "First committed to the 529.38/536.13 nm points as the close pair. Replayed its final script after a fresh reset and ran ./sandbox grade: result 0; all artifact/schema/finiteness/width checks passed, while peak positions and overlapping-peaks-resolved failed because the lowest two centers were 450.02 and 528.78 nm. After the instruction change, replayed this approach from a fresh reset and redirected its two-component fit to the now-identified lowest-wavelength feature; ./sandbox grade passed all nine checks (reward 1.0), demonstrating the repaired cue changes the failing decision while leaving fitting and uncertainty work to the solver."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turn": 0,
+      "observation": "Verifier diagnostics reject the submitted centers because the lowest feature was not the required separated pair. Replayed its final script after a fresh reset and ran ./sandbox grade: result 0; peak positions and overlapping-peaks-resolved failed, while existence, count, structure, finite values, positive widths, and uncertainty magnitude checks passed."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turn": 0,
+      "observation": "Verifier diagnostics: seven checks passed; peak positions and overlapping-peaks-resolved failed because the submitted lowest two centers were not the close pair."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turn": 0,
+      "observation": "Verifier diagnostics: seven checks passed; peak positions and overlapping-peaks-resolved failed at the same close-pair location decision."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turn": 0,
+      "observation": "Verifier diagnostics: seven checks passed; peak positions and overlapping-peaks-resolved failed at the same close-pair location decision."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turn": 0,
+      "observation": "Verifier diagnostics: eight checks passed, including peak positions; overlapping-peaks-resolved alone failed because the two lowest centers were merged rather than separately resolved."
+    },
+    {
+      "attempt": "attempt-07.jsonl",
+      "turn": 0,
+      "observation": "Verifier diagnostics: seven checks passed; peak positions and overlapping-peaks-resolved failed at the close-pair location decision."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turn": 8,
+      "observation": "Recognized the 529-538 nm depression as the likely close pair; final diagnostics show seven checks passed and both low-feature close-pair checks failed."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turn": 6,
+      "observation": "Focused on the deepest 530-538 nm points as the closely spaced peaks; final diagnostics show seven checks passed and both low-feature close-pair checks failed."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turn": 7,
+      "observation": "Identified minima around 530 and 536 nm before fitting; final diagnostics show seven checks passed and both low-feature close-pair checks failed."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turn": 0,
+      "observation": "Verifier diagnostics: seven checks passed; peak positions and overlapping-peaks-resolved failed at the close-pair location decision."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turn": 34,
+      "observation": "Explicitly chose 529.4/536.1 nm as the close pair; final diagnostics show seven checks passed and both checks requiring a low-wavelength doublet failed."
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+[
+  {
+    "defect": "The default python3 selected by PATH cannot import pandas even though the task says the pandas-based script is ready to debug.",
+    "evidence": "environment/Dockerfile installs pandas for the system interpreter but puts /usr/local/bin before /usr/bin; every trace attempt-01.jsonl through attempt-12.jsonl records ModuleNotFoundError on its first plain-python3 run (turns 3-5).",
+    "change": "Put /usr/bin before /usr/local/bin in PATH so plain python3 uses the interpreter with pandas installed.",
+    "kind": "broken_setup"
+  },
+  {
+    "defect": "The public instruction names avg_order_value but does not define whether it averages unit price or transaction revenue, while grading accepts only average transaction revenue.",
+    "evidence": "instruction.md leaves the metric undefined, tests/test_outputs.py expects total_revenue divided by transaction_count, and all 12 attempts compute mean unit price; replayed attempt-01.jsonl fails only the value checks for that mismatch.",
+    "change": "Define an order's value as that transaction's price times quantity and require avg_order_value to average those order values.",
+    "kind": "hidden_requirement"
+  }
+]

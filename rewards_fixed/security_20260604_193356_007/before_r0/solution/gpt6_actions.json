@@ -1,0 +1,128 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "cat /app/leaked_hashes.txt\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "head -50 /app/wordlist.txt; wc -l /app/wordlist.txt\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.2,
+    "keystrokes": "john --wordlist=/app/wordlist.txt --rules /app/leaked_hashes.txt\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.2,
+    "keystrokes": "",
+    "duration": 30.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 30.3,
+    "keystrokes": "john --wordlist=/app/wordlist.txt --rules --format=crypt /app/leaked_hashes.txt\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 30.3,
+    "keystrokes": "",
+    "duration": 30.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 60.4,
+    "keystrokes": "john --wordlist=/app/wordlist.txt --rules=All --format=md5crypt /app/leaked_hashes.txt\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 60.4,
+    "keystrokes": "",
+    "duration": 60.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 120.5,
+    "keystrokes": "john --wordlist=/app/wordlist.txt --rules=Extra --format=md5crypt /app/leaked_hashes.txt\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 120.5,
+    "keystrokes": "",
+    "duration": 60.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 180.6,
+    "keystrokes": "cat > /app/gen.py <<'EOF'\nimport itertools, sys\nwords = [w.strip() for w in open('/app/wordlist.txt') if w.strip()]\nleet = {'a':['4','@'], 'e':['3'], 'i':['1','!'], 'o':['0'], 's':['5','$'], 't':['7'], 'l':['1'], 'g':['9'], 'b':['8']}\nsuffixes = ['', '0','1','2','3','4','5','6','7','8','9','!','@','#','$','%','&','*','?','.',\n            '!!','123','12','11','01','00','10','99','69','42','13','007','1!','!1','321','111','000','1234','2024','2023']\nout = set()\nfor w in words:\n    base = {w, w.lower(), w.upper(), w.capitalize()}\n    chars = w.lower()\n    positions = [(i, c) for i, c in enumerate(chars) if c in leet]\n    variants = {chars}\n    for k in range(1, len(positions)+1):\n        for combo in itertools.combinations(positions, k):\n            opts = [leet[c] for _, c in combo]\n            for choice in itertools.product(*opts):\n                s = list(chars)\n                for (i, c), rep in zip(combo, choice):\n                    s[i] = rep\n                variants.add(''.join(s))\n    for v in variants:\n        base.update({v, v.capitalize(), v.upper()})\n    for b in base:\n        for suf in suffixes:\n            out.add(b + suf)\nsys.stdout.write('\\n'.join(out) + '\\n')\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 180.6,
+    "keystrokes": "python3 /app/gen.py | wc -l\n",
+    "duration": 10.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 180.6,
+    "keystrokes": "python3 /app/gen.py | john --stdin --format=md5crypt /app/leaked_hashes.txt\n",
+    "duration": 60.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 250.7,
+    "keystrokes": "john --show --format=crypt /app/leaked_hashes.txt\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 250.7,
+    "keystrokes": "john --show --format=crypt /app/leaked_hashes.txt | grep -v '^$' | grep ':' | sed '/password hashes/d' > /app/cracked_passwords.txt\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 250.7,
+    "keystrokes": "cat /app/cracked_passwords.txt\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 251.0,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 251.0,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

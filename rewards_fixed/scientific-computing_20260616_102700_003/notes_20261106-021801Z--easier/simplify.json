@@ -1,0 +1,70 @@
+{
+  "retained_skill": "Standardize a mixed chemical library, calculate molecular properties, apply Lipinski filtering, deduplicate standardized structures, and produce an SDF with usable 3D conformers.",
+  "bottleneck": "The dominant obstacle is a broken verifier setup: all eight semantic checks call a helper that imports RDKit under /opt/verifier/bin/python, then tries that interpreter's nonexistent pip. Thus no submitted chemistry can pass. Attempts also spent early turns discovering and installing RDKit for their own scripts, but the scored failure is independent of their deliverables.",
+  "change": "Repair in the environment: install a pinned RDKit build into the verifier interpreter during image construction and remove the verifier's ineffective runtime installation attempts. This preserves every chemistry requirement and gives no help with the retained skill; it only lets existing checks inspect submissions.",
+  "restore": "No task difficulty is removed and no later restoration is needed. A later revision could only revert this after replacing it with another reliable way for the verifier interpreter to import RDKit.",
+  "prediction": "Attempts that produce chemically valid SDFs will now reach all semantic checks instead of eight setup exceptions. This is refuted if a fresh replay still reports an RDKit import/setup failure, or if repaired grading shows that none of the submitted states satisfy the retained chemistry checks.",
+  "expected": "2 of 12",
+  "evidence": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turn": 3,
+      "observation": "First wrong turn: python3 could not import RDKit; the attempt spent turns 3-18 finding another interpreter and ultimately hit the time limit without submitting."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turn": 10,
+      "observation": "First wrong turn: default python3 lacked RDKit. Replayed the full submitted command stream after ./sandbox reset, then ran ./sandbox grade: output-file existence passed, while all eight semantic checks failed before inspecting chemistry because /opt/verifier/bin/python had neither rdkit nor pip. After the repair, replaying it from a fresh reset reaches all checks and passes 8 of 9; only property-value consistency fails (five HBA tags differ), so the repaired verifier now exposes the attempt's actual chemistry error."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turn": 3,
+      "observation": "First wrong turn: default Python lacked RDKit; repeated environment/tool exploration contributed to a time-limit ending before submission."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turn": 3,
+      "observation": "First wrong turn: the attempt encountered the missing RDKit/tooling path and later exhausted the time budget without submission."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turn": 10,
+      "observation": "First wrong turn: default Python could not import RDKit. Replayed the full submitted command stream after ./sandbox reset and graded it: file existence passed, but valid-SDF, Lipinski, tags, values, deduplication, standardization, filtering, and 3D checks all failed at the verifier's missing-rdkit/missing-pip setup step. After the repair, its replay no longer encounters the verifier setup failure, but its command stream does not complete successfully in the rebuilt environment, so it is not counted as a predicted solve."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turn": 3,
+      "observation": "First wrong turn: default Python lacked RDKit, forcing interpreter/package investigation before the chemistry workflow."
+    },
+    {
+      "attempt": "attempt-07.jsonl",
+      "turn": 3,
+      "observation": "First wrong turn: the expected chemistry dependency was unavailable to default Python; the submitted artifact was never semantically graded because the verifier had the same unresolved dependency."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turn": 3,
+      "observation": "First wrong turn: RDKit import failed in default Python, causing setup detours; verifier setup would reject any resulting artifact before semantic checks."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turn": 3,
+      "observation": "First wrong turn: default Python's RDKit import failed and the attempt had to locate/install tooling before implementing its workflow."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turn": 3,
+      "observation": "First wrong turn: RDKit was missing from default Python; regardless of the submitted output, semantic grading could not start under the verifier interpreter."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turn": 3,
+      "observation": "First wrong turn: default Python lacked RDKit and required setup work; the verifier independently lacked the dependency needed to inspect the submission."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turn": 6,
+      "observation": "First wrong turn: default Python could not import RDKit. The attempt later submitted 27 molecules after extensive conformer retries, but the common verifier setup defect prevented semantic grading."
+    }
+  ]
+}

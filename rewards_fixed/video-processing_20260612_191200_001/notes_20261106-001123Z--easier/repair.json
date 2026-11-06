@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The grader excludes every fade/dissolve frame from adjacent shot ranges, but the public instruction never said transition frames should be omitted; assigning those frames to a neighboring shot was a reasonable interpretation.",
+    "evidence": "instruction.md defines fade/dissolve only as a gradual blend, while tests/test_outputs.py identifies EXAMPLE_FADE_FRAMES as unassigned. attempt-08.jsonl turn 5 detects six shots but places boundaries within the blends; replay grading passes 13 of 14 checks and fails only shot-boundary placement.",
+    "change": "State publicly that fade/dissolve frames belong to neither adjacent shot and that ranges stop before and resume after the blend.",
+    "kind": "hidden_requirement"
+  }
+]

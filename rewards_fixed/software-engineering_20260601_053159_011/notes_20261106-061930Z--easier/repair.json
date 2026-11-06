@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The checker silently required batch PUT and successful DEL to emit no status lines, although the instruction did not prescribe silence and the interactive interface already used OK statuses.",
+    "evidence": "attempt-11.jsonl turn 16 rewrote the command loop with valid OK statuses; replaying its complete state passed 12 checks including maximum-length memory safety and failed only tests/test_outputs.py's fixed-position COUNT assertion.",
+    "change": "State that successful batch mutations may be silent or report status, and check the numeric COUNT results while tolerating those permitted status lines.",
+    "kind": "hidden_requirement"
+  }
+]

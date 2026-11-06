@@ -1,0 +1,70 @@
+{
+  "retained_skill": "Diagnose and replace the original script's repeated linear CSV joins with an efficient lookup or vectorized join so the same revenue summary runs substantially faster.",
+  "bottleneck": "The dominant cause is a hidden business rule, not optimization mechanics: all 12 scored attempts created a fast replacement but omitted the completed-order filter because the instruction never defined which orders count as revenue. Six also retained catalog list_price because the instruction never defined the revenue price. Replays of attempts 04 and 01 passed every structural and performance check and failed only output correctness.",
+  "change": "Repair in instruction text: define revenue as completed sales valued at each order's transaction price, while keeping the existing layout and requiring the already-graded 3x speedup. This is vague-level goal guidance and contract clarification, not a command recipe. It leaves the retained optimization decision and implementation entirely to the student; the original signal remains the slow repeated joins in analysis.py.",
+  "restore": "Remove the standalone sentences defining eligible revenue and transaction pricing to restore the original ambiguity; the optimization requirement and all artifacts remain unchanged.",
+  "prediction": "The change addresses the failing action of aggregating every order (and often list_price). It enables students to filter eligible rows and select the transactional field before applying their already-successful optimization. Seeing output totals based only on completed orders would support the prediction; continued omission of the status filter despite the explicit contract, or 12 of 12 successes, would refute the predicted learnable-band calibration.",
+  "expected": "8 of 12",
+  "evidence": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turn": 8,
+      "observation": "First wrong at solution creation: uses product list_price and has no status filter. Replayed its submitted file with ./sandbox exec and ./sandbox grade; all six existence/run/schema/performance/nonempty checks passed, while output correctness failed at row 0 (138694.68 vs 112299.63)."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turn": 9,
+      "observation": "First wrong at solution creation: aggregates all orders with product list_price and never inspects status."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turn": 9,
+      "observation": "First wrong at solution creation: aggregates all orders with product list_price and no status condition."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turn": 7,
+      "observation": "First wrong at solution creation: correctly selects order unit_price but aggregates refunded and cancelled rows. Replayed with ./sandbox exec and ./sandbox grade; all six non-correctness checks passed, while output correctness alone failed at row 0 (137837.56 vs 112299.63). After the rewrite, a fresh ./sandbox reset replayed the same approach with the newly stated completed-sales rule applied; ./sandbox grade passed all 7 checks with a 21.9x speedup, so it now reaches a valid submission."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turn": 8,
+      "observation": "First wrong at solution creation: selects unit_price but does not filter order status."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turn": 9,
+      "observation": "First wrong at solution creation: aggregates every status using product list_price."
+    },
+    {
+      "attempt": "attempt-07.jsonl",
+      "turn": 7,
+      "observation": "First wrong at solution creation: aggregates every status using product list_price."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turn": 5,
+      "observation": "First wrong at solution creation: selects unit_price but never filters completed orders."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turn": 9,
+      "observation": "First wrong at solution creation: aggregates every status using product list_price."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turn": 8,
+      "observation": "First wrong at solution creation: selects unit_price but omits the status filter."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turn": 6,
+      "observation": "First wrong at solution creation: selects unit_price but aggregates refunded and cancelled orders."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turn": 6,
+      "observation": "First wrong at solution creation: selects unit_price but has no status condition."
+    }
+  ]
+}

@@ -1,0 +1,86 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "cat /app/pipeline.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "head -20 /app/data/sales.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.2,
+    "keystrokes": "cat > /app/pipeline.py << 'EOF'\n#!/usr/bin/env python3\n\"\"\"\nSales Analytics Pipeline\nProcesses sales data and generates monthly revenue totals by category.\n\"\"\"\n\nimport os\nimport sys\n\ntry:\n    import pandas as pd\nexcept ModuleNotFoundError:\n    os.execv('/opt/venv/bin/python3', ['/opt/venv/bin/python3', __file__])\n\ndef load_data(filepath):\n    \"\"\"Load sales data from CSV.\"\"\"\n    return pd.read_csv(filepath, encoding='utf-16')\n\ndef process_data(df):\n    \"\"\"Process sales data and calculate monthly revenue by category.\"\"\"\n\n    # Clean category names (remove zero-width and other invisible chars, strip)\n    df['category'] = (df['category'].astype(str)\n                      .str.replace(r'[​‌‍﻿]', '', regex=True)\n                      .str.strip())\n\n    # Clean revenue: remove currency symbols and coerce to numeric\n    df['revenue'] = pd.to_numeric(\n        df['revenue'].astype(str).str.replace(r'[$,]', '', regex=True).str.strip(),\n        errors='coerce'\n    )\n\n    # Clean discount similarly; missing discount means 0\n    df['discount'] = pd.to_numeric(\n        df['discount'].astype(str).str.replace(r'[$,]', '', regex=True).str.strip(),\n        errors='coerce'\n    ).fillna(0)\n\n    # Parse dates, coercing invalid entries to NaT, then drop them\n    df['date'] = pd.to_datetime(df['date'], errors='coerce')\n    df = df.dropna(subset=['date', 'revenue'])\n\n    # Extract month\n    df['month'] = df['date'].dt.strftime('%Y-%m')\n\n    # Calculate net revenue (revenue minus discount)\n    df['net_revenue'] = df['revenue'] - df['discount']\n\n    # Group by month and category, sum revenue\n    result = df.groupby(['month', 'category'])['net_revenue'].sum().reset_index()\n    result.columns = ['month', 'category', 'total_revenue']\n\n    # Sort by month and category\n    result = result.sort_values(['month', 'category']).reset_index(drop=True)\n\n    return result\n\ndef main():\n    df = load_data('/app/data/sales.csv')\n    result = process_data(df)\n    os.makedirs('/app/output', exist_ok=True)\n    result.to_csv('/app/output/monthly_revenue.csv', index=False)\n    print(\"Pipeline completed. Output written to /app/output/monthly_revenue.csv\")\n\nif __name__ == '__main__':\n    main()\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.2,
+    "keystrokes": "python3 /app/pipeline.py\n",
+    "duration": 5.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.2,
+    "keystrokes": "cat /app/output/monthly_revenue.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 5.4,
+    "keystrokes": "grep -n \"ORD-1016\" /app/data/sales.csv | cat -A | head -3\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 5.4,
+    "keystrokes": "wc -l /app/data/sales.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 5.4,
+    "keystrokes": "python3 -c \"\nimport pandas as pd\ndf = pd.read_csv('/app/data/sales.csv', encoding='utf-16')\nprint(df.shape)\nprint(df[df['order_id'].isin(['ORD-1016','ORD-1017'])])\n\"\n",
+    "duration": 5.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 10.6,
+    "keystrokes": "python3 -c \"\nimport pandas as pd, re\ndf = pd.read_csv('/app/data/sales.csv', encoding='utf-16')\ndf['category'] = df['category'].astype(str).str.replace(r'[​‌‍﻿]','',regex=True).str.strip()\ndf['revenue'] = pd.to_numeric(df['revenue'].astype(str).str.replace(r'[$,]','',regex=True), errors='coerce')\ndf['discount'] = pd.to_numeric(df['discount'].astype(str).str.replace(r'[$,]','',regex=True), errors='coerce').fillna(0)\ndf['date'] = pd.to_datetime(df['date'], errors='coerce')\ndf = df.dropna(subset=['date','revenue'])\ndf['month'] = df['date'].dt.strftime('%Y-%m')\nchk = df.groupby(['month','category']).apply(lambda g:(g['revenue']-g['discount']).sum())\nout = pd.read_csv('/app/output/monthly_revenue.csv')\nprint(out.set_index(['month','category'])['total_revenue'].equals(chk.rename('total_revenue')))\nprint('rows used:', len(df), 'of 200')\n\"\n",
+    "duration": 5.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 15.6,
+    "keystrokes": "head -4 /app/output/monthly_revenue.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 15.7,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 15.7,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

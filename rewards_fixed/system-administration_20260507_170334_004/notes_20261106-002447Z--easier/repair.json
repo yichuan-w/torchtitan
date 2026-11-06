@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The seed reference replay could leave backend1 in FATAL after exercising stop/start because the backend server initially disallowed immediate address reuse, and its final recovery command restarted only backend2.",
+    "evidence": "solution/gpt6_actions.json final recovery action and ./sandbox check recorded-timing replay: backend1 remained FATAL with OSError [Errno 98] Address already in use, causing supervisord, all-backends, and backend1-health checks to fail.",
+    "change": "After the reference enables TCPServer address reuse, its existing final recovery action now starts both backend1 and backend2. No student-facing setup, requirement, or verifier behavior changed.",
+    "kind": "other"
+  }
+]

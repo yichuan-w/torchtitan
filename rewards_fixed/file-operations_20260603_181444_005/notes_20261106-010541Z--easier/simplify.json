@@ -1,0 +1,120 @@
+{
+  "retained_skill": "Infer data.db's original SQLite page size from the production file's own binary page layout, patch that header field correctly, and use the repaired database to produce a complete re-importable SQL dump.",
+  "bottleneck": "Ten of twelve attempts initially treated reference.db's 1024-byte page size as data.db's missing value; the resulting malformed-schema error sent them into lengthy manual record parsing. Seven attempts exhausted the time budget during that recovery detour. Two semantically complete dumps also failed because they repaired a copy while leaving /app/data.db corrupted, an exact-path requirement not stated clearly enough.",
+  "change": "Environment structural help removes two unrelated corruptions by shipping the magic string and file-format version bytes intact, leaving only the page-size field damaged. A separate vague instruction sentence directs attention to inferring that missing parameter from data.db's own page layout without stating its value or the method. The instruction also explicitly requires /app/data.db itself to open after repair, repairing the hidden exact-path requirement. This reduces the initial header diagnosis from three damaged fields to one and eliminates the multi-field trial-and-error stage while retaining the page-size inference and binary repair decision.",
+  "restore": "Re-corrupt the magic string and file-format version bytes and remove the standalone page-layout direction sentence; after measurement, the exact /app/data.db requirement remains because it repairs an unfair hidden requirement rather than simplification help.",
+  "prediction": "Agents currently choose 1024 from reference.db, receive malformed-schema errors, and pivot to manual extraction. With only page size missing and an explicit direction to use data.db's page layout, some will inspect 4096-aligned page headers, patch the correct field, open the database, and dump it directly. This is refuted if attempts still predominantly set 1024 or enter manual record parsing despite the narrowed corruption.",
+  "expected": "5 of 12",
+  "evidence": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turn": 6,
+      "observation": "First wrong decision: declares data.db's page size should be reference.db's 1024; turns 10-53 then retry header copying, .recover, and manual parsing until the time limit."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turn": 6,
+      "observation": "Treats reference.db's 1024-byte field as data.db's correction, then spends the remainder manually decoding records; submitted dump is incomplete/incorrect."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turn": 6,
+      "observation": "States the zeroed page size should be 1024, leading to manual extraction and a submitted reconstructed dump rather than a valid header repair."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turn": 20,
+      "observation": "Eventually infers 4096 and creates repaired.db. Replayed all recorded commands after ./sandbox reset, then ./sandbox grade: recovered.sql existence, clean import, users, products, and orders all passed; only data.db header repair failed because /app/data.db remained unchanged. Changed-task replay after ./sandbox reset inspected candidate boundaries (1024/2048 were zero; 4096/8192 began table-leaf pages), patched only bytes 16-17 on /app/data.db, obtained integrity_check=ok, dumped and re-imported 5 users/6 products/10 orders, and ./sandbox grade passed all checks."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turn": 6,
+      "observation": "Assumes 1024 from reference.db and spends turns 7-61 scanning and manually parsing the production file until the time limit."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turn": 4,
+      "observation": "Adopts 1024 based on the sister database, then reconstructs output manually; submitted state fails correctness."
+    },
+    {
+      "attempt": "attempt-07.jsonl",
+      "turn": 8,
+      "observation": "Copies the sister header's 1024 page size and later manually rebuilds recovered.sql rather than opening data.db."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turn": 19,
+      "observation": "Finds 4096 from page alignment and repairs data_repaired.db. Replayed all recorded commands after ./sandbox reset, then ./sandbox grade: all five dump semantic checks passed; only the /app/data.db header check failed because the original remained corrupted."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turn": 10,
+      "observation": "Identifies the missing page-size field but initially follows reference.db's 1024 value, then spends turns through 59 manually reconstructing data."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turn": 6,
+      "observation": "Declares 1024 the correct production page size and remains in custom parsers through turn 61, hitting the time budget."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turn": 9,
+      "observation": "Sets 1024 after comparing reference.db and spends turns 10-44 attempting low-level record parsing until the time limit."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turn": 5,
+      "observation": "Anchors on reference.db's 1024 page size and then manually reconstructs tables through turn 47; the attempt times out without a verified correct submission."
+    }
+  ],
+  "budget": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turns": [
+        6,
+        53
+      ],
+      "stage": "Wrong 1024-byte repair followed by repeated header trials and manual extraction; narrowing corruption to page size and directing layout inspection removes the unrelated header diagnosis and avoids this detour when the retained inference is made."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turns": [
+        6,
+        40
+      ],
+      "stage": "Wrong sister-page-size repair followed by manual record decoding; the narrowed single-field corruption removes multi-field experiments and focuses the retained decision."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turns": [
+        6,
+        61
+      ],
+      "stage": "Wrong 1024-byte repair followed by whole-file scans and custom parsing; pre-repairing unrelated fields removes that diagnostic work and makes page alignment the sole remaining cause."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turns": [
+        6,
+        61
+      ],
+      "stage": "Wrong page-size assumption followed by many custom extraction scripts; the changed starting state removes unrelated header work and exposes one field to infer."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turns": [
+        9,
+        44
+      ],
+      "stage": "Wrong 1024-byte page-size patch followed by repeated low-level parsers; only the page-size field now needs diagnosis and repair."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turns": [
+        5,
+        47
+      ],
+      "stage": "Anchoring on the sister page size led to manual reconstruction; the single damaged field plus layout direction removes preliminary header repair work and focuses the original malformed-database signal."
+    }
+  ]
+}

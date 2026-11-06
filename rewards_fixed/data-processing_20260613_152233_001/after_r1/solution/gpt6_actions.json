@@ -1,0 +1,121 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "ls -la /app /app/sales_data\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "cat /app/pipeline.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.2,
+    "keystrokes": "cat /app/sales_data/daily_sales.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.2,
+    "keystrokes": "cat /app/products.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.2,
+    "keystrokes": "cat /app/stores.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.5,
+    "keystrokes": "python3 - <<'EOF'\nimport re\nsrc = open('/app/pipeline.py').read()\n\n# 1. Dates are DD/MM/YYYY\nsrc = src.replace(\"df['date'] = pd.to_datetime(df['date'])\",\n                  \"df['date'] = pd.to_datetime(df['date'], dayfirst=True)\")\n\n# 2. Keep the LATEST correction row\nsrc = src.replace(\"keep='first'\", \"keep='last'\")\n\n# 3. Do not drop legitimate high-price transactions\nsrc = src.replace(\"    df = df[df['unit_price_sale'] <= 80.0]\\n\", \"\")\n\n# 4. Revenue must use the actual sale price, not catalog list price\nsrc = src.replace(\"df['revenue'] = df['quantity'] * df['unit_price_list']\",\n                  \"df['revenue'] = df['quantity'] * df['unit_price_sale']\")\n\n# 5. Report must sum revenue, not average it\nsrc = src.replace(\"aggfunc='mean'\", \"aggfunc='sum'\")\n\nopen('/app/pipeline.py','w').write(src)\nprint(\"edits applied\")\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.5,
+    "keystrokes": "grep -n \"dayfirst\\|keep=\\|aggfunc\\|unit_price_sale\\|unit_price_list\\|80.0\" /app/pipeline.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 0.7,
+    "keystrokes": "cd /app && python3 pipeline.py\n",
+    "duration": 5.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 5.7,
+    "keystrokes": "cat /app/daily_revenue_report.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 5.7,
+    "keystrokes": "python3 - <<'EOF'\nimport csv\nfrom datetime import datetime\nfrom collections import defaultdict\n\n# Independent computation\nprod_cat = {}\nwith open('/app/products.csv') as f:\n    for r in csv.DictReader(f):\n        prod_cat[r['product_id']] = r['category']\n\nstore_info = {}\nwith open('/app/stores.csv') as f:\n    for r in csv.DictReader(f):\n        store_info[r['store_id']] = (r['store_name'], r['region'])\n\nrows = []\nwith open('/app/sales_data/daily_sales.csv') as f:\n    for r in csv.DictReader(f):\n        rows.append(r)\n\n# keep LAST occurrence per (store, date, product)\nlatest = {}\nfor r in rows:\n    key = (r['store_id'], r['date'], r['product_id'])\n    latest[key] = r\n\nagg = defaultdict(float)\ncats = set()\nfor (sid, dstr, pid), r in latest.items():\n    dt = datetime.strptime(dstr, '%d/%m/%Y')\n    q = float(r['quantity']); p = float(r['unit_price'])\n    cat = prod_cat[pid]\n    cats.add(cat)\n    store_key = ('S00' + sid, dt.strftime('%Y-%m-%d'))\n    agg[(store_key, cat)] += q * p\n\n# expected table\nexpected = {}\nfor (skey, cat), v in agg.items():\n    expected.setdefault(skey, {})[cat] = round(v, 2)\n\n# read report\nreport = {}\nwith open('/app/daily_revenue_report.csv') as f:\n    rdr = csv.DictReader(f)\n    catcols = [c for c in rdr.fieldnames if c not in ('store_id','store_name','region','date')]\n    for r in rdr:\n        key = (r['store_id'], r['date'])\n        report[key] = {c: round(float(r[c]), 2) for c in catcols}\n\nprint(\"report categories:\", catcols)\nprint(\"expected categories:\", sorted(cats))\n\nmismatch = 0\nallkeys = set(expected) | set(report)\nif set(expected) != set(report):\n    print(\"KEY MISMATCH: only-expected:\", set(expected)-set(report), \" only-report:\", set(report)-set(expected))\nfor key in sorted(allkeys):\n    e = expected.get(key, {})\n    r = report.get(key, {})\n    for c in sorted(cats):\n        ev = e.get(c, 0.0)\n        rv = r.get(c, 0.0)\n        if abs(ev - rv) > 0.005:\n            print(f\"MISMATCH {key} {c}: expected {ev}, report {rv}\")\n            mismatch += 1\nprint(\"total mismatches:\", mismatch)\nprint(\"expected rows:\", len(expected), \"report rows:\", len(report))\nEOF\n",
+    "duration": 3.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 8.8,
+    "keystrokes": "python3 - <<'EOF'\nsrc = open('/app/pipeline.py').read()\nsrc = src.replace(\n    \"    summary = summary.reset_index()\",\n    \"    summary = summary.round(2)\\n    summary = summary.reset_index()\"\n)\nopen('/app/pipeline.py','w').write(src)\nprint(\"rounding added\")\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 8.8,
+    "keystrokes": "cd /app && python3 pipeline.py\n",
+    "duration": 5.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 13.9,
+    "keystrokes": "head -5 /app/daily_revenue_report.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 13.9,
+    "keystrokes": "python3 - <<'EOF'\nimport csv\nfrom datetime import datetime\nfrom collections import defaultdict\n\nprod_cat = {}\nwith open('/app/products.csv') as f:\n    for r in csv.DictReader(f):\n        prod_cat[r['product_id']] = r['category']\n\nlatest = {}\nwith open('/app/sales_data/daily_sales.csv') as f:\n    for r in csv.DictReader(f):\n        latest[(r['store_id'], r['date'], r['product_id'])] = r\n\nagg = defaultdict(float)\nfor (sid, dstr, pid), r in latest.items():\n    dt = datetime.strptime(dstr, '%d/%m/%Y')\n    agg[(('S00' + sid), dt.strftime('%Y-%m-%d'), prod_cat[pid])] += float(r['quantity']) * float(r['unit_price'])\n\nexpected = defaultdict(dict)\nfor (s, d, c), v in agg.items():\n    expected[(s, d)][c] = round(v, 2)\n\nmismatch = 0\nrows = 0\nwith open('/app/daily_revenue_report.csv') as f:\n    rdr = csv.DictReader(f)\n    catcols = [c for c in rdr.fieldnames if c not in ('store_id','store_name','region','date')]\n    for r in rdr:\n        rows += 1\n        key = (r['store_id'], r['date'])\n        for c in catcols:\n            ev = expected.get(key, {}).get(c, 0.0)\n            rv = float(r[c])\n            if abs(ev - rv) > 1e-9:\n                print(f\"MISMATCH {key} {c}: expected {ev} got {rv}\")\n                mismatch += 1\nprint(f\"checked {rows} rows, mismatches: {mismatch}\")\nEOF\n",
+    "duration": 3.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 17.0,
+    "keystrokes": "echo done\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 17.1,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 17.1,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

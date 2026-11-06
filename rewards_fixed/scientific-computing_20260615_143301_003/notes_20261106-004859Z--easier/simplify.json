@@ -1,0 +1,70 @@
+{
+  "retained_skill": "Use RDKit to repair chemically invalid structures, standardize each salvageable molecule to a neutral canonical tautomer, calculate the requested descriptors, and apply Lipinski and PAINS filtering correctly.",
+  "bottleneck": "Mechanics around the task: although the image installs RDKit, the default python3 is the verifier virtual environment and cannot import it. All 12 scored attempts first spent turns trying unavailable pip commands, conflicting package installs, or alternate interpreters before doing the chemistry; the two strongest reconstructed submissions then failed only canonical tautomer standardization.",
+  "change": "Repair the broken setup in the environment by putting /usr/bin before the verifier virtual environment on PATH, so the ordinary python3 command reaches the image-installed RDKit. This is structural help around the retained skill and removes package/interpreter troubleshooting; it does not supply any molecular correction, standardization decision, descriptor, filter result, or output row. The original signal the student can now reach directly is RDKit's parse and standardization behavior on library.tsv.",
+  "restore": "A later harder version can remove the PATH override, returning interpreter discovery and package setup to the student without changing the chemistry task.",
+  "prediction": "The change addresses the repeated first action of attempting to install or locate RDKit after python3 cannot import it. With python3 able to import RDKit immediately, students can next inspect parse failures and test canonical tautomerization instead of spending early turns on pip and interpreter conflicts. This prediction is refuted if the next 12 attempts still spend their opening work on making RDKit importable, or if none reach molecular standardization sooner.",
+  "expected": "4 of 12",
+  "evidence": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turn": 2,
+      "observation": "First wrong turn: pip is unavailable; later package-install and interpreter work continues through turn 15. This sole time-limit attempt still eventually wrote 31 rows, showing setup consumed work before chemistry."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turn": 5,
+      "observation": "First wrong turn: pip is unavailable; later installation conflicts and python3 still cannot import RDKit at turn 14."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turn": 3,
+      "observation": "First wrong turn: default python3 raises ModuleNotFoundError for rdkit, followed by unavailable pip commands."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turn": 3,
+      "observation": "First wrong turn: pip is unavailable; default python3 later cannot import RDKit at turn 7."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turn": 3,
+      "observation": "First wrong turn: pip is unavailable; repeated default-interpreter RDKit import failures follow at turns 6, 8, and 9."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turn": 4,
+      "observation": "First wrong turn: pip is unavailable; default python3 later cannot import RDKit at turn 8."
+    },
+    {
+      "attempt": "attempt-07.jsonl",
+      "turn": 3,
+      "observation": "First wrong turn: pip is unavailable; RDKit import and package-conflict troubleshooting follows."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turn": 4,
+      "observation": "First wrong turn: pip is unavailable; default python3 later cannot import RDKit at turn 7."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turn": 3,
+      "observation": "First wrong turn: pip is unavailable; default python3 later cannot import RDKit at turn 6."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turn": 1,
+      "observation": "First wrong turn: pip is unavailable immediately; default python3 cannot import RDKit at turn 4."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turn": 3,
+      "observation": "First wrong turn: pip is unavailable. Replayed all recorded commands on a fresh seed container and graded: 17 checks passed; the only failure was canonical tautomer standardization because M019 and M020 differed. After the PATH repair, replayed the same approach from a fresh reset: plain python3 imported RDKit and the attempt reached output generation without interpreter setup being necessary; grading still had 17 passes and only the retained canonical-tautomer failure."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turn": 3,
+      "observation": "First wrong turn: pip is unavailable. Replayed all recorded commands on a fresh seed container and graded: 17 checks passed; the only failure was canonical tautomer standardization because M019 and M020 differed."
+    }
+  ]
+}

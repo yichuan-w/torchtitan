@@ -1,0 +1,70 @@
+{
+  "retained_skill": "Diagnose the report's transaction-grouping bug by determining the source data's date convention and correcting the parser.",
+  "bottleneck": "All 12 scored attempts first go wrong when inspecting sales.csv at turn 3: every date has both leading fields at most 12, so every attempt assumes month-first dates and never repairs the parser, while the required report uses day-first dates.",
+  "change": "Repair the hidden date-convention requirement in the original input signal: change one transaction's day to 13 while retaining its intended month, amount, and all report aggregates. This makes the source data itself distinguish day-first from month-first without supplying the parser edit or computed report.",
+  "restore": "Restore the original ambiguous day value in sales.csv; no instruction, program, solution, or verifier behavior needs restoration.",
+  "prediction": "The change addresses the turn-3 action of declaring the data month-first merely because the existing parser accepts it. A student who inspects the source can now reject that interpretation, test or repair the parser, and produce the day-first monthly subtotals; this is refuted if attempts continue to leave parse_date month-first after noticing the date whose first field is 13.",
+  "expected": "6 of 12",
+  "evidence": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turn": 3,
+      "observation": "Declared sales.csv MM/DD/YYYY even though every date was ambiguous, then changed only sorting and net calculation. Replayed those commands after a fresh reset and graded: chronological order, totals, and net checks passed; the monthly-figures check failed first at January revenue, expected 690.00 but got 300.00. After the changed-task fresh reset, the same approach now reaches an immediate ValueError on 13/01/2024, exposing the parser decision before submission; grading then reports all five report checks fail because the program does not run."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turn": 3,
+      "observation": "Declared the input MM/DD/YYYY and did not change parse_date. Replayed its report.py edits after a fresh reset and graded: the same monthly-figures check failed at January revenue while all four retained order/total/net checks passed."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turn": 3,
+      "observation": "Declared the input MM/DD/YYYY and changed only net and chronological sorting. A fresh-reset replay produced January revenue 300.00 and grading failed only the monthly-figures check, which expected 690.00."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turn": 3,
+      "observation": "First classified the ambiguous source dates as MM/DD/YYYY and never revisited the parser."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turn": 3,
+      "observation": "First classified the ambiguous source dates as MM/DD/YYYY and never revisited the parser."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turn": 3,
+      "observation": "First classified the ambiguous source dates as MM/DD/YYYY and never revisited the parser."
+    },
+    {
+      "attempt": "attempt-07.jsonl",
+      "turn": 3,
+      "observation": "First classified the ambiguous source dates as MM/DD/YYYY and never revisited the parser."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turn": 3,
+      "observation": "First classified the ambiguous source dates as MM/DD/YYYY and never revisited the parser."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turn": 3,
+      "observation": "First classified the ambiguous source dates as MM/DD/YYYY and never revisited the parser."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turn": 3,
+      "observation": "First classified the ambiguous source dates as month/day/year and never revisited the parser."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turn": 3,
+      "observation": "Explicitly asserted that 03/01 meant March 1 and never revisited the parser."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turn": 3,
+      "observation": "Explicitly asserted that 03/01 meant March 1 and never revisited the parser."
+    }
+  ]
+}

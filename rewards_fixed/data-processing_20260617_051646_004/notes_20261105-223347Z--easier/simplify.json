@@ -1,0 +1,22 @@
+{
+  "retained_skill": "Infer and implement the variable-length binary record layout, including field widths, byte order, cursor advancement, and CSV conversion.",
+  "bottleneck": "All 12 scored attempts reached binary inspection, but the date field is only an integer day offset and the required epoch is absent from the task. Near-successes therefore guessed plausible epochs; five attempts also exhausted time while repeatedly reinterpreting bytes.",
+  "change": "Instruction repair only: state the missing date epoch. This leaves the binary-layout inference entirely with the student and lets it convert a correctly decoded day offset instead of guessing an unobservable convention. No separate simplification is added because fewer than half of attempts ended at a limit and the defect affected near-complete attempts.",
+  "restore": "Remove the standalone sentence identifying the date epoch to restore the original task; no environment, fixture, solution, or verifier behavior changes.",
+  "prediction": "Attempts that already infer the cursor-based record layout will stop guessing Unix-, 2000-, 2001-, or 2024-based dates and instead apply the stated epoch. This is refuted if replaying attempt 08 with only that date conversion changed still fails any verifier check, or if the next group continues to produce otherwise-correct CSVs with wrong dates.",
+  "expected": "3 of 12",
+  "evidence": [
+    {"attempt": "attempt-01.jsonl", "turn": 4, "observation": "First goes wrong by treating leading zero bytes as padding and the ID as two bytes; it later submits misparsed names, prices, and guessed dates. Replay of its submitted commands on the seed task graded 0: existence, CSV parsing, row count, column count, header, and sorting passed, while data content failed first at ID 1001 name (expected Widget A, got Widget AA)."},
+    {"attempt": "attempt-02.jsonl", "turn": 5, "observation": "After parsing the first record correctly, it abandons the cursor layout because later offsets are wrong and spends the remaining attempt re-deriving boundaries; it hits the time limit."},
+    {"attempt": "attempt-03.jsonl", "turn": 5, "observation": "It interprets the first price byte as an extra name character, then repeatedly changes field boundaries and hits the time limit."},
+    {"attempt": "attempt-04.jsonl", "turn": 4, "observation": "It initially treats the first price byte as an extra name character; its final CSV is close but retains Widget AA and uses a guessed date convention."},
+    {"attempt": "attempt-05.jsonl", "turn": 3, "observation": "It first chooses a three-byte ID and then repeatedly scans for boundaries rather than advancing by decoded fields; it hits the time limit."},
+    {"attempt": "attempt-06.jsonl", "turn": 5, "observation": "It treats a leading byte as padding and chooses a three-byte ID, causing repeated boundary reconstruction until the time limit."},
+    {"attempt": "attempt-07.jsonl", "turn": 4, "observation": "It assumes average fixed-size records despite the variable-length names and spends the attempt revising boundaries before hitting the time limit."},
+    {"attempt": "attempt-08.jsonl", "turn": 9, "observation": "It correctly infers all record fields but guesses that date offsets use 2000-01-01. Replaying all commands on a fresh seed container graded 0 with six checks passing and only data content failing: ID 1001 expected 2023-12-31 but got 2003-12-31. After the instruction repair, replaying the same approach from a fresh reset with only its epoch changed to 2020-01-01 graded 1 and all seven checks passed."},
+    {"attempt": "attempt-09.jsonl", "turn": 8, "observation": "It treats the first price byte as an extra name character and later truncates multi-byte quantities; submitted content is wrong."},
+    {"attempt": "attempt-10.jsonl", "turn": 10, "observation": "It decodes the first record fields but treats the price's leading byte as an extra name character and later uses a 1970 epoch; submitted content is wrong."},
+    {"attempt": "attempt-11.jsonl", "turn": 7, "observation": "It correctly decodes IDs, names, prices, and quantities but chooses the Unix epoch without any workspace evidence; submitted dates are twenty years early."},
+    {"attempt": "attempt-12.jsonl", "turn": 6, "observation": "It assumes fixed 25-byte records and later subtracts 1000 from IDs, truncates quantities, and invents a 2001 epoch; submitted content is wrong."}
+  ]
+}

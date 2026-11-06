@@ -1,0 +1,77 @@
+est session starts ==============================
+platform linux -- Python 3.13.9, pytest-8.4.1, pluggy-1.6.0
+rootdir: /tests
+plugins: json-ctrf-0.3.5
+collected 47 items
+
+../tests/test_outputs.py ..............................................F [100%]
+
+=================================== FAILURES ===================================
+______________________ test_prepared_makefile_is_retained ______________________
+
+    def test_prepared_makefile_is_retained():
+        with open(MAKEFILE, "rb") as f:
+            content = f.read()
+>       assert (len(content), hashlib.sha256(content).hexdigest()) == (
+            101,
+            "3d29dbd62d56deef38684d85d946a3d7fff8ff17f56bff1e97332f71cc657ac2",
+        )
+E       AssertionError: assert (137, '608398...3e49e368c016') == (101, '3d29db...2f71cc657ac2')
+E         
+E         At index 0 diff: 137 != 101
+E         Use -v to get more diff
+
+/tests/test_outputs.py:444: AssertionError
+==================================== PASSES ====================================
+=========================== short test summary info ============================
+PASSED ../tests/test_outputs.py::test_simple_addition
+PASSED ../tests/test_outputs.py::test_nested_arithmetic
+PASSED ../tests/test_outputs.py::test_subtraction_multi_arg
+PASSED ../tests/test_outputs.py::test_multiplication
+PASSED ../tests/test_outputs.py::test_division
+PASSED ../tests/test_outputs.py::test_division_truncation
+PASSED ../tests/test_outputs.py::test_negative_numbers
+PASSED ../tests/test_outputs.py::test_deeply_nested
+PASSED ../tests/test_outputs.py::test_zero_arg_plus
+PASSED ../tests/test_outputs.py::test_zero_arg_multiply
+PASSED ../tests/test_outputs.py::test_equal_comparison
+PASSED ../tests/test_outputs.py::test_less_than
+PASSED ../tests/test_outputs.py::test_greater_than
+PASSED ../tests/test_outputs.py::test_if_true_branch
+PASSED ../tests/test_outputs.py::test_if_false_branch
+PASSED ../tests/test_outputs.py::test_if_short_circuit
+PASSED ../tests/test_outputs.py::test_if_with_comparison
+PASSED ../tests/test_outputs.py::test_cond_first_match
+PASSED ../tests/test_outputs.py::test_cond_else_fallback
+PASSED ../tests/test_outputs.py::test_cond_no_match_error
+PASSED ../tests/test_outputs.py::test_cond_evaluates_only_first_match
+PASSED ../tests/test_outputs.py::test_define_and_use_variable
+PASSED ../tests/test_outputs.py::test_variable_redefinition
+PASSED ../tests/test_outputs.py::test_undefined_variable
+PASSED ../tests/test_outputs.py::test_lambda_value_prints_zero
+PASSED ../tests/test_outputs.py::test_simple_lambda_call
+PASSED ../tests/test_outputs.py::test_lambda_multi_arg
+PASSED ../tests/test_outputs.py::test_lambda_multi_body
+PASSED ../tests/test_outputs.py::test_define_named_function
+PASSED ../tests/test_outputs.py::test_closure_captures_environment
+PASSED ../tests/test_outputs.py::test_closure_independence
+PASSED ../tests/test_outputs.py::test_recursive_factorial
+PASSED ../tests/test_outputs.py::test_mutual_recursion
+PASSED ../tests/test_outputs.py::test_counter_closure
+PASSED ../tests/test_outputs.py::test_simple_let
+PASSED ../tests/test_outputs.py::test_let_shadows_global
+PASSED ../tests/test_outputs.py::test_let_multi_body
+PASSED ../tests/test_outputs.py::test_begin_returns_last
+PASSED ../tests/test_outputs.py::test_begin_with_define
+PASSED ../tests/test_outputs.py::test_division_by_zero
+PASSED ../tests/test_outputs.py::test_unmatched_parens
+PASSED ../tests/test_outputs.py::test_empty_input
+PASSED ../tests/test_outputs.py::test_too_few_args_comparison
+PASSED ../tests/test_outputs.py::test_lambda_wrong_arg_count
+PASSED ../tests/test_outputs.py::test_makefile_uses_wall_wextra
+PASSED ../tests/test_outputs.py::test_prepared_calc_foundation_is_retained
+FAILED ../tests/test_outputs.py::test_prepared_makefile_is_retained - Asserti...
+========================= 1 failed, 46 passed in 0.18s =========================
+
+
+Fix the task so the reference solution scores 1.0, then check again. The container is still up: ./sandbox exec to look around.

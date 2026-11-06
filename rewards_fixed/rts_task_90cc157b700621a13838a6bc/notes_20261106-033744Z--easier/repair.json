@@ -1,0 +1,14 @@
+[
+  {
+    "defect": "The verifier requires pip itself in env_index.txt even though the public request only asks for a current virtual-environment index and ordinary `pip freeze` intentionally omits packaging tools.",
+    "evidence": "instruction.md asks for a current index without prescribing inclusion of packaging tools; tests/test_state.py requires the pip entry. All attempt headers report this failure, including attempt-01.jsonl after turn 10.",
+    "change": "Remove the pip-specific requirement while retaining checks that the index has package==version entries, matches the installed target package, and is a nontrivial current inventory.",
+    "kind": "hidden_requirement"
+  },
+  {
+    "defect": "The verifier requires a literal bracketed [Added] section and bare package lines although the public request leaves rebuild-report representation open.",
+    "evidence": "instruction.md asks for a report comparing the indexes; tests/test_state.py parses only bracketed sections and bare package==version lines. attempt-01.jsonl turn 11 used a truthful unified diff, and attempt-02.jsonl turn 24 computed truthful prose sections; both were rejected only on those shapes.",
+    "change": "Check the report's semantic coverage of actual differences while accepting unified-diff, prose-section, and bullet-prefixed representations.",
+    "kind": "hidden_requirement"
+  }
+]

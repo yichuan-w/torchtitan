@@ -1,0 +1,51 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "mkdir -p /app/bin\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "cat > /app/bin/logreport <<'EOF'\n#!/bin/bash\nawk '\nBEGIN { status[\"2xx\"] = status[\"3xx\"] = status[\"4xx\"] = status[\"5xx\"] = 0 }\n{\n  total++\n  ip[$1]++\n  # quoted request may contain Apache backslash escapes\n  match($0, /\"([^\"\\\\]|\\\\.)*\"/)\n  request = substr($0, RSTART+1, RLENGTH-2)\n  request_end = RSTART + RLENGTH\n  if (match(request, /^([A-Z]+) /, m)) method[m[1]]++\n  # hour from $4 like [10/Oct/2000:13:55:36\n  split($4, a, \":\")\n  h = substr(a[2], 1, 2) + 0\n  hour[h]++\n  # status follows the request line\n  rest = substr($0, request_end)\n  match(rest, /[0-9][0-9][0-9]/, sm)\n  cls = int(sm[0]/100) \"xx\"\n  status[cls]++\n}\nEND {\n  print \"total_requests|\" (total+0)\n  for (k in method) print \"method|\" k \"|\" method[k]\n  for (k in ip) print \"top_ip|\" k \"|\" ip[k]\n  for (k in hour) print \"hour|\" k \"|\" hour[k]\n  for (k in status) print \"status_class|\" k \"|\" status[k]\n}' /app/logs/access.log | awk -F'|' '\n/^total_requests/ { print; next }\n/^method\\|/ { m[$2] = $0; next }\n/^top_ip\\|/ { cnt = $3+0; sub(/^top_ip\\|/, \"\"); ip[cnt \" \" $0]; next }\n/^hour\\|/ { h[$2+0] = $0; next }\n/^status_class\\|/ { s[$2] = $0; next }\nEND {\n  n = asorti(m, ms); for (i=1;i<=n;i++) print m[ms[i]]\n  ni = 0\n  for (k in ip) { split(k, a, \" \"); keys[ni++] = a[1] \" \" k }\n  # sort by count desc\n  c = 0\n  for (k in ip) { split(k, a, \" \"); arr[c++] = a[1]+0 \"\\t\" k }\n  asort(arr, sarr, \"@val_num_desc\")\n  shown = 0\n  for (i=1;i<=c && shown<5;i++) {\n    line = substr(sarr[i], index(sarr[i], \"\\t\")+1)\n    sub(/^[0-9]+ /, \"\", line)\n    print \"top_ip|\" line\n    shown++\n  }\n  nh = asorti(h, hs, \"@ind_num_asc\"); for (i=1;i<=nh;i++) print h[hs[i]]\n  ns = asorti(s, ss); for (i=1;i<=ns;i++) print s[ss[i]]\n}'\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "chmod +x /app/bin/logreport\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "/app/bin/logreport | head -30\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 1.3,
+    "keystrokes": "ls -la /app/bin/logreport\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 1.4,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 1.4,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

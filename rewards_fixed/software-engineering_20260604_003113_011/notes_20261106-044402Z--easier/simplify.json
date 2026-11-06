@@ -1,0 +1,35 @@
+{
+  "retained_skill": "Diagnose and repair RFC 6455 WebSocket handshake and frame-processing bugs in the supplied Python echo server.",
+  "bottleneck": "All twelve attempts trusted the supplied B12 handshake constant and built self-tests around it; eleven submitted implementations that therefore failed every handshake-based check, while one ran out of time after the same initial choice.",
+  "change": "Instruction help at the original handshake signal: direct the student to compare the handshake with the RFC published example and flag the supplied constant as potentially broken, without naming its replacement. Separately repair the binary check so basic binary echo no longer duplicates the extended-length decision.",
+  "restore": "Remove the final standalone hint sentence and restore the longer binary fixture after students reliably inspect the published handshake example; all functional requirements remain unchanged.",
+  "prediction": "The change addresses the action of accepting the supplied magic constant without external validation. It enables students to compare the published example, correct that constant, and proceed to frame bugs; this is refuted if the next group still predominantly submits B12 or if corrected implementations fail before frame handling.",
+  "expected": "5 of 12",
+  "evidence": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turn": 9,
+      "observation": "The attempt's test explicitly computed the expected handshake with B12. Replaying its three edits on a fresh seed and grading failed all seven checks at the handshake, including the explicit accept-key check. After applying the task's required GUID correction, that same approach passed six checks and failed only binary echo because the 256-byte binary fixture entered extended-length parsing; the verifier repair removes that unrelated duplicate failure. On the changed task, its approach now meets the hint at its turn-9 handshake self-test and can compare against the published example rather than ratifying B12. Commands: sandbox reset; replayed turns 4-6 edits; sandbox grade; then corrected the GUID and graded again. Post-edit replay on a fresh reset applied that approach with the handshake-example correction; sandbox grade reported all seven checks passing, so no previously failed requirement remains for this approach."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turn": 4,
+      "observation": "Restored the complete /app/ws_server.py written at turn 4 in a fresh sandbox and graded it. Every check failed: handshake text, binary, ping, close, large message, multiple messages, and accept-key correctness, all rooted in retaining B12. On the changed task the new handshake-example direction is encountered before this rewrite and targets that first wrong decision. Commands: sandbox reset; replay exact turn-4 heredoc; sandbox grade."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turn": 26,
+      "observation": "This was the only attempt to discover B11 in a client library, but it concluded the library was wrong and patched B11 to B12 at turn 28. The published-example direction makes that conflict a cue to validate the server constant instead."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turn": 3,
+      "observation": "The only time-limited attempt rewrote the server with B12 at turn 3 and then spent turns 4-69 repeatedly debugging tests and handshakes. The hint moves validation before that rewrite; no majority budget declaration is required because only one of twelve ended at a limit."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turn": 38,
+      "observation": "After extensive debugging, its final test still explicitly treated B12 as expected, showing the dominant misconception persisted through submission rather than being a mechanical editing failure."
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The instruction says config/keyloc.txt contains the passphrase offset and length, but the starting repository's config directory is empty.",
+    "evidence": "instruction.md promises config/keyloc.txt while environment/files/repo.tar.gz has an empty config directory; attempt-01.jsonl turn 3 and attempt-02.jsonl turn 6 confirm that the promised file is absent and force recovery from source or Git history.",
+    "change": "Add config/keyloc.txt to the repository fixture with the promised offset and length, leaving the extraction, steganography, and OpenSSL decryption decisions unchanged.",
+    "kind": "broken_setup"
+  }
+]

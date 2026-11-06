@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The binary stores dates as day offsets, but the public instruction never identifies the epoch while the verifier requires offsets from 2020-01-01.",
+    "evidence": "instruction.md requires YYYY-MM-DD without defining the epoch, while tests/test_outputs.py computes each expected date from date(2020, 1, 1); attempt-08.jsonl turn 9 correctly parsed the record fields but guessed a 2000-01-01 epoch and failed only date content when replayed.",
+    "change": "State the 2020-01-01 epoch in instruction.md so the required date conversion is determinate.",
+    "kind": "hidden_requirement"
+  }
+]

@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<catalog>
+  <product>
+    <id>PROD-001</id>
+    <description>Compact wireless optical mouse with USB receiver, 1600 DPI, ambidextrous design</description>
+    <weight_kg>0.12</weight_kg>
+    <dimensions>11x6x4 cm</dimensions>
+  </product>
+  <product>
+    <id>PROD-002</id>
+    <description>Full-size mechanical keyboard with Cherry MX Blue switches, RGB backlight, aluminum frame</description>
+    <weight_kg>1.05</weight_kg>
+    <dimensions>44x14x4 cm</dimensions>
+  </product>
+  <product>
+    <id>PROD-004</id>
+    <description>Premium ergonomic office chair with lumbar support, adjustable armrests, mesh back, 150kg capacity</description>
+    <weight_kg>18.5</weight_kg>
+    <dimensions>65x65x120 cm</dimensions>
+  </product>
+  <product>
+    <id>PROD-005</id>
+    <description>Electric height-adjustable standing desk, 120x60cm desktop, dual motor, memory controller</description>
+    <weight_kg>32.0</weight_kg>
+    <dimensions>120x60x(72-120) cm</dimensions>
+  </product>
+  <product>
+    <id>PROD-007</id>
+    <description>Full HD 1080p webcam with autofocus, built-in microphone, privacy shutter, USB-C connection</description>
+    <weight_kg>0.15</weight_kg>
+    <dimensions>8x3x5 cm</dimensions>
+  </product>
+  <product>
+    <id>PROD-011</id>
+    <description>Over-ear noise-cancelling headphones, 40mm drivers, 30h battery, Bluetooth 5.3, foldable</description>
+    <weight_kg>0.28</weight_kg>
+    <dimensions>18x15x8 cm</dimensions>
+  </product>
+  <product>
+    <id>PROD-013</id>
+    <description>Under-desk cable management tray, steel construction, clamp mount, 40cm width</description>
+    <weight_kg>1.2</weight_kg>
+    <dimensions>40x12x10 cm</dimensions>
+  </product>
+  <product>
+    <id>PROD-016</id>
+    <description>A4 size paper, 500 sheets per ream, 75gsm, FSC certified</description>
+    <weight_kg>2.5</weight_kg>
+    <dimensions>30x21x5 cm</dimensions>
+  </product>
+  <product>
+    <id>PROD-021</id>
+    <description>Assorted office supply starter kit including stapler, tape dispenser, scissors, and pen holder</description>
+    <weight_kg>1.8</weight_kg>
+    <dimensions>25x20x15 cm</dimensions>
+  </product>
+</catalog>

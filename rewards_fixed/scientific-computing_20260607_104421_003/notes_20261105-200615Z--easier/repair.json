@@ -1,0 +1,14 @@
+[
+  {
+    "defect": "The verifier treated a conventional comment header in saxs_profile.txt as a data record although the instruction did not prohibit headers.",
+    "evidence": "attempt-11.jsonl turn 16 and attempt-05.jsonl turn 11; fresh replays showed all checks failing on the leading # line, while removing only that line allowed four of five semantic checks to pass.",
+    "change": "Make profile parsing ignore blank and comment lines consistently while retaining the exact number of q-data records and all numerical checks.",
+    "kind": "hidden_requirement"
+  },
+  {
+    "defect": "The output paragraph's placement after the Guinier-analysis paragraph allowed the requested reduced chi-squared to be read as a Guinier regression residual, despite the formula earlier defining it for scaled model versus experiment.",
+    "evidence": "attempt-02.jsonl turns 18 and 20 and attempt-11.jsonl turn 16: both compute/log the global reduced chi-squared near 0.696 but write a near-zero Guinier residual as the third value; 11 of 12 attempts make this reporting decision.",
+    "change": "Clarify in the existing guinier_fit.txt bullet that the third value is the scaled-model-versus-experiment reduced chi-squared defined above, not a residual from the Guinier regression.",
+    "kind": "other"
+  }
+]

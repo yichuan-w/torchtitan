@@ -1,0 +1,534 @@
+[
+  {
+    "step_id": 3,
+    "offset_sec": 0.0,
+    "keystrokes": "ls -la /app\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.0,
+    "keystrokes": "ls -la /app/numutils-src\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.0,
+    "keystrokes": "find /app/numutils-src -maxdepth 2 -type f -printf '%p\\n' | sort\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.0,
+    "keystrokes": "ls -la /app/test_numutils* 2>/dev/null || true\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.4,
+    "keystrokes": "cat /app/numutils-src/README\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.4,
+    "keystrokes": "cat /app/numutils-src/Makefile\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.4,
+    "keystrokes": "cat /app/numutils-src/numutils.h\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.4,
+    "keystrokes": "cat /app/numutils-src/numutils.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.4,
+    "keystrokes": "cat /app/numutils-src/numutils_io.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.4,
+    "keystrokes": "cat /app/test_numutils.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 1.0,
+    "keystrokes": "cd /app/numutils-src && make clean && make shared",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 1.0,
+    "keystrokes": "nl -ba /app/numutils-src/numutils.c | sed -n '1,220p'",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 1.0,
+    "keystrokes": "nl -ba /app/numutils-src/numutils.c | sed -n '221,500p'",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 1.0,
+    "keystrokes": "nl -ba /app/numutils-src/numutils_io.c | sed -n '1,260p'",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 1.0,
+    "keystrokes": "nl -ba /app/test_numutils.c | sed -n '1,260p'",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 2.4,
+    "keystrokes": "C-c",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 2.4,
+    "keystrokes": "cd /app/numutils-src\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 2.4,
+    "keystrokes": "make clean && make shared\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 2.4,
+    "keystrokes": "nl -ba numutils.c | sed -n '1,220p'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 2.4,
+    "keystrokes": "nl -ba numutils.c | sed -n '221,500p'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 2.4,
+    "keystrokes": "nl -ba numutils_io.c | sed -n '1,260p'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 2.4,
+    "keystrokes": "nl -ba /app/test_numutils.c | sed -n '1,260p'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 4.0,
+    "keystrokes": "pwd\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 4.0,
+    "keystrokes": "make clean && make shared\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 4.0,
+    "keystrokes": "nl -ba numutils.c | sed -n '1,220p'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 4.0,
+    "keystrokes": "nl -ba numutils.c | sed -n '221,500p'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 4.0,
+    "keystrokes": "nl -ba numutils_io.c | sed -n '1,260p'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 5.4,
+    "keystrokes": "pwd\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 5.4,
+    "keystrokes": "make clean >/dev/null 2>&1; make shared > /tmp/build.log 2>&1; echo BUILD_STATUS:$?\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 5.4,
+    "keystrokes": "cat -vet Makefile | sed -n '1,120p'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 5.4,
+    "keystrokes": "head -n 60 /tmp/build.log\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 5.4,
+    "keystrokes": "tail -n 80 /tmp/build.log\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 6.8,
+    "keystrokes": "nl -ba numutils.c | sed -n '1,220p'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 6.8,
+    "keystrokes": "nl -ba numutils.c | sed -n '221,440p'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 6.8,
+    "keystrokes": "nl -ba numutils.c | sed -n '441,680p'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 6.8,
+    "keystrokes": "nl -ba numutils_io.c | sed -n '1,260p'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 6.8,
+    "keystrokes": "nl -ba numutils.h | sed -n '1,220p'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 6.8,
+    "keystrokes": "cat -vet Makefile\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 7.4,
+    "keystrokes": "sed -n '1,70p' numutils.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 7.4,
+    "keystrokes": "sed -n '1,70p' numutils_io.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 7.4,
+    "keystrokes": "grep -nE '^(static )?(void|int|double|char|long|float|unsigned|[A-Za-z_][A-Za-z0-9_]*[ *]+)[A-Za-z_][A-Za-z0-9_]*\\(' numutils.c numutils_io.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 7.4,
+    "keystrokes": "grep -nE '#include|M_PI|fabs|sqrt|log|cos|sin|pow|floor|ceil|rand|qsort|malloc|calloc|realloc|free|fopen|printf|fprintf' numutils.c numutils_io.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 7.8,
+    "keystrokes": "sed -n '1,80p' numutils.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 7.8,
+    "keystrokes": "sed -n '520,610p' numutils.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 7.8,
+    "keystrokes": "head -n 120 /tmp/build.log\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 7.8,
+    "keystrokes": "grep -nE '^[A-Za-z_][A-Za-z0-9_]*[ (]' numutils.c | head -n 80\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 8.2,
+    "keystrokes": "head -n 20 numutils.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 8.2,
+    "keystrokes": "cat numutils.h\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 8.2,
+    "keystrokes": "grep -n \"M_PI\\|math.h\" numutils.c numutils_io.c numutils.h\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 13,
+    "offset_sec": 8.5,
+    "keystrokes": "nl -ba numutils.c | sed -n '1,25p'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 8.6,
+    "keystrokes": "python3 - <<'PY'\nfrom pathlib import Path\np = Path('numutils.c')\ns = p.read_text()\ns = s.replace('#include <string.h>\\n#include \"numutils.h\"\\n',\n              '#include <string.h>\\n#include <math.h>\\n#include \"numutils.h\"\\n\\n'\n              '#ifndef M_PI\\n#define M_PI 3.14159265358979323846\\n#endif\\n')\np.write_text(s)\n\nm = Path('Makefile')\nt = m.read_text()\nt = t.replace('CFLAGS = -O2\\n', 'CFLAGS = -O2 -fPIC\\n')\nm.write_text(t)\nPY\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 8.6,
+    "keystrokes": "make clean && make shared > /tmp/build2.log 2>&1; echo BUILD_STATUS:$?\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 8.6,
+    "keystrokes": "head -n 80 /tmp/build2.log\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 8.6,
+    "keystrokes": "tail -n 120 /tmp/build2.log\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 8.6,
+    "keystrokes": "ls -la libnumutils* numutils.o numutils_io.o\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 15,
+    "offset_sec": 10.0,
+    "keystrokes": "head -n 20 numutils.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 15,
+    "offset_sec": 10.0,
+    "keystrokes": "grep -n '^CFLAGS' Makefile\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 15,
+    "offset_sec": 10.0,
+    "keystrokes": "grep -n 'M_PI\\|#include <math.h>' numutils.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 16,
+    "offset_sec": 10.3,
+    "keystrokes": "perl -0pi -e 's/#include <string\\.h>\\n#include \"numutils\\.h\"/#include <string.h>\\n#include <math.h>\\n#include \"numutils.h\"\\n\\n#ifndef M_PI\\n#define M_PI 3.14159265358979323846\\n#endif/' numutils.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 16,
+    "offset_sec": 10.3,
+    "keystrokes": "sed -i 's/^CFLAGS *= *-O2$/CFLAGS = -O2 -fPIC/' Makefile\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 16,
+    "offset_sec": 10.3,
+    "keystrokes": "sed -n '1,20p' numutils.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 16,
+    "offset_sec": 10.3,
+    "keystrokes": "grep -n '^CFLAGS' Makefile\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 16,
+    "offset_sec": 10.3,
+    "keystrokes": "make clean && make shared > /tmp/build3.log 2>&1; echo BUILD_STATUS:$?\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 16,
+    "offset_sec": 10.3,
+    "keystrokes": "cat /tmp/build3.log\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 16,
+    "offset_sec": 10.3,
+    "keystrokes": "ls -la libnumutils* numutils.o numutils_io.o 2>/dev/null || true\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 17,
+    "offset_sec": 11.9,
+    "keystrokes": "make install-shared\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 17,
+    "offset_sec": 11.9,
+    "keystrokes": "ldconfig\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 17,
+    "offset_sec": 11.9,
+    "keystrokes": "ls -la /usr/local/lib/libnumutils* /usr/local/include/numutils.h\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 17,
+    "offset_sec": 11.9,
+    "keystrokes": "ldconfig -p | grep numutils || true\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 17,
+    "offset_sec": 11.9,
+    "keystrokes": "cd /app && gcc test_numutils.c -lnumutils -lm -o test_numutils\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 17,
+    "offset_sec": 11.9,
+    "keystrokes": "./test_numutils\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 18,
+    "offset_sec": 15.6,
+    "keystrokes": "ls -l /usr/local/lib/libnumutils.so /usr/local/lib/libnumutils.so.1.2.3 /usr/local/include/numutils.h\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 18,
+    "offset_sec": 15.6,
+    "keystrokes": "file /usr/local/lib/libnumutils.so.1.2.3\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 18,
+    "offset_sec": 15.6,
+    "keystrokes": "ldd /app/test_numutils | grep numutils || true\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 19,
+    "offset_sec": 15.9,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 20,
+    "offset_sec": 15.9,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

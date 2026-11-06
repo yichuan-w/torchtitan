@@ -1,0 +1,128 @@
+{
+  "retained_skill": "Use John the Ripper in wordlist mode with the appropriate CPU and OpenCL formats, then capture the ordered cracking and --show results for both supplied hash files.",
+  "bottleneck": "All 12 scored attempts start the 1,795,708-entry built-in wordlist; yescrypt advances at roughly 12-15 candidates per second, so every attempt interrupts, abandons, or times out before both yescrypt candidates are reached. Seven attempts hit the time limit. In addition, the verifier requires the unstated literal 'Proceeding with wordlist', although explicit --wordlist runs observed in the sandbox do not print it.",
+  "change": "Structural help in the original task signal: prepare the same designated wordlist as a focused 8,000-entry slice that still contains both graded candidates, reducing candidate work by about 99.55% while leaving format selection, CPU/OpenCL execution, output capture, and --show interpretation to the student. Repair the verifier to judge actual cracking/show evidence rather than an implementation-dependent status phrase.",
+  "restore": "Restore the full built-in password.lst after the student reliably selects the correct formats, waits for completion, captures stderr, and appends both ordered --show outputs; restore the larger candidate search without changing those cues.",
+  "prediction": "The change addresses repeated interruption of long SHA512crypt and yescrypt wordlist runs. With both candidates reached in a few minutes, attempts that already discover crypt for yescrypt can proceed to the two --show calls rather than retrying or timing out. This is refuted if replay still cannot crack and show both files from the focused list, or if the next group remains at 0 of 12 because attempts still interrupt before reaching the candidates.",
+  "expected": "7 of 12",
+  "evidence": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turn": 15,
+      "observation": "First enters the slow yescrypt run at turn 15, retries subsets through turn 33, and hits the time limit without submitting."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turn": 11,
+      "observation": "Starts auto-detected yescrypt at turn 11, repeatedly aborts/restarts it through turn 39, and hits the time limit."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turn": 12,
+      "observation": "Runs yescrypt by auto-detection at turn 12 but aborts before either hash; reconstructed submitted result graded 5/6, with only the unstated literal 'Proceeding with wordlist' check failing. After the change, a fresh-reset replay of this approach used explicit sha512crypt CPU, sha512crypt-opencl, failed yescrypt-name discovery, crypt CPU, and ordered show calls; it cracked both files and sandbox grade passed 6/6."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turn": 17,
+      "observation": "Finds the crypt format at turn 17 but aborts it at turn 22 and submits show output with both yescrypt hashes left."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turn": 16,
+      "observation": "Finds crypt at turn 16, repeatedly aborts or time-limits yescrypt, and submits with no yescrypt passwords cracked."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turn": 12,
+      "observation": "Finds crypt at turn 12 but interrupts it at turn 19; reconstructed submitted result graded 5/6, with only the unstated literal status phrase check failing."
+    },
+    {
+      "attempt": "attempt-07.jsonl",
+      "turn": 11,
+      "observation": "Finds crypt at turn 11, then diverts into repeated SHA512crypt modes and hits the time limit before final show output."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turn": 14,
+      "observation": "Finds crypt at turn 14 but repeatedly waits on and interrupts long cracking runs through turn 49, hitting the time limit."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turn": 16,
+      "observation": "Finds crypt at turn 16, aborts it, later limits it to 45 seconds, and submits with yescrypt uncracked."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turn": 18,
+      "observation": "Starts the correct auto-detected yescrypt run at turn 18, interrupts it at turn 24, retries modes, and hits the time limit."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turn": 17,
+      "observation": "Starts auto-detected yescrypt at turn 17 and repeatedly retries it through turn 49, hitting the time limit."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turn": 20,
+      "observation": "Finds crypt at turn 20 but repeatedly waits on and restarts the full list through turn 55, hitting the time limit."
+    }
+  ],
+  "budget": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turns": [
+        2,
+        33
+      ],
+      "stage": "Full-list cracking and retries; the focused slice removes about 99.55% of candidates."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turns": [
+        2,
+        39
+      ],
+      "stage": "Full-list SHA512crypt/yescrypt runs and retries; the focused slice removes about 99.55% of candidates."
+    },
+    {
+      "attempt": "attempt-07.jsonl",
+      "turns": [
+        2,
+        37
+      ],
+      "stage": "Repeated long cracking modes; the focused slice reaches the supplied candidates in a few minutes."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turns": [
+        4,
+        49
+      ],
+      "stage": "Waiting on and restarting full-list cracking; the focused slice removes nearly all candidate work."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turns": [
+        2,
+        37
+      ],
+      "stage": "Repeated long CPU cracking runs; the focused slice removes about 99.55% of candidates."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turns": [
+        5,
+        49
+      ],
+      "stage": "Repeated full-list SHA512crypt and yescrypt runs; the focused slice reaches both candidates early."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turns": [
+        5,
+        55
+      ],
+      "stage": "Waiting on and restarting full-list cracking; the focused slice removes about 99.55% of candidates."
+    }
+  ]
+}

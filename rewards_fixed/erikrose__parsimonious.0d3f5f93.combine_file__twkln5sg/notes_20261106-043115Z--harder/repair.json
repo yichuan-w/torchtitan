@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The public reproduction claimed that a grammar containing adjacent literals \"hello\" and \"world\" matched the input \"hello world\", although Parsimonious does not implicitly skip whitespace.",
+    "evidence": "traces/attempt-01.jsonl turn 7 ran the stated example and observed a ParseError; later turns changed the grammar to include the space while repairing the actual NodeVisitor defects.",
+    "change": "Added an explicit space literal to the example grammar so the stated input is a valid reproduction of the position bug.",
+    "kind": "broken_setup"
+  }
+]

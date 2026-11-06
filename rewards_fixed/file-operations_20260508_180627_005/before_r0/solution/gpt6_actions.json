@@ -1,0 +1,149 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "ls -la /app/logs/ && file /app/logs/*.log\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "for f in /app/logs/*.log; do echo \"=== $f ===\"; head -c 300 \"$f\" | xxd | head -10; done\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.2,
+    "keystrokes": "for f in /app/logs/*.log; do echo \"=== $f ===\"; head -c 200 \"$f\" | od -A x -t x1z | head -6; done\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.3,
+    "keystrokes": "cat > /app/normalize_encoding.py << 'EOF'\n#!/usr/bin/env python3\n\"\"\"Normalize log files of mixed encodings into a single clean UTF-8 file.\"\"\"\nimport os\nimport re\n\nLOG_DIR = \"/app/logs\"\nOUTPUT_FILE = \"/app/normalized_output.txt\"\n\nMOJIBAKE_HINTS = (\"Ã\", \"Â\", \"â€\", \"â€\", \"ð\", \"Ð\", \"Ñ\", \"å\", \"ä\", \"æ\")\nHEX_ESC_RE = re.compile(rb\"\\\\x([0-9a-fA-F]{2})\")\n\n\ndef fix_hex_escapes(raw: bytes) -> bytes:\n    \"\"\"Convert literal \\\\xNN escape sequences into actual bytes.\"\"\"\n    if b\"\\\\x\" not in raw:\n        return raw\n    return HEX_ESC_RE.sub(lambda m: bytes([int(m.group(1), 16)]), raw)\n\n\ndef repair_mojibake(text: str) -> str:\n    \"\"\"Fix text that was UTF-8 decoded as a single-byte encoding (possibly repeatedly).\"\"\"\n    for _ in range(4):\n        if not any(h in text for h in MOJIBAKE_HINTS):\n            break\n        fixed = None\n        for enc in (\"latin-1\", \"cp1252\"):\n            try:\n                candidate = text.encode(enc).decode(\"utf-8\")\n            except (UnicodeEncodeError, UnicodeDecodeError):\n                continue\n            fixed = candidate\n            break\n        if fixed is None or fixed == text:\n            break\n        text = fixed\n    return text\n\n\ndef decode_line(raw: bytes) -> str:\n    \"\"\"Decode a single raw line (bytes) into clean text.\"\"\"\n    raw = raw.replace(b\"\\xef\\xbb\\xbf\", b\"\")  # strip BOM anywhere on the line\n    raw = fix_hex_escapes(raw)\n\n    text = None\n    try:\n        text = raw.decode(\"utf-8\")\n    except UnicodeDecodeError:\n        for enc in (\"cp1252\", \"cp932\", \"latin-1\"):\n            try:\n                text = raw.decode(enc)\n                break\n            except (UnicodeDecodeError, LookupError):\n                continue\n    if text is None:\n        # Last resort: drop undecodable bytes safely\n        text = raw.decode(\"utf-8\", errors=\"ignore\")\n\n    text = repair_mojibake(text)\n    # Remove any residual non-characters / lone surrogates safely\n    return text\n\n\ndef normalize_file(path: str) -> list:\n    with open(path, \"rb\") as fh:\n        data = fh.read()\n    # Normalize all line endings to \\n, then split\n    data = data.replace(b\"\\r\\n\", b\"\\n\").replace(b\"\\r\", b\"\\n\")\n    lines = []\n    for raw_line in data.split(b\"\\n\"):\n        line = decode_line(raw_line).strip()\n        if line:\n            lines.append(line)\n    return lines\n\n\ndef main():\n    all_lines = []\n    per_file = {}\n    files = sorted(f for f in os.listdir(LOG_DIR) if f.endswith(\".log\"))\n    for fname in files:\n        lines = normalize_file(os.path.join(LOG_DIR, fname))\n        per_file[fname] = len(lines)\n        all_lines.extend(lines)\n\n    with open(OUTPUT_FILE, \"w\", encoding=\"utf-8\", newline=\"\\n\") as out:\n        for line in all_lines:\n            out.write(line + \"\\n\")\n\n    print(\"Normalization complete.\")\n    for fname in files:\n        print(f\"  {fname}: {per_file[fname]} lines\")\n    print(f\"Total lines written: {len(all_lines)}\")\n\n\nif __name__ == \"__main__\":\n    main()\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.3,
+    "keystrokes": "python3 /app/normalize_encoding.py\n",
+    "duration": 2.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.3,
+    "keystrokes": "cat /app/normalized_output.txt\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 2.5,
+    "keystrokes": "od -c /app/logs/euro_orders.log | head -8\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 2.5,
+    "keystrokes": "grep -n \"Order\" /app/normalized_output.txt | head -8; grep -n \"caf\" /app/normalized_output.txt | head; grep -n \"temp\\|egacy\" /app/normalized_output.txt | head -5; grep -n \"Müller\\|Latin-1 user\\|Windows user\\|JIS\" /app/normalized_output.txt | head -8\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 2.7,
+    "keystrokes": "cat > /app/normalize_encoding.py << 'EOF'\n#!/usr/bin/env python3\n\"\"\"Normalize log files of mixed encodings into a single clean UTF-8 file.\"\"\"\nimport os\nimport re\n\nLOG_DIR = \"/app/logs\"\nOUTPUT_FILE = \"/app/normalized_output.txt\"\n\nMOJIBAKE_HINTS = (\"Ã\", \"Â\", \"â€\", \"ð\", \"Ð\", \"Ñ\")\nHEX_ESC_RE = re.compile(rb\"\\\\x([0-9a-fA-F]{2})\")\nCJK_RE = re.compile(r\"[぀-ヿ一-鿿]\")\n\n\ndef fix_hex_escapes(raw: bytes) -> bytes:\n    \"\"\"Convert literal \\\\xNN escape sequences into actual bytes.\"\"\"\n    if b\"\\\\x\" not in raw:\n        return raw\n    return HEX_ESC_RE.sub(lambda m: bytes([int(m.group(1), 16)]), raw)\n\n\ndef repair_mojibake(text: str) -> str:\n    \"\"\"Fix text that was UTF-8 decoded as a single-byte encoding (possibly repeatedly).\"\"\"\n    for _ in range(4):\n        if not any(h in text for h in MOJIBAKE_HINTS):\n            break\n        fixed = None\n        for enc in (\"latin-1\", \"cp1252\"):\n            try:\n                candidate = text.encode(enc).decode(\"utf-8\")\n            except (UnicodeEncodeError, UnicodeDecodeError):\n                continue\n            fixed = candidate\n            break\n        if fixed is None or fixed == text:\n            break\n        text = fixed\n    return text\n\n\ndef decode_line(raw: bytes) -> str:\n    \"\"\"Decode a single raw line (bytes) into clean text.\"\"\"\n    raw = raw.replace(b\"\\xef\\xbb\\xbf\", b\"\")  # strip BOM anywhere on the line\n    raw = fix_hex_escapes(raw)\n\n    try:\n        text = raw.decode(\"utf-8\")\n    except UnicodeDecodeError as exc:\n        # Incomplete (truncated) multi-byte UTF-8 sequence -> truncate safely\n        if \"unexpected end of data\" in str(exc):\n            text = raw.decode(\"utf-8\", errors=\"ignore\")\n        else:\n            text = None\n            # Japanese Shift-JIS content?\n            try:\n                candidate = raw.decode(\"cp932\")\n                if CJK_RE.search(candidate):\n                    text = candidate\n            except (UnicodeDecodeError, LookupError):\n                pass\n            if text is None:\n                # Single-byte legacy encodings\n                high_bytes = [b for b in raw if 0x80 <= b <= 0x9F]\n                if high_bytes:\n                    # Windows-1252 (smart quotes, dashes, etc.)\n                    try:\n                        text = raw.decode(\"cp1252\")\n                    except UnicodeDecodeError:\n                        text = None\n                if text is None:\n                    if 0xA4 in raw:\n                        # ISO-8859-15: 0xA4 is the Euro sign\n                        text = raw.decode(\"iso-8859-15\")\n                    else:\n                        # Latin-1 never fails\n                        text = raw.decode(\"latin-1\")\n\n    text = repair_mojibake(text)\n    return text\n\n\ndef normalize_file(path: str) -> list:\n    with open(path, \"rb\") as fh:\n        data = fh.read()\n    # Normalize all line endings to LF\n    data = data.replace(b\"\\r\\n\", b\"\\n\").replace(b\"\\r\", b\"\\n\")\n    lines = []\n    for raw_line in data.split(b\"\\n\"):\n        line = decode_line(raw_line).strip()\n        if line:\n            lines.append(line)\n    return lines\n\n\ndef main():\n    all_lines = []\n    per_file = {}\n    files = sorted(f for f in os.listdir(LOG_DIR) if f.endswith(\".log\"))\n    for fname in files:\n        lines = normalize_file(os.path.join(LOG_DIR, fname))\n        per_file[fname] = len(lines)\n        all_lines.extend(lines)\n\n    with open(OUTPUT_FILE, \"w\", encoding=\"utf-8\", newline=\"\\n\") as out:\n        for line in all_lines:\n            out.write(line + \"\\n\")\n\n    print(\"Normalization complete.\")\n    for fname in files:\n        print(f\"  {fname}: {per_file[fname]} lines\")\n    print(f\"Total lines written: {len(all_lines)}\")\n\n\nif __name__ == \"__main__\":\n    main()\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 2.7,
+    "keystrokes": "python3 /app/normalize_encoding.py\n",
+    "duration": 2.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 2.7,
+    "keystrokes": "grep -n \"Kosten\\|Prezzo\\|Prix\\|Cost\" /app/normalized_output.txt | head -6; grep -n \"complete)\" /app/normalized_output.txt | head -3; grep -n \"Truncated\" /app/normalized_output.txt\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 4.9,
+    "keystrokes": "python3 -c \"\nd = open('/app/normalized_output.txt','rb').read()\nd.decode('utf-8'); print('valid utf-8')\nprint('BOM:', d[:3] == b'\\xef\\xbb\\xbf')\nprint('CR present:', b'\\r' in d)\nprint('lines:', d.count(b'\\n'))\n\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 4.9,
+    "keystrokes": "sed -n '111,120p' /app/normalized_output.txt; grep -n \"smart\\|quote\\|“\\|”\\|’\" /app/normalized_output.txt | head -5; grep -n \"€\" /app/normalized_output.txt | sed -n '1,3p'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 5.1,
+    "keystrokes": "od -A d -t x1z /app/logs/consolidated.log | head -30\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 5.2,
+    "keystrokes": "cat > /app/normalize_encoding.py << 'EOF'\n#!/usr/bin/env python3\n\"\"\"Normalize log files of mixed encodings into a single clean UTF-8 file.\"\"\"\nimport os\nimport re\n\nLOG_DIR = \"/app/logs\"\nOUTPUT_FILE = \"/app/normalized_output.txt\"\n\nMOJIBAKE_HINTS = (\"Ã\", \"Â\", \"â€\", \"ð\", \"Ð\", \"Ñ\")\nHEX_ESC_RE = re.compile(rb\"\\\\x([0-9a-fA-F]{2})\")\nCJK_RE = re.compile(r\"[぀-ヿ一-鿿]\")\nKANA_RE = re.compile(r\"[぀-ゟ゠-ヿ]\")\n\n\ndef fix_hex_escapes(raw: bytes) -> bytes:\n    \"\"\"Convert literal \\\\xNN escape sequences into actual bytes.\"\"\"\n    if b\"\\\\x\" not in raw:\n        return raw\n    return HEX_ESC_RE.sub(lambda m: bytes([int(m.group(1), 16)]), raw)\n\n\ndef repair_mojibake(text: str) -> str:\n    \"\"\"Fix text that was UTF-8 decoded as a single-byte encoding (possibly repeatedly).\"\"\"\n    for _ in range(4):\n        if not any(h in text for h in MOJIBAKE_HINTS):\n            break\n        fixed = None\n        for enc in (\"latin-1\", \"cp1252\"):\n            try:\n                candidate = text.encode(enc).decode(\"utf-8\")\n            except (UnicodeEncodeError, UnicodeDecodeError):\n                continue\n            fixed = candidate\n            break\n        if fixed is None or fixed == text:\n            break\n        text = fixed\n    return text\n\n\ndef decode_line(raw: bytes) -> str:\n    \"\"\"Decode a single raw line (bytes) into clean text.\"\"\"\n    raw = raw.replace(b\"\\xef\\xbb\\xbf\", b\"\")  # strip BOM anywhere on the line\n    raw = fix_hex_escapes(raw)\n\n    try:\n        text = raw.decode(\"utf-8\")\n    except UnicodeDecodeError as exc:\n        bad = exc.object[exc.start] if exc.start < len(exc.object) else None\n        # Truncated multi-byte UTF-8 sequence at end of line: a bare UTF-8\n        # lead byte (0xC2/0xC3 typical for Latin accents) with an otherwise\n        # pure-ASCII line -> truncate safely.\n        if (\"unexpected end of data\" in str(exc) and bad in (0xC2, 0xC3)\n                and all(b < 0x80 for b in raw[:exc.start])):\n            text = raw.decode(\"utf-8\", errors=\"ignore\")\n        else:\n            text = None\n            # Japanese Shift-JIS content? Require strong evidence:\n            # kana present or at least two CJK characters.\n            try:\n                candidate = raw.decode(\"cp932\")\n                if KANA_RE.search(candidate) or len(CJK_RE.findall(candidate)) >= 2:\n                    text = candidate\n            except (UnicodeDecodeError, LookupError):\n                pass\n            if text is None:\n                high_bytes = [b for b in raw if 0x80 <= b <= 0x9F]\n                if high_bytes:\n                    # Windows-1252 (smart quotes, dashes, etc.)\n                    try:\n                        text = raw.decode(\"cp1252\")\n                    except UnicodeDecodeError:\n                        text = None\n                if text is None:\n                    if 0xA4 in raw:\n                        # ISO-8859-15: 0xA4 is the Euro sign\n                        text = raw.decode(\"iso-8859-15\")\n                    else:\n                        # Latin-1 never fails\n                        text = raw.decode(\"latin-1\")\n\n    return repair_mojibake(text)\n\n\ndef normalize_file(path: str) -> list:\n    with open(path, \"rb\") as fh:\n        data = fh.read()\n    # Normalize all line endings to LF\n    data = data.replace(b\"\\r\\n\", b\"\\n\").replace(b\"\\r\", b\"\\n\")\n    lines = []\n    for raw_line in data.split(b\"\\n\"):\n        line = decode_line(raw_line).strip()\n        if line:\n            lines.append(line)\n    return lines\n\n\ndef main():\n    all_lines = []\n    per_file = {}\n    files = sorted(f for f in os.listdir(LOG_DIR) if f.endswith(\".log\"))\n    for fname in files:\n        lines = normalize_file(os.path.join(LOG_DIR, fname))\n        per_file[fname] = len(lines)\n        all_lines.extend(lines)\n\n    with open(OUTPUT_FILE, \"w\", encoding=\"utf-8\", newline=\"\\n\") as out:\n        for line in all_lines:\n            out.write(line + \"\\n\")\n\n    print(\"Normalization complete.\")\n    for fname in files:\n        print(f\"  {fname}: {per_file[fname]} lines\")\n    print(f\"Total lines written: {len(all_lines)}\")\n\n\nif __name__ == \"__main__\":\n    main()\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 5.2,
+    "keystrokes": "python3 /app/normalize_encoding.py\n",
+    "duration": 2.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 5.2,
+    "keystrokes": "sed -n '111,170p' /app/normalized_output.txt | grep \"user:\" | head -12; grep -n \"Truncated\\|complete):\" /app/normalized_output.txt | head -6\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 7.4,
+    "keystrokes": "grep -n \"Ã\\|Â\\|â€\\|�\" /app/normalized_output.txt | head; sed -n '91,110p' /app/normalized_output.txt; grep -n \"Zoë\\|Brötchen\" /app/normalized_output.txt | head -3\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 13,
+    "offset_sec": 7.5,
+    "keystrokes": "ls -la /app/normalize_encoding.py /app/normalized_output.txt\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 13,
+    "offset_sec": 7.6,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 7.6,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

@@ -1,0 +1,31 @@
+# Résultats Équipe Epsilon | encodage Latin-1
+model,dataset,accuracy,rows,features
+CatBoost_v1,Gesture,0.8302,9873,32
+CatBoost_v1,Jungle,0.8302,44819,6
+CatBoost_v1,miniboone,0.9072,130064,50
+CatBoost_v1,Phoneme,0.8922,5404,5
+FT Transformer,Albert,0.831,425240,78
+FT Transformer,Electricity,0.8728,45312,8
+FT Transformer,Helena,0.8881,65196,27
+LGBM_v3,adult_dataset,0.8209,48842,14
+LGBM_v3,Albert,0.8864,425240,78
+LGBM_v3,Electricity,0.8235,45312,8
+LGBM_v3,Jungle,0.874,44819,6
+LGBM_v3,Volkert,0.8619,58310,180
+MultiLayerPerceptron,Jannis,0.8659,83733,54
+MultiLayerPerceptron,Jungle,0.8992,44819,6
+MultiLayerPerceptron,miniboone,0.8052,130064,50
+MultiLayerPerceptron,Phoneme,0.7618,5404,5
+Random Forest,Albert,0.7954,425240,78
+Random Forest,Jannis,0.8113,83733,54
+Random Forest,Phoneme,0.8095,5404,5
+ResNet,Albert,0.7305,425240,78
+ResNet,Electricity,0.7545,45312,8
+ResNet,Helena,0.8106,65196,27
+SAINT,Albert,0.8987,425240,78
+SAINT,Electricity,0.8752,45312,8
+SAINT,Helena,0.7793,65196,27
+XGBoost_v2,adult_dataset,0.9236,48842,14
+XGBoost_v2,BankMarketing,0.8895,45211,16
+XGBoost_v2,CreditG,0.879,1000,20
+XGBoost_v2,Helena,0.9053,65196,27

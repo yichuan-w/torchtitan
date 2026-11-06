@@ -1,0 +1,401 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 3.0,
+    "keystrokes": "ls -la /app /app/data && head -3 /app/data/train.csv && wc -l /app/data/train.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 3.0,
+    "keystrokes": "python3 -c \"import lightgbm, pandas, sklearn; print(lightgbm.__version__, pandas.__version__, sklearn.__version__)\"\n",
+    "duration": 2.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 8.1,
+    "keystrokes": "pip install --quiet lightgbm pandas scikit-learn 2>&1 | tail -3\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 8.1,
+    "keystrokes": "\n",
+    "duration": 30.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 8.1,
+    "keystrokes": "python3 -c \"import lightgbm, pandas, sklearn; print(lightgbm.__version__, pandas.__version__, sklearn.__version__)\"\n",
+    "duration": 2.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 41.1,
+    "keystrokes": "which pip3 python3; python3 --version; python3 -m pip --version\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 42.1,
+    "keystrokes": "python3 -m ensurepip --upgrade 2>&1 | tail -2\n",
+    "duration": 5.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 42.1,
+    "keystrokes": "python3 -m pip --version\n",
+    "duration": 2.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 52.1,
+    "keystrokes": "python3 -m pip install --quiet lightgbm pandas scikit-learn 2>&1 | tail -5\n",
+    "duration": 30.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 52.1,
+    "keystrokes": "\n",
+    "duration": 30.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 52.1,
+    "keystrokes": "python3 -c \"import lightgbm, pandas, sklearn; print(lightgbm.__version__, pandas.__version__, sklearn.__version__)\"\n",
+    "duration": 2.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 114.1,
+    "keystrokes": "apt-get update -qq 2>&1 | tail -2 && apt-get install -y -qq libgomp1 2>&1 | tail -3\n",
+    "duration": 15.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 114.1,
+    "keystrokes": "\n",
+    "duration": 30.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 114.1,
+    "keystrokes": "python3 -c \"import lightgbm, pandas, sklearn; print(lightgbm.__version__, pandas.__version__, sklearn.__version__)\"\n",
+    "duration": 3.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 162.1,
+    "keystrokes": "python3 -c \"\nimport pandas as pd\ndf = pd.read_csv('/app/data/train.csv')\nprint(df.shape)\nprint(df['income'].value_counts(normalize=True))\nfor c in df.select_dtypes('object').columns:\n    n = (df[c].astype(str).str.strip()=='?').sum()\n    print(c, df[c].nunique(), 'missing?', n)\n\"\n",
+    "duration": 2.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 167.1,
+    "keystrokes": "cat > /app/train.py << 'EOF'\nimport pandas as pd\nimport lightgbm as lgb\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.metrics import accuracy_score\nimport os\n\ndf = pd.read_csv('/app/data/train.csv')\ny = df['income']\nX = df.drop(columns=['income'])\n\ncat_cols = X.select_dtypes(include=['str', 'object']).columns.tolist()\nprint('categorical cols:', cat_cols)\nprint('NaN counts:\\n', X[cat_cols].isna().sum())\nfor c in cat_cols:\n    X[c] = X[c].fillna('Missing').astype('category')\n\nX_tr, X_va, y_tr, y_va = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)\n\nparams = dict(\n    objective='binary',\n    metric='binary_error',\n    learning_rate=0.05,\n    num_leaves=63,\n    min_data_in_leaf=50,\n    feature_fraction=0.9,\n    bagging_fraction=0.9,\n    bagging_freq=1,\n    lambda_l2=1.0,\n    verbose=-1,\n    n_jobs=-1,\n)\n\ndtr = lgb.Dataset(X_tr, y_tr, categorical_feature=cat_cols)\ndva = lgb.Dataset(X_va, y_va, categorical_feature=cat_cols, reference=dtr)\n\nmodel = lgb.train(\n    params, dtr, num_boost_round=3000,\n    valid_sets=[dva],\n    callbacks=[lgb.early_stopping(100), lgb.log_evaluation(200)],\n)\n\npred = (model.predict(X_va, num_iteration=model.best_iteration) >= 0.5).astype(int)\nacc = accuracy_score(y_va, pred)\nprint('validation accuracy:', acc)\n\nmodel.save_model('/app/model.txt', num_iteration=model.best_iteration)\nprint('model size bytes:', os.path.getsize('/app/model.txt'))\nEOF\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 167.1,
+    "keystrokes": "python3 /app/train.py\n",
+    "duration": 60.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 227.6,
+    "keystrokes": "\n",
+    "duration": 30.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 260.6,
+    "keystrokes": "\n",
+    "duration": 30.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 13,
+    "offset_sec": 293.6,
+    "keystrokes": "\n",
+    "duration": 30.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 326.6,
+    "keystrokes": "C-c",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 326.6,
+    "keystrokes": "\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 15,
+    "offset_sec": 331.1,
+    "keystrokes": "nproc; grep -c processor /proc/cpuinfo\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 15,
+    "offset_sec": 331.1,
+    "keystrokes": "python3 - << 'EOF'\nimport time, pandas as pd, lightgbm as lgb\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.metrics import accuracy_score\ndf = pd.read_csv('/app/data/train.csv')\ny = df['income']; X = df.drop(columns=['income'])\ncat_cols = X.select_dtypes(include=['str','object']).columns.tolist()\nfor c in cat_cols: X[c] = X[c].fillna('Missing').astype('category')\nX_tr, X_va, y_tr, y_va = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)\nparams = dict(objective='binary', metric='binary_error', learning_rate=0.05, num_leaves=63, min_data_in_leaf=50, verbose=-1, num_threads=4)\ndtr = lgb.Dataset(X_tr, y_tr, categorical_feature=cat_cols)\ndva = lgb.Dataset(X_va, y_va, reference=dtr)\nt=time.time()\nm = lgb.train(params, dtr, num_boost_round=100, valid_sets=[dva], callbacks=[lgb.log_evaluation(10)])\nprint('train time 100 iters:', time.time()-t)\npred = (m.predict(X_va)>=0.5).astype(int)\nprint('acc:', accuracy_score(y_va, pred))\nEOF\n",
+    "duration": 60.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 16,
+    "offset_sec": 394.6,
+    "keystrokes": "sed -i \"s/n_jobs=-1,/num_threads=4,/\" /app/train.py && grep num_threads /app/train.py\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 16,
+    "offset_sec": 394.6,
+    "keystrokes": "python3 /app/train.py\n",
+    "duration": 60.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 17,
+    "offset_sec": 458.1,
+    "keystrokes": "cat > /app/search.py << 'EOF'\nimport pandas as pd, lightgbm as lgb, numpy as np\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.metrics import accuracy_score\n\ndf = pd.read_csv('/app/data/train.csv')\ny = df['income']\nX = df.drop(columns=['income'])\nX = X.drop(columns=['education'])  # redundant with education-num\nX['capital-gain'] = np.log1p(X['capital-gain'])\nX['capital-loss'] = np.log1p(X['capital-loss'])\ncat_cols = X.select_dtypes(include=['str','object']).columns.tolist()\nfor c in cat_cols: X[c] = X[c].fillna('Missing').astype('category')\n\nX_tr, X_va, y_tr, y_va = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)\ndtr = lgb.Dataset(X_tr, y_tr, categorical_feature=cat_cols)\ndva = lgb.Dataset(X_va, y_va, categorical_feature=cat_cols, reference=dtr)\n\nresults = []\nfor leaves in [15, 31, 63]:\n    for minleaf in [20, 50, 100]:\n        for lr in [0.03, 0.05]:\n            params = dict(objective='binary', metric='binary_error', learning_rate=lr,\n                          num_leaves=leaves, min_data_in_leaf=minleaf,\n                          feature_fraction=0.9, bagging_fraction=0.9, bagging_freq=1,\n                          lambda_l2=1.0, verbose=-1, num_threads=8, seed=42)\n            m = lgb.train(params, dtr, num_boost_round=3000, valid_sets=[dva],\n                          callbacks=[lgb.early_stopping(100, verbose=False)])\n            pred = (m.predict(X_va, num_iteration=m.best_iteration)>=0.5).astype(int)\n            acc = accuracy_score(y_va, pred)\n            size = len(m.model_to_string(num_iteration=m.best_iteration))\n            results.append((acc, size, leaves, minleaf, lr, m.best_iteration))\n            print(f'leaves={leaves} minleaf={minleaf} lr={lr} iters={m.best_iteration} acc={acc:.5f} size={size}')\nok = [r for r in results if r[1] < 500_000 and r[0] >= 0.872]\nok.sort(reverse=True)\nprint('BEST under constraints:', ok[:3])\nresults.sort(reverse=True)\nprint('BEST overall:', results[:3])\nEOF\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 17,
+    "offset_sec": 458.1,
+    "keystrokes": "python3 /app/search.py 2>&1 | tail -30\n",
+    "duration": 60.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 18,
+    "offset_sec": 521.6,
+    "keystrokes": "cat > /app/cv.py << 'EOF'\nimport pandas as pd, lightgbm as lgb, numpy as np\nfrom sklearn.model_selection import StratifiedKFold\nfrom sklearn.metrics import accuracy_score\n\ndf = pd.read_csv('/app/data/train.csv')\ny = df['income'].values\n\ndef build(fe):\n    X = df.drop(columns=['income']).copy()\n    if fe.get('drop_edu'): X = X.drop(columns=['education'])\n    if fe.get('drop_fnlwgt'): X = X.drop(columns=['fnlwgt'])\n    if fe.get('netcap'): X['net-capital'] = X['capital-gain'] - X['capital-loss']\n    if fe.get('logcap'):\n        X['capital-gain'] = np.log1p(X['capital-gain']); X['capital-loss'] = np.log1p(X['capital-loss'])\n    cat_cols = X.select_dtypes(include=['str','object']).columns.tolist()\n    for c in cat_cols: X[c] = X[c].fillna('Missing').astype('category')\n    return X, cat_cols\n\ndef cv_acc(X, cat_cols, params, rounds=2000):\n    skf = StratifiedKFold(5, shuffle=True, random_state=1)\n    accs, iters = [], []\n    for tr, va in skf.split(X, y):\n        dtr = lgb.Dataset(X.iloc[tr], y[tr], categorical_feature=cat_cols)\n        dva = lgb.Dataset(X.iloc[va], y[va], categorical_feature=cat_cols, reference=dtr)\n        m = lgb.train(params, dtr, num_boost_round=rounds, valid_sets=[dva],\n                      callbacks=[lgb.early_stopping(100, verbose=False)])\n        p = (m.predict(X.iloc[va], num_iteration=m.best_iteration)>=0.5).astype(int)\n        accs.append(accuracy_score(y[va], p)); iters.append(m.best_iteration)\n    return np.mean(accs), np.mean(iters)\n\nconfigs = [\n    ('base_l15', {'drop_edu':True}, 15, 20, 0.05),\n    ('base_l31', {'drop_edu':True}, 31, 20, 0.05),\n    ('netcap', {'drop_edu':True,'netcap':True}, 15, 20, 0.05),\n    ('nofnlwgt', {'drop_edu':True,'drop_fnlwgt':True,'netcap':True}, 15, 20, 0.05),\n    ('keepall', {'netcap':True}, 15, 20, 0.05),\n    ('l7', {'drop_edu':True,'drop_fnlwgt':True,'netcap':True}, 7, 20, 0.05),\n]\nfor name, fe, leaves, minleaf, lr in configs:\n    X, cat_cols = build(fe)\n    params = dict(objective='binary', metric='binary_error', learning_rate=lr,\n                  num_leaves=leaves, min_data_in_leaf=minleaf,\n                  feature_fraction=0.9, bagging_fraction=0.9, bagging_freq=1,\n                  lambda_l2=1.0, verbose=-1, num_threads=8, seed=42)\n    acc, it = cv_acc(X, cat_cols, params)\n    print(f'{name}: cv_acc={acc:.5f} avg_iters={it:.0f}')\nEOF\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 18,
+    "offset_sec": 521.6,
+    "keystrokes": "python3 /app/cv.py\n",
+    "duration": 60.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 19,
+    "offset_sec": 585.1,
+    "keystrokes": "cat > /app/cv2.py << 'EOF'\nimport pandas as pd, lightgbm as lgb, numpy as np\nfrom sklearn.model_selection import StratifiedKFold\nfrom sklearn.metrics import accuracy_score\n\ndf = pd.read_csv('/app/data/train.csv')\ny = df['income'].values\nX = df.drop(columns=['income', 'education']).copy()\nX['net-capital'] = X['capital-gain'] - X['capital-loss']\ncat_cols = X.select_dtypes(include=['str','object']).columns.tolist()\nfor c in cat_cols: X[c] = X[c].fillna('Missing').astype('category')\n\ndef cv_acc(params, rounds=2500):\n    skf = StratifiedKFold(5, shuffle=True, random_state=1)\n    accs, iters = [], []\n    for tr, va in skf.split(X, y):\n        dtr = lgb.Dataset(X.iloc[tr], y[tr], categorical_feature=cat_cols)\n        dva = lgb.Dataset(X.iloc[va], y[va], categorical_feature=cat_cols, reference=dtr)\n        m = lgb.train(params, dtr, num_boost_round=rounds, valid_sets=[dva],\n                      callbacks=[lgb.early_stopping(100, verbose=False)])\n        p = (m.predict(X.iloc[va], num_iteration=m.best_iteration)>=0.5).astype(int)\n        accs.append(accuracy_score(y[va], p)); iters.append(m.best_iteration)\n    return np.mean(accs), np.std(accs), np.mean(iters)\n\nbase = dict(objective='binary', metric='binary_error', verbose=-1, num_threads=8, seed=42,\n            lambda_l2=1.0)\ngrids = []\nfor leaves in [15, 31]:\n    for minleaf in [20, 50]:\n        for lr in [0.03, 0.05, 0.08]:\n            for ff, bf in [(0.9,0.9), (1.0,1.0)]:\n                grids.append((leaves, minleaf, lr, ff, bf))\nbest = None\nfor leaves, minleaf, lr, ff, bf in grids:\n    params = dict(base, num_leaves=leaves, min_data_in_leaf=minleaf, learning_rate=lr,\n                  feature_fraction=ff, bagging_fraction=bf, bagging_freq=1 if bf<1 else 0)\n    acc, sd, it = cv_acc(params)\n    tag = f'l{leaves} m{minleaf} lr{lr} ff{ff} bf{bf}'\n    print(f'{tag}: acc={acc:.5f} +-{sd:.5f} iters={it:.0f}')\n    if best is None or acc > best[0]: best = (acc, tag, it)\nprint('BEST:', best)\nEOF\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 19,
+    "offset_sec": 585.1,
+    "keystrokes": "python3 /app/cv2.py\n",
+    "duration": 60,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 20,
+    "offset_sec": 648.6,
+    "keystrokes": "\n",
+    "duration": 60.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 21,
+    "offset_sec": 711.6,
+    "keystrokes": "cat > /app/cv3.py << 'EOF'\nimport pandas as pd, lightgbm as lgb, numpy as np\nfrom sklearn.model_selection import StratifiedKFold\nfrom sklearn.metrics import accuracy_score\n\ndf = pd.read_csv('/app/data/train.csv')\ny = df['income'].values\n\ndef build(variant):\n    X = df.drop(columns=['income', 'education']).copy()\n    X['net-capital'] = X['capital-gain'] - X['capital-loss']\n    if 'flags' in variant:\n        X['has-gain'] = (X['capital-gain']>0).astype(int)\n        X['has-loss'] = (X['capital-loss']>0).astype(int)\n    if 'marital' in variant:\n        X['married'] = X['marital-status'].isin(['Married-civ-spouse','Married-AF-spouse']).astype(int)\n    if 'country' in variant:\n        X['us'] = (X['native-country']=='United-States').astype(int)\n    if 'agebin' in variant:\n        X['age-bin'] = pd.cut(X['age'], [0,25,35,45,55,65,100], labels=False)\n    if 'hours' in variant:\n        X['hours-bin'] = pd.cut(X['hours-per-week'], [0,30,40,50,60,168], labels=False)\n    cat_cols = X.select_dtypes(include=['str','object']).columns.tolist()\n    for c in cat_cols: X[c] = X[c].fillna('Missing').astype('category')\n    return X, cat_cols\n\nparams = dict(objective='binary', metric='binary_error', learning_rate=0.05,\n              num_leaves=15, min_data_in_leaf=20, feature_fraction=0.9,\n              bagging_fraction=0.9, bagging_freq=1, lambda_l2=1.0,\n              verbose=-1, num_threads=8, seed=42)\n\nfor variant in [[], ['flags'], ['marital'], ['country'], ['agebin'], ['hours'], ['flags','marital','country','agebin','hours']]:\n    X, cat_cols = build(variant)\n    skf = StratifiedKFold(5, shuffle=True, random_state=1)\n    accs, iters = [], []\n    for tr, va in skf.split(X, y):\n        dtr = lgb.Dataset(X.iloc[tr], y[tr], categorical_feature=cat_cols)\n        dva = lgb.Dataset(X.iloc[va], y[va], categorical_feature=cat_cols, reference=dtr)\n        m = lgb.train(params, dtr, num_boost_round=2500, valid_sets=[dva],\n                      callbacks=[lgb.early_stopping(100, verbose=False)])\n        p = (m.predict(X.iloc[va], num_iteration=m.best_iteration)>=0.5).astype(int)\n        accs.append(accuracy_score(y[va], p)); iters.append(m.best_iteration)\n    print(f'{variant}: acc={np.mean(accs):.5f} iters={np.mean(iters):.0f}')\nEOF\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 21,
+    "offset_sec": 711.6,
+    "keystrokes": "python3 /app/cv3.py\n",
+    "duration": 60,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 22,
+    "offset_sec": 775.1,
+    "keystrokes": "cat > /app/cv4.py << 'EOF'\nimport pandas as pd, lightgbm as lgb, numpy as np\nfrom sklearn.model_selection import StratifiedKFold\nfrom sklearn.metrics import accuracy_score\n\ndf = pd.read_csv('/app/data/train.csv')\ny = df['income'].values\nX = df.drop(columns=['income', 'education']).copy()\nX['net-capital'] = X['capital-gain'] - X['capital-loss']\nX['married'] = X['marital-status'].isin(['Married-civ-spouse','Married-AF-spouse']).astype(int)\ncat_cols = X.select_dtypes(include=['str','object']).columns.tolist()\nfor c in cat_cols: X[c] = X[c].fillna('Missing').astype('category')\n\ndef cv_acc(params, rounds=2500):\n    skf = StratifiedKFold(5, shuffle=True, random_state=1)\n    accs, iters, sizes = [], [], []\n    for tr, va in skf.split(X, y):\n        dtr = lgb.Dataset(X.iloc[tr], y[tr], categorical_feature=cat_cols)\n        dva = lgb.Dataset(X.iloc[va], y[va], categorical_feature=cat_cols, reference=dtr)\n        m = lgb.train(params, dtr, num_boost_round=rounds, valid_sets=[dva],\n                      callbacks=[lgb.early_stopping(100, verbose=False)])\n        p = (m.predict(X.iloc[va], num_iteration=m.best_iteration)>=0.5).astype(int)\n        accs.append(accuracy_score(y[va], p)); iters.append(m.best_iteration)\n        sizes.append(len(m.model_to_string(num_iteration=m.best_iteration)))\n    return np.mean(accs), np.mean(iters), np.mean(sizes)\n\nfor leaves in [8, 10, 12, 15]:\n    for lr in [0.05, 0.08, 0.1]:\n        params = dict(objective='binary', metric='binary_error', learning_rate=lr,\n                      num_leaves=leaves, min_data_in_leaf=20, feature_fraction=0.9,\n                      bagging_fraction=0.9, bagging_freq=1, lambda_l2=1.0,\n                      verbose=-1, num_threads=8, seed=42)\n        acc, it, sz = cv_acc(params)\n        print(f'l{leaves} lr{lr}: acc={acc:.5f} iters={it:.0f} size~{sz/1024:.0f}KB')\nEOF\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 22,
+    "offset_sec": 775.1,
+    "keystrokes": "python3 /app/cv4.py\n",
+    "duration": 60,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 23,
+    "offset_sec": 838.6,
+    "keystrokes": "\n",
+    "duration": 60.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 24,
+    "offset_sec": 901.6,
+    "keystrokes": "cat > /app/cv5.py << 'EOF'\nimport pandas as pd, lightgbm as lgb, numpy as np, random\nfrom sklearn.model_selection import StratifiedKFold\nfrom sklearn.metrics import accuracy_score\n\ndf = pd.read_csv('/app/data/train.csv')\ny = df['income'].values\nX = df.drop(columns=['income', 'education']).copy()\nX['net-capital'] = X['capital-gain'] - X['capital-loss']\nX['married'] = X['marital-status'].isin(['Married-civ-spouse','Married-AF-spouse']).astype(int)\ncat_cols = X.select_dtypes(include=['str','object']).columns.tolist()\nfor c in cat_cols: X[c] = X[c].fillna('Missing').astype('category')\n\nrandom.seed(0)\ndef sample():\n    return dict(\n        num_leaves=random.choice([6,8,10,12,15,20]),\n        min_data_in_leaf=random.choice([10,20,40,80]),\n        learning_rate=random.choice([0.05,0.08,0.1,0.15]),\n        feature_fraction=random.choice([0.7,0.8,0.9,1.0]),\n        bagging_fraction=random.choice([0.7,0.8,0.9,1.0]),\n        lambda_l2=random.choice([0.0,1.0,5.0,10.0]),\n        path_smooth=random.choice([0.0,0.5,1.0]),\n        max_bin=random.choice([63,127,255]),\n        min_split_gain=random.choice([0.0,0.01,0.1]),\n    )\n\ndef cv_acc(params, n_splits=3, seed=1):\n    skf = StratifiedKFold(n_splits, shuffle=True, random_state=seed)\n    accs, iters, sizes = [], [], []\n    for tr, va in skf.split(X, y):\n        dtr = lgb.Dataset(X.iloc[tr], y[tr], categorical_feature=cat_cols)\n        dva = lgb.Dataset(X.iloc[va], y[va], categorical_feature=cat_cols, reference=dtr)\n        m = lgb.train(params, dtr, num_boost_round=2500, valid_sets=[dva],\n                      callbacks=[lgb.early_stopping(100, verbose=False)])\n        p = (m.predict(X.iloc[va], num_iteration=m.best_iteration)>=0.5).astype(int)\n        accs.append(accuracy_score(y[va], p)); iters.append(m.best_iteration)\n        sizes.append(len(m.model_to_string(num_iteration=m.best_iteration)))\n    return np.mean(accs), np.mean(iters), np.mean(sizes)\n\nresults = []\nfor i in range(30):\n    p = sample()\n    params = dict(objective='binary', metric='binary_error', verbose=-1,\n                  num_threads=8, seed=42, bagging_freq=1 if p['bagging_fraction']<1 else 0, **p)\n    acc, it, sz = cv_acc(params)\n    results.append((acc, sz, it, p))\n    print(f'{i}: acc={acc:.5f} iters={it:.0f} size={sz/1024:.0f}KB {p}')\nresults.sort(key=lambda r: -r[0])\nprint('TOP5:')\nfor r in results[:5]: print(r)\nEOF\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 24,
+    "offset_sec": 901.6,
+    "keystrokes": "python3 /app/cv5.py 2>&1 | tail -40\n",
+    "duration": 60,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 25,
+    "offset_sec": 965.1,
+    "keystrokes": "\n",
+    "duration": 60.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 27,
+    "offset_sec": 1028.1,
+    "keystrokes": "cat > /app/final.py << 'EOF'\nimport pandas as pd, lightgbm as lgb, numpy as np, os\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.metrics import accuracy_score\n\ndf = pd.read_csv('/app/data/train.csv')\ny = df['income'].values\nX = df.drop(columns=['income', 'education']).copy()\nX['net-capital'] = X['capital-gain'] - X['capital-loss']\nX['married'] = X['marital-status'].isin(['Married-civ-spouse','Married-AF-spouse']).astype(int)\ncat_cols = X.select_dtypes(include=['str','object']).columns.tolist()\nfor c in cat_cols: X[c] = X[c].fillna('Missing').astype('category')\n\nparams = dict(objective='binary', metric='binary_error', learning_rate=0.1,\n              num_leaves=8, min_data_in_leaf=20, feature_fraction=0.9,\n              bagging_fraction=0.9, bagging_freq=1, lambda_l2=1.0,\n              verbose=-1, num_threads=8, seed=42)\n\nX_tr, X_va, y_tr, y_va = train_test_split(X, y, test_size=0.1, random_state=7, stratify=y)\ndtr = lgb.Dataset(X_tr, y_tr, categorical_feature=cat_cols)\ndva = lgb.Dataset(X_va, y_va, categorical_feature=cat_cols, reference=dtr)\nm = lgb.train(params, dtr, num_boost_round=2000, valid_sets=[dva],\n              callbacks=[lgb.early_stopping(100, verbose=False)])\nbest_iter = m.best_iteration\np = (m.predict(X_va, num_iteration=best_iter)>=0.5).astype(int)\nprint('holdout acc:', accuracy_score(y_va, p), 'best_iter:', best_iter)\n\ndfull = lgb.Dataset(X, y, categorical_feature=cat_cols)\nfinal = lgb.train(params, dfull, num_boost_round=best_iter)\nfinal.save_model('/app/model.txt')\nsz = os.path.getsize('/app/model.txt')\nprint('saved size bytes:', sz, 'under 500KB:', sz < 500*1024)\n\nm2 = lgb.Booster(model_file='/app/model.txt')\np2 = (m2.predict(X_va)>=0.5).astype(int)\nprint('reloaded model holdout acc (sanity):', accuracy_score(y_va, p2))\nEOF\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 27,
+    "offset_sec": 1028.1,
+    "keystrokes": "python3 /app/final.py\n",
+    "duration": 60.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 29,
+    "offset_sec": 1088.6,
+    "keystrokes": "python3 -c \"import lightgbm as lgb; print(hasattr(lgb.Booster, 'merge')); print([m for m in dir(lgb.Booster) if 'merge' in m.lower()])\"\n",
+    "duration": 2.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 30,
+    "offset_sec": 1093.6,
+    "keystrokes": "cat > /app/cv6.py << 'EOF'\nimport pandas as pd, lightgbm as lgb, numpy as np, ctypes\nfrom lightgbm.basic import _LIB, _safe_call\nfrom sklearn.model_selection import StratifiedKFold\nfrom sklearn.metrics import accuracy_score\n\ndf = pd.read_csv('/app/data/train.csv')\ny = df['income'].values\nX = df.drop(columns=['income', 'education']).copy()\nX['net-capital'] = X['capital-gain'] - X['capital-loss']\nX['married'] = X['marital-status'].isin(['Married-civ-spouse','Married-AF-spouse']).astype(int)\ncat_cols = X.select_dtypes(include=['str','object']).columns.tolist()\nfor c in cat_cols: X[c] = X[c].fillna('Missing').astype('category')\n\ndef merge(b1, b2):\n    _safe_call(_LIB.LGBM_BoosterMerge(b1._handle, b2._handle))\n    return b1\n\ndef make_params(seed, lr):\n    return dict(objective='binary', learning_rate=lr, num_leaves=8, min_data_in_leaf=20,\n                feature_fraction=0.9, bagging_fraction=0.9, bagging_freq=1, lambda_l2=1.0,\n                verbose=-1, num_threads=8, seed=seed)\n\nskf = StratifiedKFold(5, shuffle=True, random_state=1)\nres = {'single':[], 'm2':[], 'm3':[]}\nszs = {'single':[], 'm2':[], 'm3':[]}\nfor tr, va in skf.split(X, y):\n    dtr = lgb.Dataset(X.iloc[tr], y[tr], categorical_feature=cat_cols)\n    Xv, yv = X.iloc[va], y[va]\n    mA = lgb.train(make_params(42,0.1), dtr, num_boost_round=340)\n    p = (mA.predict(Xv)>=0.5).astype(int)\n    res['single'].append(accuracy_score(yv,p)); szs['single'].append(len(mA.model_to_string()))\n    b1 = lgb.train(make_params(42,0.12), dtr, num_boost_round=250)\n    b2 = lgb.train(make_params(43,0.12), dtr, num_boost_round=250)\n    mm = merge(b1,b2)\n    p = (mm.predict(Xv)>=0.5).astype(int)\n    res['m2'].append(accuracy_score(yv,p)); szs['m2'].append(len(mm.model_to_string()))\n    bs = [lgb.train(make_params(s,0.15), dtr, num_boost_round=170) for s in (42,43,44)]\n    mm = bs[0]\n    for b in bs[1:]: mm = merge(mm,b)\n    p = (mm.predict(Xv)>=0.5).astype(int)\n    res['m3'].append(accuracy_score(yv,p)); szs['m3'].append(len(mm.model_to_string()))\nfor k in res:\n    print(f\"{k}: acc={np.mean(res[k]):.5f} +-{np.std(res[k]):.5f} size~{np.mean(szs[k])/1024:.0f}KB\")\nEOF\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 30,
+    "offset_sec": 1093.6,
+    "keystrokes": "python3 /app/cv6.py\n",
+    "duration": 60,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 31,
+    "offset_sec": 1157.1,
+    "keystrokes": "cat > /app/cv7.py << 'EOF'\nimport pandas as pd, lightgbm as lgb, numpy as np\nfrom sklearn.model_selection import StratifiedKFold\nfrom sklearn.metrics import accuracy_score\n\ndf = pd.read_csv('/app/data/train.csv')\ny = df['income'].values\nX = df.drop(columns=['income']).copy()\ncat_cols = X.select_dtypes(include=['str','object']).columns.tolist()\nfor c in cat_cols:\n    X[c] = X[c].astype('category')  # keep NaN\nprint('cols:', list(X.columns))\n\nparams = dict(objective='binary', metric='binary_error', learning_rate=0.1,\n              num_leaves=8, min_data_in_leaf=20, feature_fraction=0.9,\n              bagging_fraction=0.9, bagging_freq=1, lambda_l2=1.0,\n              verbose=-1, num_threads=8, seed=42)\n\nskf = StratifiedKFold(5, shuffle=True, random_state=1)\naccs, iters, sizes = [], [], []\nfor tr, va in skf.split(X, y):\n    dtr = lgb.Dataset(X.iloc[tr], y[tr], categorical_feature=cat_cols)\n    dva = lgb.Dataset(X.iloc[va], y[va], categorical_feature=cat_cols, reference=dtr)\n    m = lgb.train(params, dtr, num_boost_round=2500, valid_sets=[dva],\n                  callbacks=[lgb.early_stopping(100, verbose=False)])\n    p = (m.predict(X.iloc[va], num_iteration=m.best_iteration)>=0.5).astype(int)\n    accs.append(accuracy_score(y[va], p)); iters.append(m.best_iteration)\n    sizes.append(len(m.model_to_string(num_iteration=m.best_iteration)))\nprint(f'raw-features CV: acc={np.mean(accs):.5f} +-{np.std(accs):.5f} iters={np.mean(iters):.0f} size~{np.mean(sizes)/1024:.0f}KB')\nEOF\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 31,
+    "offset_sec": 1157.1,
+    "keystrokes": "python3 /app/cv7.py\n",
+    "duration": 60.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 32,
+    "offset_sec": 1220.6,
+    "keystrokes": "cat > /app/final2.py << 'EOF'\nimport pandas as pd, lightgbm as lgb, numpy as np, os\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.metrics import accuracy_score\n\ndf = pd.read_csv('/app/data/train.csv')\ny = df['income'].values\nX = df.drop(columns=['income']).copy()\ncat_cols = X.select_dtypes(include=['str','object']).columns.tolist()\nfor c in cat_cols:\n    X[c] = X[c].astype('category')\n\nparams = dict(objective='binary', metric='binary_error', learning_rate=0.1,\n              num_leaves=8, min_data_in_leaf=20, feature_fraction=0.9,\n              bagging_fraction=0.9, bagging_freq=1, lambda_l2=1.0,\n              verbose=-1, num_threads=8, seed=42)\n\nX_tr, X_va, y_tr, y_va = train_test_split(X, y, test_size=0.1, random_state=7, stratify=y)\ndtr = lgb.Dataset(X_tr, y_tr, categorical_feature=cat_cols)\ndva = lgb.Dataset(X_va, y_va, categorical_feature=cat_cols, reference=dtr)\nm = lgb.train(params, dtr, num_boost_round=2000, valid_sets=[dva],\n              callbacks=[lgb.early_stopping(100, verbose=False)])\nprint('holdout acc:', accuracy_score(y_va, (m.predict(X_va, num_iteration=m.best_iteration)>=0.5).astype(int)),\n      'best_iter:', m.best_iteration)\n\ndfull = lgb.Dataset(X, y, categorical_feature=cat_cols)\nfinal = lgb.train(params, dfull, num_boost_round=m.best_iteration)\nfinal.save_model('/app/model.txt')\nsz = os.path.getsize('/app/model.txt')\nprint('saved:', sz, 'bytes; under 500KB:', sz < 500*1024)\n\n# consistency: reload and predict on category vs raw-string data\nm2 = lgb.Booster(model_file='/app/model.txt')\nX_raw = df.drop(columns=['income']).copy()  # str dtype, NaN intact\np_cat = m2.predict(X.iloc[:1000])\np_raw = m2.predict(X_raw.iloc[:1000])\nprint('max diff cat vs raw input:', np.abs(p_cat - p_raw).max())\nprint('reloaded acc on train[:10000]:', accuracy_score(y[:10000], (m2.predict(X_raw.iloc[:10000])>=0.5).astype(int)))\nEOF\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 32,
+    "offset_sec": 1220.6,
+    "keystrokes": "python3 /app/final2.py\n",
+    "duration": 60.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 33,
+    "offset_sec": 1284.1,
+    "keystrokes": "cat > /app/cv8.py << 'EOF'\nimport pandas as pd, lightgbm as lgb, numpy as np\nfrom sklearn.model_selection import StratifiedKFold\nfrom sklearn.metrics import accuracy_score\n\ndf = pd.read_csv('/app/data/train.csv')\ny = df['income'].values\nX = df.drop(columns=['income']).copy()\ncat_cols = X.select_dtypes(include=['str','object']).columns.tolist()\nfor c in cat_cols: X[c] = X[c].astype('category')\n\ndef cv_acc(params):\n    skf = StratifiedKFold(5, shuffle=True, random_state=1)\n    accs, iters, sizes = [], [], []\n    for tr, va in skf.split(X, y):\n        dtr = lgb.Dataset(X.iloc[tr], y[tr], categorical_feature=cat_cols)\n        dva = lgb.Dataset(X.iloc[va], y[va], categorical_feature=cat_cols, reference=dtr)\n        m = lgb.train(params, dtr, num_boost_round=2500, valid_sets=[dva],\n                      callbacks=[lgb.early_stopping(100, verbose=False)])\n        p = (m.predict(X.iloc[va], num_iteration=m.best_iteration)>=0.5).astype(int)\n        accs.append(accuracy_score(y[va], p)); iters.append(m.best_iteration)\n        sizes.append(len(m.model_to_string(num_iteration=m.best_iteration)))\n    return np.mean(accs), np.std(accs), np.mean(iters), np.mean(sizes)\n\nfor leaves in [8, 15, 31]:\n    for lr in [0.05, 0.08, 0.1]:\n        params = dict(objective='binary', metric='binary_error', learning_rate=lr,\n                      num_leaves=leaves, min_data_in_leaf=20, feature_fraction=0.9,\n                      bagging_fraction=0.9, bagging_freq=1, lambda_l2=1.0,\n                      verbose=-1, num_threads=8, seed=42)\n        acc, sd, it, sz = cv_acc(params)\n        print(f'l{leaves} lr{lr}: acc={acc:.5f} +-{sd:.5f} iters={it:.0f} size~{sz/1024:.0f}KB')\nEOF\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 33,
+    "offset_sec": 1284.1,
+    "keystrokes": "python3 /app/cv8.py\n",
+    "duration": 60,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 34,
+    "offset_sec": 1347.6,
+    "keystrokes": "cat > /app/final3.py << 'EOF'\nimport pandas as pd, lightgbm as lgb, numpy as np, os\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.metrics import accuracy_score\n\ndf = pd.read_csv('/app/data/train.csv')\ny = df['income'].values\nX = df.drop(columns=['income']).copy()\ncat_cols = X.select_dtypes(include=['str','object']).columns.tolist()\nfor c in cat_cols: X[c] = X[c].astype('category')\n\nparams = dict(objective='binary', metric='binary_error', learning_rate=0.08,\n              num_leaves=15, min_data_in_leaf=20, feature_fraction=0.9,\n              bagging_fraction=0.9, bagging_freq=1, lambda_l2=1.0,\n              verbose=-1, num_threads=8, seed=42)\n\nX_tr, X_va, y_tr, y_va = train_test_split(X, y, test_size=0.1, random_state=7, stratify=y)\ndtr = lgb.Dataset(X_tr, y_tr, categorical_feature=cat_cols)\ndva = lgb.Dataset(X_va, y_va, categorical_feature=cat_cols, reference=dtr)\nm = lgb.train(params, dtr, num_boost_round=2000, valid_sets=[dva],\n              callbacks=[lgb.early_stopping(100, verbose=False)])\nbi = m.best_iteration\nprint('holdout acc:', accuracy_score(y_va, (m.predict(X_va, num_iteration=bi)>=0.5).astype(int)), 'best_iter:', bi)\n\nfinal = lgb.train(params, lgb.Dataset(X, y, categorical_feature=cat_cols), num_boost_round=bi)\nfinal.save_model('/app/model.txt')\nsz = os.path.getsize('/app/model.txt')\nprint('saved:', sz, 'bytes; under 500KB:', sz < 500*1024)\n\nm2 = lgb.Booster(model_file='/app/model.txt')\nacc = accuracy_score(y, (m2.predict(X)>=0.5).astype(int))\nprint('reloaded train acc (sanity):', acc)\nprint('pandas_categorical stored:', 'pandas_categorical' in open('/app/model.txt').read())\nEOF\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 34,
+    "offset_sec": 1347.6,
+    "keystrokes": "python3 /app/final3.py\n",
+    "duration": 60.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 35,
+    "offset_sec": 1408.1,
+    "keystrokes": "ls -la /app/model.txt\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 35,
+    "offset_sec": 1408.6,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 36,
+    "offset_sec": 1408.6,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

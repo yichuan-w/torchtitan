@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The instruction tells the student to run /tests/test_outputs.py, but the untouched image has no /tests directory or test file.",
+    "evidence": "instruction.md names /tests/test_outputs.py; attempts 01-12 each receive No such file or directory at turn 3, and environment/Dockerfile never creates or copies /tests.",
+    "change": "Copy the advertised test file into /tests in the image so the documented verification command works from the untouched starting state.",
+    "kind": "broken_setup"
+  }
+]

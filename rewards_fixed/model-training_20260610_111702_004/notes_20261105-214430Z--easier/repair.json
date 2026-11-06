@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The grader requires the deserialized artifact itself to expose predict and accept held-out rows in the original census feature schema, but the instruction only asked for a working model.pkl and never stated that inference interface.",
+    "evidence": "instruction.md omits the artifact prediction interface while tests/test_outputs.py loads the pickle and calls model.predict on original-schema feature rows; attempt-01.jsonl turn 7 and attempt-02.jsonl turn 13 demonstrate the two reasonable incompatible interpretations.",
+    "change": "State the required loaded-object prediction interface and original feature schema in the public artifact contract.",
+    "kind": "hidden_requirement"
+  }
+]

@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The shipped brain-even module imports a prompt symbol that prompt 0.4.1 does not export, so the installed console command crashes after its package files become available.",
+    "evidence": "traces/attempt-10.jsonl turn 15 only imports brain_games and never executes brain-even; direct execution during rewrite validation raised ImportError: cannot import name 'prompt' from 'prompt'.",
+    "change": "Use prompt 0.4.1's exported string prompting function for the application's existing prompt calls.",
+    "kind": "broken_setup"
+  }
+]

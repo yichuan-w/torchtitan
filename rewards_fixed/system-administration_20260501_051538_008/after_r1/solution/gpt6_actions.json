@@ -1,0 +1,422 @@
+[
+  {
+    "step_id": 3,
+    "offset_sec": 3.0,
+    "keystrokes": "ls -la /app\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 3.0,
+    "keystrokes": "cat /app/start-tunnel.sh\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 3.0,
+    "keystrokes": "ss -tlnp\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 3.0,
+    "keystrokes": "ps aux | grep -E 'ssh|python|node|flask|dashboard|api|metrics' | grep -v grep\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 3.0,
+    "keystrokes": "curl -sS -m 2 http://127.0.0.1:8080/ || true\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 3.0,
+    "keystrokes": "curl -sS -m 2 http://127.0.0.1:3000/health || true\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 3.0,
+    "keystrokes": "curl -sS -m 2 http://127.0.0.1:5000/metrics || true\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 7.9,
+    "keystrokes": "cat /app/README.md\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 7.9,
+    "keystrokes": "cat /app/entrypoint.sh\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 7.9,
+    "keystrokes": "cat /app/tunnel-monitor.sh\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 7.9,
+    "keystrokes": "cat /app/dashboard.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 7.9,
+    "keystrokes": "cat /app/api_server.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 7.9,
+    "keystrokes": "cat /app/metrics_server.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 7.9,
+    "keystrokes": "ls -la /root/.ssh /home/tunnel/.ssh\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 7.9,
+    "keystrokes": "getent passwd tunnel\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 7.9,
+    "keystrokes": "getent group tunnel\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 7.9,
+    "keystrokes": "grep -Ev '^\\s*$|^\\s*#' /etc/ssh/sshd_config | head -100\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 7.9,
+    "keystrokes": "command -v netstat\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 7.9,
+    "keystrokes": "command -v lsof\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 7.9,
+    "keystrokes": "command -v nc\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 7.9,
+    "keystrokes": "command -v python3\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 12.3,
+    "keystrokes": "mkdir -p /run/sshd\nid -u tunnel >/dev/null 2>&1 || useradd -m -s /bin/bash tunnel\ninstall -d -m 700 -o tunnel -g tunnel /home/tunnel/.ssh\ntest -f /etc/ssh/ssh_host_rsa_key || ssh-keygen -t rsa -f /etc/ssh/ssh_host_rsa_key -N '' -q\ninstall -d -m 700 /root/.ssh\ntest -f /root/.ssh/id_rsa || ssh-keygen -t rsa -b 2048 -f /root/.ssh/id_rsa -N '' -q\ncat /root/.ssh/id_rsa.pub > /home/tunnel/.ssh/authorized_keys\nchmod 600 /home/tunnel/.ssh/authorized_keys\nchown tunnel:tunnel /home/tunnel/.ssh/authorized_keys\nsed -i 's/^AllowTcpForwarding.*/AllowTcpForwarding yes/' /etc/ssh/sshd_config\ngrep -n 'AllowTcpForwarding' /etc/ssh/sshd_config\n/usr/sbin/sshd -t\npgrep -x sshd >/dev/null || /usr/sbin/sshd\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 12.3,
+    "keystrokes": "ssh -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i /root/.ssh/id_rsa tunnel@localhost true\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 17.3,
+    "keystrokes": "cat > /app/start-tunnel.sh <<'EOF'\n#!/bin/bash\n# Start SSH reverse tunnels for the internal dashboard, API, and metrics services.\n# Usage: ./start-tunnel.sh\n\nKEY=\"/root/.ssh/id_rsa\"\n\nexec ssh -N \\\n    -i \"$KEY\" \\\n    -o BatchMode=yes \\\n    -o StrictHostKeyChecking=no \\\n    -o UserKnownHostsFile=/dev/null \\\n    -o ExitOnForwardFailure=yes \\\n    -o ServerAliveInterval=30 \\\n    -o ServerAliveCountMax=3 \\\n    -R 127.0.0.1:9090:127.0.0.1:8080 \\\n    -R 127.0.0.1:9091:127.0.0.1:3000 \\\n    -R 127.0.0.1:9092:127.0.0.1:5000 \\\n    tunnel@localhost\nEOF\nchmod +x /app/start-tunnel.sh\ncat /app/start-tunnel.sh\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 17.3,
+    "keystrokes": "nohup python3 /app/dashboard.py >/var/log/dashboard.log 2>&1 &\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 17.3,
+    "keystrokes": "nohup python3 /app/api_server.py >/var/log/api_server.log 2>&1 &\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 17.3,
+    "keystrokes": "nohup python3 /app/metrics_server.py >/var/log/metrics_server.log 2>&1 &\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 17.3,
+    "keystrokes": "sleep 1\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 17.3,
+    "keystrokes": "curl -sS -m 2 http://127.0.0.1:8080/\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 17.3,
+    "keystrokes": "curl -sS -m 2 http://127.0.0.1:3000/health\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 17.3,
+    "keystrokes": "curl -sS -m 2 http://127.0.0.1:5000/metrics\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 24.4,
+    "keystrokes": "nohup /app/start-tunnel.sh >/var/log/start-tunnel.log 2>&1 &\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 24.4,
+    "keystrokes": "sleep 2\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 24.4,
+    "keystrokes": "curl -sS -m 2 http://127.0.0.1:9090/\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 24.4,
+    "keystrokes": "curl -sS -m 2 http://127.0.0.1:9091/health\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 24.4,
+    "keystrokes": "curl -sS -m 2 http://127.0.0.1:9092/metrics\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 24.4,
+    "keystrokes": "netstat -tlnp\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 24.4,
+    "keystrokes": "ps aux | grep -E 'ssh|python3' | grep -v grep\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 24.4,
+    "keystrokes": "cat /var/log/start-tunnel.log\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 31.5,
+    "keystrokes": "ls -la /etc/ssh/sshd_config.d/\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 31.5,
+    "keystrokes": "grep -R -n -E 'AllowTcpForwarding|GatewayPorts|PermitOpen|ListenAddress|Port' /etc/ssh/sshd_config /etc/ssh/sshd_config.d/ 2>/dev/null\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 31.5,
+    "keystrokes": "/usr/sbin/sshd -T | grep -Ei 'allowtcpforwarding|gatewayports|permitopen|listenaddress|port '\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 31.5,
+    "keystrokes": "netstat -tlnp | grep -E ':(9090|9091|9092)\\b' || true\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 31.5,
+    "keystrokes": "ps aux | grep '[s]shd' \n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 35.4,
+    "keystrokes": "cat /etc/ssh/sshd_config.d/security-hardening.conf\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 35.4,
+    "keystrokes": "sed -i 's/^AllowTcpForwarding.*/AllowTcpForwarding yes/' /etc/ssh/sshd_config.d/security-hardening.conf\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 35.4,
+    "keystrokes": "grep -n 'AllowTcpForwarding' /etc/ssh/sshd_config.d/security-hardening.conf\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 35.4,
+    "keystrokes": "/usr/sbin/sshd -t\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 35.4,
+    "keystrokes": "pkill -x sshd 2>/dev/null || true\nsleep 1\n/usr/sbin/sshd\nsleep 1\n/usr/sbin/sshd -T | grep -Ei 'allowtcpforwarding|gatewayports|permitopen'\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 40.7,
+    "keystrokes": "",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 44.7,
+    "keystrokes": "nohup /app/start-tunnel.sh >/var/log/start-tunnel.log 2>&1 &\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 44.7,
+    "keystrokes": "sleep 2\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 44.7,
+    "keystrokes": "curl -sS -m 2 http://127.0.0.1:9090/\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 44.7,
+    "keystrokes": "curl -sS -m 2 http://127.0.0.1:9091/health\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 44.7,
+    "keystrokes": "curl -sS -m 2 http://127.0.0.1:9092/metrics\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 44.7,
+    "keystrokes": "netstat -tlnp | grep -E ':(9090|9091|9092)\\b' || true\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 44.7,
+    "keystrokes": "cat /var/log/start-tunnel.log\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 44.7,
+    "keystrokes": "ps aux | grep -E 'ssh .*tunnel@localhost|sshd: tunnel' | grep -v grep\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 13,
+    "offset_sec": 51.8,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 54.8,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

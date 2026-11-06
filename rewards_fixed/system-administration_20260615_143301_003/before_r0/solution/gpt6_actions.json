@@ -1,0 +1,233 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 3.0,
+    "keystrokes": "cat /etc/os-release; which postfix dovecot; dpkg -l | grep -E 'postfix|dovecot' | head -20\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 3.0,
+    "keystrokes": "ps aux | head -5; ls /etc/postfix /etc/dovecot 2>/dev/null\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 6.2,
+    "keystrokes": "mkdir -p /etc/ssl/private /etc/ssl/certs && openssl req -x509 -nodes -newkey rsa:2048 -keyout /etc/ssl/private/mail.key -out /etc/ssl/certs/mail.crt -days 3650 -subj \"/CN=mail.example.com\" && chmod 600 /etc/ssl/private/mail.key\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 6.2,
+    "keystrokes": "mkdir -p /var/mail/vhosts && chown -R 1000:1000 /var/mail/vhosts\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 6.2,
+    "keystrokes": "printf 'alice@example.com:{PLAIN}alicepass:1000:1000::/var/mail/vhosts/example.com/alice::\\nbob@example.com:{PLAIN}bobpass:1000:1000::/var/mail/vhosts/example.com/bob::\\n' > /etc/dovecot/users && chmod 600 /etc/dovecot/users && cat /etc/dovecot/users\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 6.2,
+    "keystrokes": "printf 'alice@example.com example.com/alice/\\nbob@example.com example.com/bob/\\n' > /etc/postfix/virtual_mailbox && postmap /etc/postfix/virtual_mailbox\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 6.2,
+    "keystrokes": "postconf -e 'myhostname = mail.example.com' 'mydestination = localhost' 'virtual_mailbox_domains = example.com' 'virtual_mailbox_base = /var/mail/vhosts' 'virtual_mailbox_maps = hash:/etc/postfix/virtual_mailbox' 'virtual_uid_maps = static:1000' 'virtual_gid_maps = static:1000' 'virtual_minimum_uid = 100' 'smtpd_tls_cert_file = /etc/ssl/certs/mail.crt' 'smtpd_tls_key_file = /etc/ssl/private/mail.key' 'smtpd_tls_security_level = may' 'smtpd_tls_received_header = yes' 'inet_interfaces = all'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 9.7,
+    "keystrokes": "grep -n 'auth-.*conf.ext' /etc/dovecot/conf.d/10-auth.conf | tail -5; grep -n '^mail_location\\|^ssl' /etc/dovecot/conf.d/10-mail.conf /etc/dovecot/conf.d/10-ssl.conf | head; cat /etc/dovecot/conf.d/auth-passwdfile.conf.ext; grep -n 'protocols' /etc/dovecot/dovecot.conf\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 12.8,
+    "keystrokes": "sed -i 's|^!include auth-system.conf.ext|#!include auth-system.conf.ext|; s|^#!include auth-passwdfile.conf.ext|!include auth-passwdfile.conf.ext|' /etc/dovecot/conf.d/10-auth.conf && grep -n 'auth-system\\|auth-passwdfile' /etc/dovecot/conf.d/10-auth.conf | tail -3\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 12.8,
+    "keystrokes": "sed -i 's|args = scheme=CRYPT username_format=%u /etc/dovecot/users|args = scheme=PLAIN username_format=%u /etc/dovecot/users|' /etc/dovecot/conf.d/auth-passwdfile.conf.ext && grep -n 'scheme' /etc/dovecot/conf.d/auth-passwdfile.conf.ext\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 12.8,
+    "keystrokes": "sed -i 's|^mail_location = .*|mail_location = maildir:/var/mail/vhosts/%d/%n|' /etc/dovecot/conf.d/10-mail.conf && grep -n '^mail_location' /etc/dovecot/conf.d/10-mail.conf\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 12.8,
+    "keystrokes": "sed -i 's|^ssl_cert = .*|ssl_cert = </etc/ssl/certs/mail.crt|; s|^ssl_key = .*|ssl_key = </etc/ssl/private/mail.key|' /etc/dovecot/conf.d/10-ssl.conf && grep -n '^ssl_cert\\|^ssl_key\\|^ssl =' /etc/dovecot/conf.d/10-ssl.conf\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 12.8,
+    "keystrokes": "ls /usr/share/dovecot/protocols.d/; doveconf -n 2>&1 | head -40\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 16.3,
+    "keystrokes": "postfix start; dovecot; sleep 1; echo started\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 16.3,
+    "keystrokes": "ss -ltnp | grep -E ':25|:143|:993'\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 16.3,
+    "keystrokes": "tail -5 /var/log/mail.log 2>/dev/null; doveconf -n > /dev/null && echo DOVECOT_CONFIG_OK; postfix check && echo POSTFIX_CHECK_OK\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 20.9,
+    "keystrokes": "for p in 25 143 993; do (echo > /dev/tcp/127.0.0.1/$p) 2>/dev/null && echo \"port $p OPEN\" || echo \"port $p CLOSED\"; done\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 20.9,
+    "keystrokes": "python3 -c \"\nimport smtplib\ns = smtplib.SMTP('localhost', 25)\ns.sendmail('bob@example.com', ['alice@example.com'], 'From: bob@example.com\\r\\nTo: alice@example.com\\r\\nSubject: hello\\r\\n\\r\\nTest body\\r\\n')\ns.quit()\nprint('SMTP_SEND_OK')\n\"\n",
+    "duration": 2.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 20.9,
+    "keystrokes": "sleep 2; ls -laR /var/mail/vhosts/ | head -30\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 27.4,
+    "keystrokes": "find /var/mail/vhosts -type f | head -20\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 27.4,
+    "keystrokes": "cat $(find /var/mail/vhosts -type f | head -1)\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 31.9,
+    "keystrokes": "printf 'a LOGIN alice@example.com alicepass\\nb LIST \"\" *\\nc LOGOUT\\n' | openssl s_client -quiet -connect localhost:993 2>/dev/null\n",
+    "duration": 2.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 31.9,
+    "keystrokes": "printf 'a LOGIN bob@example.com bobpass\\nb LIST \"\" *\\nc LOGOUT\\n' | openssl s_client -quiet -starttls imap -connect localhost:143 2>/dev/null\n",
+    "duration": 2.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 38.9,
+    "keystrokes": "tail -20 /var/log/mail.log 2>/dev/null; ls -la /var/log/ | grep -i dovecot\n",
+    "duration": 2.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 38.9,
+    "keystrokes": "doveadm log errors 2>/dev/null; grep -i 'auth\\|error' /var/log/syslog 2>/dev/null | tail -10\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 13,
+    "offset_sec": 44.4,
+    "keystrokes": "chown root:dovecot /etc/dovecot/users && chmod 640 /etc/dovecot/users && ls -la /etc/dovecot/users\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 13,
+    "offset_sec": 44.4,
+    "keystrokes": "printf 'a LOGIN alice@example.com alicepass\\nb LIST \"\" *\\nc LOGOUT\\n' | openssl s_client -quiet -connect localhost:993 2>/dev/null\n",
+    "duration": 2.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 13,
+    "offset_sec": 44.4,
+    "keystrokes": "printf 'a LOGIN bob@example.com bobpass\\nb LIST \"\" *\\nc LOGOUT\\n' | openssl s_client -quiet -starttls imap -connect localhost:143 2>/dev/null\n",
+    "duration": 2.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 51.9,
+    "keystrokes": "python3 -c \"\nimport smtplib\ns = smtplib.SMTP('localhost', 25)\ns.sendmail('alice@example.com', ['bob@example.com'], 'From: alice@example.com\\nTo: bob@example.com\\nSubject: hi bob\\n\\nHello Bob\\n')\ns.quit()\nprint('SENT')\n\"\n",
+    "duration": 2.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 51.9,
+    "keystrokes": "sleep 2; find /var/mail/vhosts/example.com/bob -type f\n",
+    "duration": 1.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 51.9,
+    "keystrokes": "postconf -n | grep -E 'virtual_|tls|mydestination'\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 15,
+    "offset_sec": 58.9,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 16,
+    "offset_sec": 61.9,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

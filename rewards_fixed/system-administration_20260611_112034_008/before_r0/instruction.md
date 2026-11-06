@@ -1,0 +1,1 @@
+Get the sysinfod daemon in /app/sysinfod/ built, installed to /usr/local/bin/, and running in the background on port 8080. Once running, it should respond to `curl http://localhost:8080/` with a JSON payload containing system information. The daemon should keep running after you disconnect — it must not depend on your terminal session.

@@ -1,0 +1,60 @@
+diff --git a/CHANGES.txt b/CHANGES.txt
+index 922a9fc..d999326 100644
+--- a/CHANGES.txt
++++ b/CHANGES.txt
+@@ -9,10 +9,11 @@
+   See: https://github.com/Pylons/waitress/pull/82 and
+   https://github.com/Pylons/waitress/issues/76
+ 
+-- Waitress will no longer accept headers with newline/carriage returns in them,
+-  thereby disallowing HTTP Response Splitting. See
+-  https://github.com/Pylons/waitress/issues/117 for more information, as well
+-  as https://www.owasp.org/index.php/HTTP_Response_Splitting.
++- Waitress will no longer accept headers or status lines with
++  newline/carriage returns in them, thereby disallowing HTTP Response
++  Splitting. See https://github.com/Pylons/waitress/issues/117 for
++  more information, as well as
++  https://www.owasp.org/index.php/HTTP_Response_Splitting.
+ 
+ - Call prune() on the output buffer at the end of a request so that it doesn't
+   continue to grow without bounds. See
+diff --git a/CONTRIBUTORS.txt b/CONTRIBUTORS.txt
+index cb009b0..dfefb8f 100644
+--- a/CONTRIBUTORS.txt
++++ b/CONTRIBUTORS.txt
+@@ -132,3 +132,5 @@ Contributors
+ - Bert JW Regeer, 2015-09-23
+ 
+ - Yu Zhou, 2015-09-24
++
++- Jason Madden, 2016-03-19
+diff --git a/waitress/task.py b/waitress/task.py
+index 501547a..9c53619 100644
+--- a/waitress/task.py
++++ b/waitress/task.py
+@@ -358,6 +358,12 @@ class WSGITask(Task):
+ 
+             if not status.__class__ is str:
+                 raise AssertionError('status %s is not a string' % status)
++            code, separator, reason = status.partition(' ')
++            if (len(code) != 3 or not separator or
++                    any(c < '0' or c > '9' for c in code) or
++                    any(c != '\t' and not (32 <= ord(c) < 127 or
++                                            127 < ord(c) <= 255) for c in reason)):
++                raise ValueError("invalid status")
+ 
+             self.status = status
+ 
+@@ -375,6 +381,12 @@ class WSGITask(Task):
+                 if '\n' in v or '\r' in v:
+                     raise ValueError("carriage return/line "
+                                      "feed character present in header value")
++                token = "!#$%&'*+-.^_`|~"
++                if not k or any(not (('0' <= c <= '9') or
++                                     ('A' <= c <= 'Z') or
++                                     ('a' <= c <= 'z') or c in token) for c in k):
++                    raise ValueError("invalid header name")
++
+                 kl = k.lower()
+                 if kl == 'content-length':
+                     self.content_length = int(v)

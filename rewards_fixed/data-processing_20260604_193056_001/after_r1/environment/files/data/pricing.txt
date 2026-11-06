@@ -1,0 +1,10 @@
+PROD-001  Wireless Mouse                   29.99     1   2024-01-01 
+PROD-002  Mechanical Keyboard              89.99     1   2024-01-01 
+PROD-003  USB-C Hub                        45.00     5   2024-01-15 
+PROD-004  Ergonomic Chair                 399.99     1   2024-01-01 
+PROD-005  Standing Desk                   549.00     1   2024-01-01 
+PROD-007  HD Webcam                        59.99     1   2024-02-01 
+PROD-009  Premium Notebook                 12.99    10   2024-01-01 
+PROD-012  Monitor Arm                      79.99     1   2024-03-01 
+PROD-015  USB Microphone                   69.99     1   2024-02-01 
+PROD-020 Té Verde Orgánico              12.00     5   2024-03-15 

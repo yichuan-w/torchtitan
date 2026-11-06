@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The required day-first date convention is not discoverable: all supplied dates are valid under both day-first and month-first parsing, while the instruction does not state the convention and the verifier requires day-first monthly figures.",
+    "evidence": "instruction.md requires correct transaction months without defining the source convention; environment/files/sales.csv contains only dates whose first and second fields are both at most 12; tests/test_outputs.py derives expected monthly figures using DD/MM/YYYY; all attempts 01-12 choose MM/DD/YYYY at turn 3 and fail the monthly figures.",
+    "change": "Make one existing transaction date self-disambiguating by changing only its day to 13, preserving its intended month and all financial aggregates.",
+    "kind": "hidden_requirement"
+  }
+]

@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The verifier requires an empty split part between consecutive delimiters, but instruction.md specifies only inputs without consecutive delimiters and never defines that semantic.",
+    "evidence": "instruction.md lists only a,b,c, hello world, and solo, while tests/test_outputs.py requires one,,three to contain an empty middle part; all attempt-01.jsonl through attempt-12.jsonl pass the listed cases and fail only that hidden case.",
+    "change": "State in instruction.md that adjacent delimiters must preserve the empty part between them.",
+    "kind": "hidden_requirement"
+  }
+]

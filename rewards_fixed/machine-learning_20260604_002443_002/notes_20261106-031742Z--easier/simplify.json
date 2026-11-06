@@ -1,0 +1,22 @@
+{
+  "retained_skill": "Diagnose and repair interacting correctness bugs in a custom PyTorch transformer encoder while preserving its public interface.",
+  "bottleneck": "All 12 scored attempts recognized positional-encoding and usually attention-scaling defects, but every submitted implementation retained pre-norm encoder layers; the grader requires post-norm although the original instruction only said layer normalization and called the model standard, which does not distinguish two widely used legal conventions.",
+  "change": "Repair the hidden architectural requirement in the instruction by stating that each encoder sublayer uses post-norm: residual addition first, then layer normalization. This is instruction-level direction at the exact missed decision; it exposes no patch and leaves the student to locate and repair both sublayers plus the other transformer bugs.",
+  "restore": "Remove the standalone post-norm sentence to restore the original task after the student learns to inspect normalization placement relative to residual paths.",
+  "prediction": "The change addresses the repeated action of preserving calls such as normalization before self-attention. With the intended ordering stated, some attempts will inspect and move both normalization operations after their residual additions, while still having to diagnose scaling and positional encoding. This prediction is refuted if revised attempts continue submitting pre-norm layers or if all 12 solve without making the remaining debugging decisions.",
+  "expected": "7 of 12",
+  "evidence": [
+    {"attempt": "attempt-01.jsonl", "turn": 2, "observation": "First diagnosis identified positional encoding and mask shape but omitted normalization order. Replayed its submitted file via sandbox reset and turn 3, then grade; all checks were enumerated with pytest: output-reference, masked-output, and post-norm checks failed, while per-position encoding passed."},
+    {"attempt": "attempt-02.jsonl", "turn": 2, "observation": "First diagnosis identified positional encoding and mask handling but omitted normalization order; the submitted implementation kept self_attn(norm1(x))."},
+    {"attempt": "attempt-03.jsonl", "turn": 2, "observation": "First diagnosis identified scaling and positional encoding but omitted normalization order; rewrites kept self_attn(norm1(x))."},
+    {"attempt": "attempt-04.jsonl", "turn": 2, "observation": "First diagnosis identified positional encoding and scaling but omitted normalization order; rewrites kept self_attn(norm1(x))."},
+    {"attempt": "attempt-05.jsonl", "turn": 2, "observation": "Noticed pre-norm but treated it as valid and retained it, showing the public contract did not resolve the convention."},
+    {"attempt": "attempt-06.jsonl", "turn": 4, "observation": "After testing, diagnosed positional shape and attention scaling but retained self_attn(norm1(x)) through repeated rewrites."},
+    {"attempt": "attempt-07.jsonl", "turn": 3, "observation": "Diagnosed attention scaling and positional dimensions but omitted normalization order; submission retained pre-norm."},
+    {"attempt": "attempt-08.jsonl", "turn": 2, "observation": "Diagnosed scaling and positional encoding but omitted normalization order; rewrite retained self_attn(norm1(x))."},
+    {"attempt": "attempt-09.jsonl", "turn": 2, "observation": "Diagnosed positional encoding and scaling but omitted normalization order; all rewrites retained self_attn(norm1(x))."},
+    {"attempt": "attempt-10.jsonl", "turn": 2, "observation": "Diagnosed positional encoding and scaling but omitted normalization order. Replayed its final submitted rewrite via sandbox reset and grade; output-reference, masked-output, and post-norm checks failed while per-position encoding passed. After the instruction change, replayed the same approach from a fresh reset and changed only both residual/normalization paths to post-norm; sandbox grade reached reward 1.0, so no prior failure remained."},
+    {"attempt": "attempt-11.jsonl", "turn": 2, "observation": "First diagnosis focused on positional encoding and omitted normalization order; edits addressed scaling, masking, and positional shape but left the seed pre-norm path."},
+    {"attempt": "attempt-12.jsonl", "turn": 2, "observation": "Diagnosed scaling, positional encoding, and dropout but retained x + self_attn(norm1(x)) in every full rewrite."}
+  ]
+}

@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The task supplies and requires integration of a support SQLite source, but the source_systems contract lists only mainframe, crm, and web, while correctness requires provenance for support records under a fourth label.",
+    "evidence": "instruction.md names customers_support.db but its source_systems requirement omits support; tests/test_outputs.py requires support. attempt-12.jsonl turn 27 produced the correct 70-customer result, and replay grading failed only because it used db for that source.",
+    "change": "State that four exports are present and add support to the public source_systems contributor labels.",
+    "kind": "hidden_requirement"
+  }
+]

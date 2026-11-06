@@ -1,0 +1,79 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "ls -la\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "head -5 experimental_saxs.dat; wc -l experimental_saxs.dat\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "cat cromer_mann.dat\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "head -3 1crn.pdb; grep -c '^ATOM\\|^HETATM' 1crn.pdb\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "python3 -c \"import numpy; print(numpy.__version__)\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.5,
+    "keystrokes": "tail -3 experimental_saxs.dat; grep '^ATOM' 1crn.pdb | head -2; grep '^HETATM' 1crn.pdb | head -2\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.5,
+    "keystrokes": "cat > solve.py << 'EOF'\nimport math\n\n# --- Parse Cromer-Mann coefficients ---\ncm = {}\nwith open('cromer_mann.dat') as f:\n    for line in f:\n        line = line.strip()\n        if not line or line.startswith('#'):\n            continue\n        p = line.split()\n        el = p[0]\n        v = [float(x) for x in p[1:]]\n        a = v[0:4]\n        c = v[4]\n        b = v[5:9]\n        cm[el] = (a, b, c)\n\n# --- Parse PDB ---\natoms = []  # (x, y, z, element)\nwith open('1crn.pdb') as f:\n    for line in f:\n        rec = line[0:6]\n        if rec.startswith('ATOM') or rec.startswith('HETATM'):\n            x = float(line[30:38])\n            y = float(line[38:46])\n            z = float(line[46:54])\n            el = line[76:78].strip()\n            if not el:\n                name = line[12:16].strip()\n                # infer element: first alphabetic char of atom name\n                el = ''.join(ch for ch in name if ch.isalpha())[0]\n            el = el.capitalize()\n            atoms.append((x, y, z, el))\nprint(\"atoms:\", len(atoms))\nfrom collections import Counter\nprint(Counter(a[3] for a in atoms))\n\n# --- Read experimental data ---\nqs, iexp, sig = [], [], []\nwith open('experimental_saxs.dat') as f:\n    for line in f:\n        line = line.strip()\n        if not line or line.startswith('#'):\n            continue\n        p = line.split()\n        qs.append(float(p[0])); iexp.append(float(p[1])); sig.append(float(p[2]))\nnq = len(qs)\nprint(\"q points:\", nq, \"q range:\", qs[0], qs[-1])\n\n# --- Form factors f(q) per atom ---\ndef formfac(el, q):\n    a, b, c = cm[el]\n    s2 = (q / (4.0 * math.pi)) ** 2\n    return c + sum(ai * math.exp(-bi * s2) for ai, bi in zip(a, b))\n\n# --- Pairwise distances ---\nn = len(atoms)\ndists = []\nfor i in range(n):\n    xi, yi, zi, _ = atoms[i]\n    for j in range(i + 1, n):\n        xj, yj, zj, _ = atoms[j]\n        dx, dy, dz = xi - xj, yi - yj, zi - zj\n        dists.append((i, j, math.sqrt(dx*dx + dy*dy + dz*dz)))\n\n# --- Debye ---\nimodel = []\nfor q in qs:\n    fv = [formfac(a[3], q) for a in atoms]\n    I = sum(f * f for f in fv)  # self terms\n    for i, j, r in dists:\n        qr = q * r\n        sinc = 1.0 if qr == 0.0 else math.sin(qr) / qr\n        I += 2.0 * fv[i] * fv[j] * sinc\n    imodel.append(I)\n\n# --- Optimal scale k (analytic) ---\nnum = sum(im * ie / (s * s) for im, ie, s in zip(imodel, iexp, sig))\nden = sum(im * im / (s * s) for im, s in zip(imodel, sig))\nk = num / den\nprint(\"k =\", k)\n\nscaled = [k * im for im in imodel]\n\n# --- chi^2 and reduced chi^2 ---\nchi2 = sum((sc - ie) ** 2 / (s * s) for sc, ie, s in zip(scaled, iexp, sig))\nred_chi2 = chi2 / (nq - 1)\nprint(\"chi2 =\", chi2, \"reduced chi2 =\", red_chi2)\n\n# --- Iterative Guinier fit on scaled model ---\ndef linfit(x, y):\n    m = len(x)\n    sx = sum(x); sy = sum(y)\n    sxx = sum(v * v for v in x)\n    sxy = sum(a * b for a, b in zip(x, y))\n    d = m * sxx - sx * sx\n    slope = (m * sxy - sx * sy) / d\n    intercept = (sy - slope * sx) / m\n    return slope, intercept\n\nsel = list(range(nq))  # start with all points\nRg = None\nfor it in range(200):\n    x = [qs[i] ** 2 for i in sel]\n    y = [math.log(scaled[i]) for i in sel]\n    slope, intercept = linfit(x, y)\n    Rg_new = math.sqrt(-3.0 * slope)\n    new_sel = [i for i in range(nq) if qs[i] * Rg_new < 1.3]\n    if new_sel == sel:\n        Rg = Rg_new\n        break\n    sel = new_sel\n    Rg = Rg_new\nI0 = math.exp(intercept)\nprint(\"Guinier points:\", len(sel), \"qmax =\", max(qs[i] for i in sel))\nprint(\"Rg =\", Rg, \"I(0) =\", I0)\n\n# --- Write outputs ---\nwith open('saxs_profile.txt', 'w') as f:\n    for q, im, sc, ie, s in zip(qs, imodel, scaled, iexp, sig):\n        f.write(f\"{q:.6f} {im:.6f} {sc:.6f} {ie:.6f} {s:.6f}\\n\")\n\nwith open('guinier_fit.txt', 'w') as f:\n    f.write(f\"{Rg:.6f} {I0:.6f} {red_chi2:.6f}\\n\")\nprint(\"done\")\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.5,
+    "keystrokes": "python3 solve.py\n",
+    "duration": 30.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 30.7,
+    "keystrokes": "head -3 saxs_profile.txt; tail -1 saxs_profile.txt; wc -l saxs_profile.txt; cat guinier_fit.txt\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 30.8,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 30.8,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

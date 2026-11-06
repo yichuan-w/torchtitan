@@ -1,0 +1,144 @@
+{
+  "retained_skill": "Recover unknown linear-congruential-generator parameters from observed outputs and use the recovered recurrence to predict subsequent outputs.",
+  "bottleneck": "The supplied 20-value fixture contradicts the stated single-LCG model at observation index 10: standard determinant recovery gives a valid recurrence on the prefix, then the suffix destroys the common modulus and leaves no single LCG to recover.",
+  "change": "Repair the broken setup in the original task signal by replacing only the corrupted second half of the supplied observation list with the continuation of the same LCG as its first half. This removes the futile inconsistent-data search stage (9 timeout attempts spent 21-45 turns there) while leaving parameter recovery and prediction entirely to the student.",
+  "restore": "Restore the original malformed second half of environment/files/challenge.py; no instructional hint, starter implementation, parameter, or predicted output is supplied, so the repair is independently reversible.",
+  "prediction": "When the determinant GCD no longer collapses to 1 at the midpoint, attempts using the standard recovery already tried in all traces can validate one recurrence and proceed to prediction instead of searching incompatible moduli. This is refuted if a replay still reports a midpoint mismatch or determinant GCD 1, or if the corrected group remains 0 of 12.",
+  "expected": "7 of 12",
+  "evidence": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turn": 7,
+      "observation": "At turn 7 the recovered parameters fit observations 0-9 but first mismatch at index 10. Replayed its final /app/solve.py with ./sandbox grade: solve existence, list type, length, and integer checks passed; prediction match and LCG-continuation checks failed. After the fixture repair, a fresh ./sandbox reset followed by replay of its determinant-GCD approach produced gcd 180011627992799 and all_fit True; untouched grading still failed all six checks because /app/solve.py was absent."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turn": 5,
+      "observation": "At turn 5 the standard LCG recovery first reports modulus GCD 1, no valid modulus, or the first mismatch at the corrupted midpoint; subsequent turns search alternatives rather than completing the required prediction."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turn": 5,
+      "observation": "At turn 5 the standard LCG recovery first reports modulus GCD 1, no valid modulus, or the first mismatch at the corrupted midpoint; subsequent turns search alternatives rather than completing the required prediction."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turn": 4,
+      "observation": "At turn 4 the standard LCG recovery first reports modulus GCD 1, no valid modulus, or the first mismatch at the corrupted midpoint; subsequent turns search alternatives rather than completing the required prediction."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turn": 4,
+      "observation": "At turn 4 the standard LCG recovery first reports modulus GCD 1, no valid modulus, or the first mismatch at the corrupted midpoint; subsequent turns search alternatives rather than completing the required prediction."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turn": 6,
+      "observation": "At turn 6 the determinant GCD over the supplied sequence becomes 1. Replayed its final /app/solve.py with ./sandbox grade: solve existence, list type, length, and integer checks passed; prediction match and LCG-continuation checks failed."
+    },
+    {
+      "attempt": "attempt-07.jsonl",
+      "turn": 25,
+      "observation": "At turn 25 the standard LCG recovery first reports modulus GCD 1, no valid modulus, or the first mismatch at the corrupted midpoint; subsequent turns search alternatives rather than completing the required prediction."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turn": 5,
+      "observation": "At turn 5 the standard LCG recovery first reports modulus GCD 1, no valid modulus, or the first mismatch at the corrupted midpoint; subsequent turns search alternatives rather than completing the required prediction."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turn": 8,
+      "observation": "At turn 8 the standard LCG recovery first reports modulus GCD 1, no valid modulus, or the first mismatch at the corrupted midpoint; subsequent turns search alternatives rather than completing the required prediction."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turn": 6,
+      "observation": "At turn 6 the standard LCG recovery first reports modulus GCD 1, no valid modulus, or the first mismatch at the corrupted midpoint; subsequent turns search alternatives rather than completing the required prediction."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turn": 2,
+      "observation": "At turn 2 the standard LCG recovery first reports modulus GCD 1, no valid modulus, or the first mismatch at the corrupted midpoint; subsequent turns search alternatives rather than completing the required prediction."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turn": 3,
+      "observation": "At turn 3 the standard LCG recovery first reports modulus GCD 1, no valid modulus, or the first mismatch at the corrupted midpoint; subsequent turns search alternatives rather than completing the required prediction."
+    }
+  ],
+  "budget": [
+    {
+      "attempt": "attempt-02.jsonl",
+      "turns": [
+        5,
+        31
+      ],
+      "stage": "Diagnosing and repeatedly searching around the inconsistent suffix; correcting that suffix removes this entire post-failure search stage."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turns": [
+        5,
+        31
+      ],
+      "stage": "Diagnosing and repeatedly searching around the inconsistent suffix; correcting that suffix removes this entire post-failure search stage."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turns": [
+        4,
+        35
+      ],
+      "stage": "Diagnosing and repeatedly searching around the inconsistent suffix; correcting that suffix removes this entire post-failure search stage."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turns": [
+        4,
+        40
+      ],
+      "stage": "Diagnosing and repeatedly searching around the inconsistent suffix; correcting that suffix removes this entire post-failure search stage."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turns": [
+        5,
+        35
+      ],
+      "stage": "Diagnosing and repeatedly searching around the inconsistent suffix; correcting that suffix removes this entire post-failure search stage."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turns": [
+        8,
+        42
+      ],
+      "stage": "Diagnosing and repeatedly searching around the inconsistent suffix; correcting that suffix removes this entire post-failure search stage."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turns": [
+        6,
+        50
+      ],
+      "stage": "Diagnosing and repeatedly searching around the inconsistent suffix; correcting that suffix removes this entire post-failure search stage."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turns": [
+        2,
+        26
+      ],
+      "stage": "Diagnosing and repeatedly searching around the inconsistent suffix; correcting that suffix removes this entire post-failure search stage."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turns": [
+        3,
+        32
+      ],
+      "stage": "Diagnosing and repeatedly searching around the inconsistent suffix; correcting that suffix removes this entire post-failure search stage."
+    }
+  ]
+}

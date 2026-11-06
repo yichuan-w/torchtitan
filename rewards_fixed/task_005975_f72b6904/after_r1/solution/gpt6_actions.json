@@ -1,0 +1,65 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "id\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "ls -la /home/user\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "cat /home/user/legacy_users.txt\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "crontab -l 2>&1\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.4,
+    "keystrokes": "cat > /home/user/setup_env.sh <<'EOF'\n#!/usr/bin/env bash\nset -euo pipefail\n\ninput=/home/user/legacy_users.txt\noutput=/home/user/hardened_users.txt\ntmp=$(mktemp \"${output}.tmp.XXXXXX\")\ntrap 'rm -f \"$tmp\"' EXIT\n\nawk -F: 'NF != 3 { exit 1 } { if ($2 != \"wheel\") $3 = \"/usr/sbin/nologin\"; print $1 \":\" $2 \":\" $3 }' \"$input\" > \"$tmp\"\nchmod 0444 \"$tmp\"\nmv -f \"$tmp\" \"$output\"\ntrap - EXIT\ncron_tmp=$(mktemp)\ntrap 'rm -f \"$cron_tmp\"' EXIT\n(crontab -l 2>/dev/null || :) > \"$cron_tmp\"\nif ! grep -Fqx '15 3 * * * /home/user/setup_env.sh' \"$cron_tmp\"; then\n  printf '%s\\n' '15 3 * * * /home/user/setup_env.sh' >> \"$cron_tmp\"\nfi\ncrontab \"$cron_tmp\"\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.4,
+    "keystrokes": "cat > /home/user/start_vm.sh <<'EOF'\n#!/usr/bin/env bash\nexec qemu-system-x86_64 -m 512 -hda /home/user/disk.qcow2 -nographic -vnc 127.0.0.1:2,password=on\nEOF\nchmod 0755 /home/user/setup_env.sh /home/user/start_vm.sh\n/home/user/setup_env.sh\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.4,
+    "keystrokes": "printf '%s\\n' '--- hardened_users.txt ---'\ncat /home/user/hardened_users.txt\nprintf '%s\\n' '--- permissions ---'\nstat -c '%a %n' /home/user/setup_env.sh /home/user/start_vm.sh /home/user/hardened_users.txt\nprintf '%s\\n' '--- start_vm.sh ---'\ncat /home/user/start_vm.sh\nprintf '%s\\n' '--- root crontab ---'\ncrontab -l\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.8,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 0.8,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

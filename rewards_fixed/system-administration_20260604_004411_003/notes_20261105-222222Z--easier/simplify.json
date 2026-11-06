@@ -1,0 +1,160 @@
+{
+  "retained_skill": "Design and validate an rsyslog configuration that receives and forwards syslog over TLS, preserves facility/severity metadata, and prevents forwarding loops.",
+  "bottleneck": "All 12 scored attempts first went wrong while bringing up rsyslog TLS. Seven repeatedly hit certificate access failures at the required /etc/rsyslog/certs path, while five began with missing-driver or RainerScript configuration errors; 11 exhausted context while repeatedly rewriting and validating rsyslog configuration, and only four reached the analyzer.",
+  "change": "Structural help in the environment prepares the self-signed CA and localhost server certificate/key before the episode at the required location and stages copies in rsyslog's readable configuration tree. This removes certificate generation and makes the repeated inaccessible-path debugging a direct response to rsyslog's original error signal while preserving the student's full decision about the TLS listener, TLS forwarding, metadata format, and loop prevention.",
+  "restore": "A later hardening can remove the prepared and staged certificates so the student must generate certificates and diagnose the certificate-path confinement before configuring TLS.",
+  "prediction": "Attempts currently respond to certificate access or module errors by repeatedly changing permissions, paths, and complete rsyslog configurations. Prepared readable certificates let them proceed directly from rsyslog validation errors to correcting TLS configuration and then complete the analyzer/web stages; this is refuted if the next 12 attempts still spend most turns on certificate paths or none reaches working TLS forwarding.",
+  "expected": "5 of 12",
+  "evidence": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turn": 9,
+      "observation": "First rsyslog TLS failure is the absent lmnsd_gtls driver; the attempt then performs 18 config rewrites and 18 validations through turn 90, never reaching analyzer or nginx."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turn": 5,
+      "observation": "First failure reports lmnsd_gtls missing. Replayed all recorded commands on a fresh seed container and graded: TLS listener handshake, forwarding, and analyzer statistics failed; analyzer existence and nginx serving passed."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turn": 9,
+      "observation": "First failure is invalid StreamDriver parameters; 30 config rewrites and 32 validations consume the attempt before context ends at turn 79."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turn": 13,
+      "observation": "First failure is RainerScript template syntax; repeated TLS rewrites continue to turn 74 and analyzer/nginx are never reached."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turn": 13,
+      "observation": "The required certificate path reports Permission denied despite generated files; certificate/config debugging continues through turn 121 without reaching analyzer/nginx."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turn": 7,
+      "observation": "The required CA, cert, and key paths report Permission denied; the attempt makes 25 rsyslog config rewrites and ends at context before analyzer/nginx."
+    },
+    {
+      "attempt": "attempt-07.jsonl",
+      "turn": 5,
+      "observation": "First validation reports invalid rsyslog properties/parameters; 32 rewrites and 33 validations consume all 86 turns."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turn": 15,
+      "observation": "CA/cert/key access reports Permission denied. The submitted attempt spends most of 144 turns on 38 rsyslog rewrites and only reaches analyzer at turn 113, never nginx."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turn": 19,
+      "observation": "CA/cert/key access reports Permission denied; analyzer is delayed until turn 115 and context ends at turn 121."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turn": 8,
+      "observation": "CA/cert/key access reports Permission denied; the attempt remains in TLS work and context ends at turn 64 before analyzer/nginx."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turn": 12,
+      "observation": "First validation reports malformed RainerScript; 41 rewrites and 30 validations consume context through turn 94."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turn": 16,
+      "observation": "CA/cert/key access reports Permission denied. Replayed all recorded commands on a fresh seed container and graded: all five checks failed because the replay timed out before creating analyzer/nginx and its listener was not actually TLS; the trace itself spends turns 16-125 repeatedly resolving TLS/certificate setup before analyzer at 131. After the rewrite, replayed its core approach from a fresh reset: using the prepared required-path files reproduced rsyslog Permission denied, switching those same config references to the disclosed staged copies made rsyslogd -N1 succeed and port 6514 listen; remaining forwarding/analyzer/web work still failed grading, so this replay alone does not count as a predicted solve."
+    }
+  ],
+  "budget": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turns": [
+        1,
+        90
+      ],
+      "stage": "TLS setup and repeated certificate/module/config debugging; prepared readable certificates remove certificate creation and path troubleshooting."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turns": [
+        1,
+        44
+      ],
+      "stage": "TLS setup and repeated listener/forwarding debugging before analyzer; prepared readable certificates remove certificate creation and inaccessible-path work."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turns": [
+        1,
+        55
+      ],
+      "stage": "TLS setup with repeated full config rewrites; prepared readable certificates remove certificate generation/path work."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turns": [
+        1,
+        74
+      ],
+      "stage": "TLS setup and validation retries; prepared readable certificates remove certificate generation/path work."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turns": [
+        1,
+        121
+      ],
+      "stage": "TLS setup dominated by certificate permission/path investigation; prepared readable certificates remove that stage."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turns": [
+        1,
+        74
+      ],
+      "stage": "TLS setup dominated by certificate permission/path and config retries; prepared readable certificates remove certificate creation and path troubleshooting."
+    },
+    {
+      "attempt": "attempt-07.jsonl",
+      "turns": [
+        1,
+        86
+      ],
+      "stage": "TLS configuration rewrites and validation; prepared readable certificates remove certificate creation/path work within this stage."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turns": [
+        1,
+        114
+      ],
+      "stage": "TLS setup dominated by certificate access and listener retries; prepared readable certificates remove certificate creation/path troubleshooting."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turns": [
+        1,
+        64
+      ],
+      "stage": "TLS setup dominated by certificate access and listener retries; prepared readable certificates remove certificate creation/path troubleshooting."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turns": [
+        1,
+        94
+      ],
+      "stage": "TLS configuration rewrites and validation; prepared readable certificates remove certificate creation/path work within this stage."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turns": [
+        1,
+        125
+      ],
+      "stage": "TLS setup dominated by certificate confinement and repeated configuration replacement; prepared readable certificates remove certificate creation/path troubleshooting."
+    }
+  ]
+}

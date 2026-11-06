@@ -1,0 +1,28 @@
+; Test arithmetic operations
+
+PUSH 3
+PUSH 7
+ADD
+PRINT
+
+PUSH 3
+PUSH 7
+SUB
+PRINT
+
+PUSH 3
+PUSH 7
+MUL
+PRINT
+
+PUSH 3
+PUSH 7
+DIV
+PRINT
+
+PUSH 3
+PUSH 7
+MOD
+PRINT
+
+HALT

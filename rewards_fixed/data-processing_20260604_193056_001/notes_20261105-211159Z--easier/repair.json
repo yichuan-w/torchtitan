@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The verifier requires issues.json to mention at least five of six source files and use at least three words from a private keyword list, although the public contract only requires documenting problems encountered and resolved and permits ordinary human-readable wording.",
+    "evidence": "instruction.md: the issues.json deliverable and Known issues to watch for sections conflict with tests/test_outputs.py:test_issues_json_covers_known_problems; attempt-01.jsonl turn 45 replay passes 20 other checks but is rejected for naming four files, and attempt-12.jsonl turn 32 is rejected for using two rather than three private keyword stems.",
+    "change": "Replace source-count and vocabulary heuristics with checks that each reported issue identifies one of the supplied source files and has a nonempty human-readable description, matching the stated issue-object contract.",
+    "kind": "hidden_requirement"
+  }
+]

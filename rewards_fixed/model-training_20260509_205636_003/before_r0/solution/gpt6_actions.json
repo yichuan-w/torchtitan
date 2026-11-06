@@ -1,0 +1,163 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 3.0,
+    "keystrokes": "ls -la /app\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 3.0,
+    "keystrokes": "sed -n '1,240p' /app/old_model.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 3.0,
+    "keystrokes": "sed -n '1,240p' /app/new_model.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 3.0,
+    "keystrokes": "python3 - <<'PY'\nimport torch\nckpt = torch.load('/app/checkpoint_v1.pt', map_location='cpu')\nprint('type', type(ckpt))\nif isinstance(ckpt, dict):\n    print('keys', list(ckpt.keys()))\n    for k,v in ckpt.items():\n        print('\\n', k, type(v))\n        if isinstance(v, dict):\n            for kk,vv in v.items():\n                if hasattr(vv, 'shape'):\n                    print(' ', kk, tuple(vv.shape), vv.dtype)\n                else:\n                    print(' ', kk, type(vv), repr(vv)[:200])\n        elif hasattr(v, 'shape'):\n            print(' shape', tuple(v.shape), v.dtype)\n        else:\n            print(' ', repr(v)[:500])\nPY\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 6.8,
+    "keystrokes": "cat /app/migration_notes.txt\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 6.8,
+    "keystrokes": "sed -n '1,240p' /app/generate_data.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 6.8,
+    "keystrokes": "python3 - <<'PY'\nimport torch\nd = torch.load('/app/dataset.pt', map_location='cpu')\nprint('type', type(d))\nif isinstance(d, dict):\n    print('keys', list(d.keys()))\n    for k,v in d.items():\n        print(k, type(v), getattr(v, 'shape', None), getattr(v, 'dtype', None))\n        if hasattr(v, 'shape') and v.ndim == 1:\n            print('  counts', torch.bincount(v.long()).tolist())\nelse:\n    print('tuple len', len(d))\n    for i,v in enumerate(d):\n        print(i, type(v), getattr(v, 'shape', None), getattr(v, 'dtype', None))\n        if hasattr(v, 'shape') and v.ndim == 1:\n            print('  counts', torch.bincount(v.long()).tolist())\nPY\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 6.8,
+    "keystrokes": "python3 /app/new_model.py\n",
+    "duration": 0.2,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 10.7,
+    "keystrokes": "cat > /app/migrate_and_finetune.py <<'PY'\nimport copy\nimport sys\nimport torch\nimport torch.nn as nn\n\nsys.path.insert(0, '/app')\nfrom new_model import NewModel\n\nCHECKPOINT_PATH = '/app/checkpoint_v1.pt'\nDATASET_PATH = '/app/dataset.pt'\nMIGRATED_PATH = '/app/migrated_model.pt'\nFINAL_PATH = '/app/final_model.pt'\n\n\ndef migrate_weights(old_state_dict, model):\n    mapping = {\n        'fc1.weight': 'layers.input_layer.linear.weight',\n        'fc1.bias': 'layers.input_layer.linear.bias',\n        'bn1.weight': 'layers.input_layer.bn.weight',\n        'bn1.bias': 'layers.input_layer.bn.bias',\n        'bn1.running_mean': 'layers.input_layer.bn.running_mean',\n        'bn1.running_var': 'layers.input_layer.bn.running_var',\n        'bn1.num_batches_tracked': 'layers.input_layer.bn.num_batches_tracked',\n        'fc2.weight': 'layers.hidden_layer.linear.weight',\n        'fc2.bias': 'layers.hidden_layer.linear.bias',\n        'bn2.weight': 'layers.hidden_layer.bn.weight',\n        'bn2.bias': 'layers.hidden_layer.bn.bias',\n        'bn2.running_mean': 'layers.hidden_layer.bn.running_mean',\n        'bn2.running_var': 'layers.hidden_layer.bn.running_var',\n        'bn2.num_batches_tracked': 'layers.hidden_layer.bn.num_batches_tracked',\n        'fc3.weight': 'layers.output_layer.weight',\n        'fc3.bias': 'layers.output_layer.bias',\n        'output.weight': 'classifier.1.weight',\n        'output.bias': 'classifier.1.bias',\n    }\n\n    new_state_dict = model.state_dict()\n    used_old_keys = set()\n\n    for old_key, new_key in mapping.items():\n        if old_key not in old_state_dict:\n            raise KeyError(f'Missing old checkpoint key: {old_key}')\n        if new_key not in new_state_dict:\n            raise KeyError(f'Missing new model key: {new_key}')\n        if old_state_dict[old_key].shape != new_state_dict[new_key].shape:\n            raise ValueError(\n                f'Shape mismatch for {old_key} -> {new_key}: '\n                f'{tuple(old_state_dict[old_key].shape)} vs '\n                f'{tuple(new_state_dict[new_key].shape)}'\n            )\n        new_state_dict[new_key] = old_state_dict[old_key].clone()\n        used_old_keys.add(old_key)\n\n    unused_old = set(old_state_dict.keys()) - used_old_keys\n    if unused_old:\n        raise ValueError(f'Old checkpoint keys were not mapped: {sorted(unused_old)}')\n\n    model.load_state_dict(new_state_dict, strict=True)\n    return mapping\n\n\ndef evaluate(model, features, labels):\n    model.eval()\n    with torch.no_grad():\n        logits = model(features)\n        preds = logits.argmax(dim=1)\n        acc = (preds == labels).float().mean().item()\n    return acc\n\n\ndef main():\n    torch.manual_seed(2024)\n\n    checkpoint = torch.load(CHECKPOINT_PATH, map_location='cpu')\n    old_state_dict = checkpoint['model_state_dict']\n\n    model = NewModel(input_dim=32, hidden_dim=64, num_classes=10)\n    mapping = migrate_weights(old_state_dict, model)\n    torch.save(model.state_dict(), MIGRATED_PATH)\n    print(f'Saved migrated model weights to {MIGRATED_PATH}')\n    print('Mapped {0} checkpoint tensors into NewModel:'.format(len(mapping)))\n    for old_key, new_key in mapping.items():\n        print(f'  {old_key} -> {new_key}')\n\n    # Apply a standard initialization to the newly introduced attention layers.\n    for name, module in model.named_modules():\n        if isinstance(module, nn.Linear) and name.startswith('attention.'):\n            nn.init.kaiming_uniform_(module.weight, a=5 ** 0.5)\n            fan_in, _ = nn.init._calculate_fan_in_and_fan_out(module.weight)\n            bound = 1.0 / (fan_in ** 0.5)\n            nn.init.uniform_(module.bias, -bound, bound)\n\n    dataset = torch.load(DATASET_PATH, map_location='cpu')\n    features = dataset['features'].float()\n    labels = dataset['labels'].long()\n    num_samples = features.shape[0]\n\n    generator = torch.Generator().manual_seed(12345)\n    perm = torch.randperm(num_samples, generator=generator)\n    num_train = int(0.8 * num_samples)\n    train_idx = perm[:num_train]\n    val_idx = perm[num_train:]\n\n    train_x = features[train_idx]\n    train_y = labels[train_idx]\n    val_x = features[val_idx]\n    val_y = labels[val_idx]\n\n    print(f'Train samples: {train_x.shape[0]}, validation samples: {val_x.shape[0]}')\n\n    criterion = nn.CrossEntropyLoss()\n    optimizer = torch.optim.AdamW(model.parameters(), lr=3e-3, weight_decay=1e-4)\n\n    best_acc = 0.0\n    best_state = copy.deepcopy(model.state_dict())\n    num_epochs = 1000\n\n    for epoch in range(1, num_epochs + 1):\n        model.train()\n        optimizer.zero_grad(set_to_none=True)\n        logits = model(train_x)\n        loss = criterion(logits, train_y)\n        loss.backward()\n        optimizer.step()\n\n        if epoch % 10 == 0 or epoch == 1:\n            val_acc = evaluate(model, val_x, val_y)\n            if val_acc > best_acc:\n                best_acc = val_acc\n                best_state = copy.deepcopy(model.state_dict())\n\n        if epoch == 1 or epoch % 100 == 0:\n            val_acc = evaluate(model, val_x, val_y)\n            print(f'Epoch {epoch:4d}: train_loss={loss.item():.4f}, val_acc={val_acc:.4f}, best={best_acc:.4f}')\n\n    model.load_state_dict(best_state)\n    final_val_acc = evaluate(model, val_x, val_y)\n    correct = int(round(final_val_acc * len(val_y)))\n    print(f'Best validation accuracy: {final_val_acc:.4f} ({correct}/{len(val_y)})')\n\n    if 0.75 > final_val_acc:\n        raise RuntimeError(f'Validation accuracy {final_val_acc:.4f} is below the required 0.75')\n\n    model.eval()\n    example_input = torch.randn(1, 32)\n    traced_model = torch.jit.trace(model, example_input)\n\n    with torch.no_grad():\n        eager_out = model(example_input)\n        traced_out = traced_model(example_input)\n\n    if not torch.allclose(eager_out, traced_out, atol=1e-5, rtol=1e-4):\n        raise RuntimeError('TorchScript output does not match eager model')\n\n    traced_model.save(FINAL_PATH)\n    print(f'Saved TorchScript fine-tuned model to {FINAL_PATH}')\n\n\nif __name__ == '__main__':\n    main()\nPY\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 10.7,
+    "keystrokes": "python3 /app/migrate_and_finetune.py\n",
+    "duration": 20.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 33.8,
+    "keystrokes": "",
+    "duration": 20.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 54.22622,
+    "keystrokes": "",
+    "duration": 10.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 67.22622,
+    "keystrokes": "C-c",
+    "duration": 0.2,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 67.22622,
+    "keystrokes": "ls -la /app",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 70.52622,
+    "keystrokes": "ls -la /app\n",
+    "duration": 0.2,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 70.52622,
+    "keystrokes": "ps -ef | grep -E 'python|migrate' | grep -v grep\n",
+    "duration": 0.2,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 70.52622,
+    "keystrokes": "python3 - <<'PY'\nimport time, sys, torch, torch.nn as nn\nsys.path.insert(0, '/app')\nfrom new_model import NewModel\ntorch.set_num_threads(1)\nmodel = NewModel()\nx = torch.randn(400, 32)\ny = torch.randint(0, 10, (400,))\nopt = torch.optim.AdamW(model.parameters(), lr=1e-3)\ncrit = nn.CrossEntropyLoss()\nstart = time.time()\nfor i in range(10):\n    opt.zero_grad(set_to_none=True)\n    out = model(x)\n    loss = crit(out, y)\n    loss.backward()\n    opt.step()\nprint('10 full-batch steps took', time.time()-start, 'seconds')\nPY\n",
+    "duration": 2.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 75.92622,
+    "keystrokes": "python3 - <<'PY'\npath = '/app/migrate_and_finetune.py'\nwith open(path, 'r') as f:\n    src = f.read()\nneedle = 'import torch\\n'\nif 'torch.set_num_threads(1)' not in src:\n    src = src.replace(needle, 'import torch\\ntorch.set_num_threads(1)\\n', 1)\n    with open(path, 'w') as f:\n        f.write(src)\n    print('patched')\nelse:\n    print('already patched')\nPY\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 75.92622,
+    "keystrokes": "python3 /app/migrate_and_finetune.py\n",
+    "duration": 20.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 96.02622,
+    "keystrokes": "python3 - <<'PY'\nimport sys, torch\nsys.path.insert(0, '/app')\nfrom new_model import NewModel\n\n# Verify migrated state dict is compatible and uses old shared weights.\nold = torch.load('/app/checkpoint_v1.pt', map_location='cpu')['model_state_dict']\nmig = torch.load('/app/migrated_model.pt', map_location='cpu')\nmodel = NewModel()\nmodel.load_state_dict(mig, strict=True)\nmapping = {\n    'fc1.weight': 'layers.input_layer.linear.weight',\n    'fc1.bias': 'layers.input_layer.linear.bias',\n    'bn1.running_mean': 'layers.input_layer.bn.running_mean',\n    'bn1.running_var': 'layers.input_layer.bn.running_var',\n    'fc2.weight': 'layers.hidden_layer.linear.weight',\n    'fc2.bias': 'layers.hidden_layer.linear.bias',\n    'bn2.running_mean': 'layers.hidden_layer.bn.running_mean',\n    'bn2.running_var': 'layers.hidden_layer.bn.running_var',\n    'fc3.weight': 'layers.output_layer.weight',\n    'fc3.bias': 'layers.output_layer.bias',\n    'output.weight': 'classifier.1.weight',\n    'output.bias': 'classifier.1.bias',\n}\nfor ok, nk in mapping.items():\n    assert torch.equal(old[ok], mig[nk]), (ok, nk)\nprint('Migrated shared weights match old checkpoint.')\n\n# Verify TorchScript final model and accuracy on same validation split.\nscripted = torch.jit.load('/app/final_model.pt', map_location='cpu')\nscripted.eval()\nd = torch.load('/app/dataset.pt', map_location='cpu')\nx, y = d['features'].float(), d['labels'].long()\ng = torch.Generator().manual_seed(12345)\nperm = torch.randperm(x.shape[0], generator=g)\nval_idx = perm[int(0.8 * x.shape[0]):]\nwith torch.no_grad():\n    pred = scripted(x[val_idx]).argmax(dim=1)\nacc = (pred == y[val_idx]).float().mean().item()\nprint(f'TorchScript validation accuracy: {acc:.4f}')\nassert acc >= 0.75\nprint('Verification passed.')\nPY\n",
+    "duration": 2.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 96.02622,
+    "keystrokes": "ls -la /app/migrated_model.pt /app/final_model.pt\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 13,
+    "offset_sec": 98.12622,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 100.105413,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

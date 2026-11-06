@@ -1,0 +1,331 @@
+[
+  {
+    "step_id": 3,
+    "offset_sec": 3.0,
+    "keystrokes": "ls -la\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 3.0,
+    "keystrokes": "find . -maxdepth 3 -type f -print\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 3.0,
+    "keystrokes": "cat Makefile\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 3.0,
+    "keystrokes": "for f in include/*.h src/*.c; do echo \"===== $f =====\"; sed -n '1,260p' \"$f\"; done\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 6.4,
+    "keystrokes": "make\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 6.4,
+    "keystrokes": "nl -ba src/eval.c | sed -n '1,220p'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 6.4,
+    "keystrokes": "nl -ba src/eval.c | sed -n '221,520p'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 10.6,
+    "keystrokes": "nl -ba src/eval.c | sed -n '1,140p'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 10.6,
+    "keystrokes": "nl -ba src/eval.c | sed -n '141,280p'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 10.6,
+    "keystrokes": "nl -ba src/eval.c | sed -n '281,420p'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 13.9,
+    "keystrokes": "make",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 17.9,
+    "keystrokes": "",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 21.9,
+    "keystrokes": "C-c",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 21.9,
+    "keystrokes": "cat > Makefile <<'EOF'\n.RECIPEPREFIX = >\nCC = cc\nCFLAGS = -Wall -Wextra -g -std=c99\n\nTARGET = lisp\nSRCS = src/minilisp.c\nOBJS = $(SRCS:.c=.o)\n\n.PHONY: all clean\n\nall: $(TARGET)\n\n$(TARGET): $(OBJS)\n>$(CC) $(CFLAGS) -o $@ $^\n\nsrc/%.o: src/%.c\n>$(CC) $(CFLAGS) -c $< -o $@\n\nclean:\n>rm -f $(OBJS) $(TARGET)\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 25.5,
+    "keystrokes": "cat > src/minilisp.c <<'EOF'\n#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n#include <ctype.h>\n\ntypedef enum {\n    TYPE_NIL,\n    TYPE_NUMBER,\n    TYPE_SYMBOL,\n    TYPE_CONS,\n    TYPE_BUILTIN,\n    TYPE_LAMBDA\n} Type;\n\ntypedef struct Value Value;\ntypedef struct Env Env;\ntypedef Value* (*BuiltinFn)(Value* args, Env* env);\n\nstruct Value {\n    Type type;\n    union {\n        long num;\n        char* sym;\n        struct { Value* car; Value* cdr; } cons;\n        BuiltinFn builtin;\n        struct { Value* params; Value* body; Env* closure; } lambda;\n    } u;\n};\n\ntypedef struct Binding {\n    char* name;\n    Value* value;\n    struct Binding* next;\n} Binding;\n\nstruct Env {\n    Binding* bindings;\n    Env* parent;\n};\n\nstatic Value nil_value;\nstatic Value* NIL = &nil_value;\n\nstatic Value* new_value(Type type) {\n    Value* v = malloc(sizeof(Value));\n    if (!v) {\n        fprintf(stderr, \"out of memory\\n\");\n        exit(1);\n    }\n    v->type = type;\n    memset(&v->u, 0, sizeof(v->u));\n    return v;\n}\n\nValue* make_nil(void) {\n    return NIL;\n}\n\nValue* make_number(long n) {\n    Value* v = new_value(TYPE_NUMBER);\n    v->u.num = n;\n    return v;\n}\n\nValue* make_symbol(const char* name) {\n    Value* v = new_value(TYPE_SYMBOL);\n    v->u.sym = malloc(strlen(name) + 1);\n    if (!v->u.sym) {\n        fprintf(stderr, \"out of memory\\n\");\n        exit(1);\n    }\n    strcpy(v->u.sym, name);\n    return v;\n}\n\nValue* make_cons(Value* car, Value* cdr) {\n    Value* v = new_value(TYPE_CONS);\n    v->u.cons.car = car;\n    v->u.cons.cdr = cdr;\n    return v;\n}\n\nValue* make_builtin(BuiltinFn fn) {\n    Value* v = new_value(TYPE_BUILTIN);\n    v->u.builtin = fn;\n    return v;\n}\n\nValue* make_lambda(Value* params, Value* body, Env* closure) {\n    Value* v = new_value(TYPE_LAMBDA);\n    v->u.lambda.params = params;\n    v->u.lambda.body = body;\n    v->u.lambda.closure = closure;\n    return v;\n}\n\nstatic int is_nil(Value* v) {\n    return v && v->type == TYPE_NIL;\n}\n\nstatic int is_number(Value* v) {\n    return v && v->type == TYPE_NUMBER;\n}\n\nstatic int is_symbol(Value* v) {\n    return v && v->type == TYPE_SYMBOL;\n}\n\nstatic int is_cons(Value* v) {\n    return v && v->type == TYPE_CONS;\n}\n\nstatic int is_builtin(Value* v) {\n    return v && v->type == TYPE_BUILTIN;\n}\n\nstatic int is_lambda(Value* v) {\n    return v && v->type == TYPE_LAMBDA;\n}\n\nstatic int is_symbol_named(Value* v, const char* name) {\n    return is_symbol(v) && strcmp(v->u.sym, name) == 0;\n}\n\nstatic int truthy(Value* v) {\n    return v && v->type != TYPE_NIL;\n}\n\nstatic Env* env_new(Env* parent) {\n    Env* env = malloc(sizeof(Env));\n    if (!env) {\n        fprintf(stderr, \"out of memory\\n\");\n        exit(1);\n    }\n    env->bindings = NULL;\n    env->parent = parent;\n    return env;\n}\n\nstatic Binding* binding_find_local(Env* env, const char* name) {\n    Binding* b = env ? env->bindings : NULL;\n    while (b) {\n        if (strcmp(b->name, name) == 0) return b;\n        b = b->next;\n    }\n    return NULL;\n}\n\nstatic void env_define(Env* env, const char* name, Value* value) {\n    Binding* b = malloc(sizeof(Binding));\n    if (!b) {\n        fprintf(stderr, \"out of memory\\n\");\n        exit(1);\n    }\n    b->name = malloc(strlen(name) + 1);\n    if (!b->name) {\n        fprintf(stderr, \"out of memory\\n\");\n        exit(1);\n    }\n    strcpy(b->name, name);\n    b->value = value;\n    b->next = env->bindings;\n    env->bindings = b;\n}\n\nstatic Value* env_get(Env* env, const char* name) {\n    while (env) {\n        Binding* b = binding_find_local(env, name);\n        if (b) return b->value;\n        env = env->parent;\n    }\n    return NULL;\n}\n\nstatic int env_set(Env* env, const char* name, Value* value) {\n    while (env) {\n        Binding* b = binding_find_local(env, name);\n        if (b) {\n            b->value = value;\n            return 1;\n        }\n        env = env->parent;\n    }\n    return 0;\n}\n\ntypedef struct {\n    const char* input;\n    size_t pos;\n} Reader;\n\nstatic void skip_ws(Reader* r) {\n    for (;;) {\n        char c = r->input[r->pos];\n        if (isspace((unsigned char)c)) {\n            r->pos++;\n        } else if (c == ';') {\n            while (r->input[r->pos] && r->input[r->pos] != '\\n') r->pos++;\n        } else {\n            break;\n        }\n    }\n}\n\nstatic int is_delimiter(char c) {\n    return c == '\\0' || isspace((unsigned char)c) || c == '(' || c == ')' ||\n           c == '\\'' || c == '`' || c == ',' || c == ';';\n}\n\nstatic Value* parse_expr(Reader* r);\n\nstatic Value* parse_list(Reader* r) {\n    Value* head = NIL;\n    Value* tail = NULL;\n    r->pos++;\n    for (;;) {\n        skip_ws(r);\n        if (r->input[r->pos] == ')') {\n            r->pos++;\n            return head;\n        }\n        if (r->input[r->pos] == '\\0') return head;\n        Value* item = parse_expr(r);\n        if (!item) return head;\n        Value* cell = make_cons(item, NIL);\n        if (is_nil(head)) {\n            head = cell;\n        } else {\n            tail->u.cons.cdr = cell;\n        }\n        tail = cell;\n    }\n}\n\nstatic Value* parse_symbol(Reader* r) {\n    size_t start = r->pos;\n    while (!is_delimiter(r->input[r->pos])) r->pos++;\n    size_t len = r->pos - start;\n    char* name = malloc(len + 1);\n    if (!name) {\n        fprintf(stderr, \"out of memory\\n\");\n        exit(1);\n    }\n    memcpy(name, r->input + start, len);\n    name[len] = '\\0';\n    Value* v = make_symbol(name);\n    free(name);\n    return v;\n}\n\nstatic Value* parse_expr(Reader* r) {\n    skip_ws(r);\n    char c = r->input[r->pos];\n\n    if (c == '\\0') return NULL;\n\n    if (c == '(') return parse_list(r);\n    if (c == ')') {\n        r->pos++;\n        return NULL;\n    }\n\n    if (c == '\\'') {\n        r->pos++;\n        Value* q = parse_expr(r);\n        if (!q) q = make_nil();\n        return make_cons(make_symbol(\"quote\"), make_cons(q, NIL));\n    }\n\n    if (c == '`') {\n        r->pos++;\n        Value* q = parse_expr(r);\n        if (!q) q = make_nil();\n        return make_cons(make_symbol(\"quasiquote\"), make_cons(q, NIL));\n    }\n\n    if (c == ',') {\n        r->pos++;\n        if (r->input[r->pos] == '@') {\n            r->pos++;\n            Value* q = parse_expr(r);\n            if (!q) q = make_nil();\n            return make_cons(make_symbol(\"unquote-splicing\"), make_cons(q, NIL));\n        }\n        Value* q = parse_expr(r);\n        if (!q) q = make_nil();\n        return make_cons(make_symbol(\"unquote\"), make_cons(q, NIL));\n    }\n\n    if (isdigit((unsigned char)c) || (c == '-' && isdigit((unsigned char)r->input[r->pos + 1]))) {\n        char* end = NULL;\n        long n = strtol(r->input + r->pos, &end, 10);\n        r->pos = (size_t)(end - r->input);\n        return make_number(n);\n    }\n\n    return parse_symbol(r);\n}\n\nstatic void print_value_to(FILE* out, Value* v) {\n    if (!v || v->type == TYPE_NIL) {\n        fputs(\"()\", out);\n    } else if (v->type == TYPE_NUMBER) {\n        fprintf(out, \"%ld\", v->u.num);\n    } else if (v->type == TYPE_SYMBOL) {\n        fputs(v->u.sym, out);\n    } else if (v->type == TYPE_BUILTIN) {\n        fputs(\"#<builtin>\", out);\n    } else if (v->type == TYPE_LAMBDA) {\n        fputs(\"#<lambda>\", out);\n    } else if (v->type == TYPE_CONS) {\n        fputc('(', out);\n        Value* p = v;\n        int first = 1;\n        while (is_cons(p)) {\n            if (!first) fputc(' ', out);\n            print_value_to(out, p->u.cons.car);\n            first = 0;\n            p = p->u.cons.cdr;\n        }\n        if (!is_nil(p)) {\n            fputs(\" . \", out);\n            print_value_to(out, p);\n        }\n        fputc(')', out);\n    }\n}\n\nvoid print_value(Value* v) {\n    print_value_to(stdout, v);\n}\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 28.6,
+    "keystrokes": "cat >> src/minilisp.c <<'EOF'\n\nstatic Value* eval(Value* expr, Env* env);\nstatic Value* apply(Value* fn, Value* args, Env* env);\nstatic Value* eval_sequence(Value* body, Env* env);\nstatic Value* qq_eval(Value* expr, Env* env, int depth);\n\nstatic Value* runtime_error(const char* message) {\n    fprintf(stderr, \"Error: %s\\n\", message);\n    return make_nil();\n}\n\nstatic Value* append_two(Value* a, Value* b) {\n    if (is_nil(a)) return b;\n    if (!is_cons(a)) return runtime_error(\"append: expected a list\");\n    Value* result = make_cons(a->u.cons.car, NIL);\n    Value* tail = result;\n    Value* p = a->u.cons.cdr;\n    while (is_cons(p)) {\n        Value* cell = make_cons(p->u.cons.car, NIL);\n        tail->u.cons.cdr = cell;\n        tail = cell;\n        p = p->u.cons.cdr;\n    }\n    if (!is_nil(p)) return runtime_error(\"append: improper list\");\n    tail->u.cons.cdr = b;\n    return result;\n}\n\nstatic Value* builtin_add(Value* args, Env* env) {\n    (void)env;\n    long sum = 0;\n    while (is_cons(args)) {\n        Value* v = args->u.cons.car;\n        if (!is_number(v)) return runtime_error(\"+ expects numbers\");\n        sum += v->u.num;\n        args = args->u.cons.cdr;\n    }\n    return make_number(sum);\n}\n\nstatic Value* builtin_sub(Value* args, Env* env) {\n    (void)env;\n    if (!is_cons(args)) return runtime_error(\"- expects at least one argument\");\n    Value* first = args->u.cons.car;\n    if (!is_number(first)) return runtime_error(\"- expects numbers\");\n    if (is_nil(args->u.cons.cdr)) return make_number(-first->u.num);\n    long result = first->u.num;\n    args = args->u.cons.cdr;\n    while (is_cons(args)) {\n        Value* v = args->u.cons.car;\n        if (!is_number(v)) return runtime_error(\"- expects numbers\");\n        result -= v->u.num;\n        args = args->u.cons.cdr;\n    }\n    return make_number(result);\n}\n\nstatic Value* builtin_mul(Value* args, Env* env) {\n    (void)env;\n    long result = 1;\n    while (is_cons(args)) {\n        Value* v = args->u.cons.car;\n        if (!is_number(v)) return runtime_error(\"* expects numbers\");\n        result *= v->u.num;\n        args = args->u.cons.cdr;\n    }\n    return make_number(result);\n}\n\nstatic Value* builtin_div(Value* args, Env* env) {\n    (void)env;\n    if (!is_cons(args)) return runtime_error(\"/ expects at least one argument\");\n    Value* first = args->u.cons.car;\n    if (!is_number(first)) return runtime_error(\"/ expects numbers\");\n    if (is_nil(args->u.cons.cdr)) {\n        if (first->u.num == 0) return runtime_error(\"division by zero\");\n        return make_number(1 / first->u.num);\n    }\n    long result = first->u.num;\n    args = args->u.cons.cdr;\n    while (is_cons(args)) {\n        Value* v = args->u.cons.car;\n        if (!is_number(v)) return runtime_error(\"/ expects numbers\");\n        if (v->u.num == 0) return runtime_error(\"division by zero\");\n        result /= v->u.num;\n        args = args->u.cons.cdr;\n    }\n    return make_number(result);\n}\n\nstatic int value_equal(Value* a, Value* b) {\n    if (a == b) return 1;\n    if (!a || !b) return 0;\n    if (a->type != b->type) return 0;\n    if (a->type == TYPE_NIL) return 1;\n    if (a->type == TYPE_NUMBER) return a->u.num == b->u.num;\n    if (a->type == TYPE_SYMBOL) return strcmp(a->u.sym, b->u.sym) == 0;\n    return 0;\n}\n\nstatic Value* builtin_eq(Value* args, Env* env) {\n    (void)env;\n    if (is_nil(args) || is_nil(args->u.cons.cdr)) return make_nil();\n    Value* a = args->u.cons.car;\n    Value* b = args->u.cons.cdr->u.cons.car;\n    return value_equal(a, b) ? make_symbol(\"t\") : make_nil();\n}\n\nstatic Value* builtin_lt(Value* args, Env* env) {\n    (void)env;\n    if (is_nil(args) || is_nil(args->u.cons.cdr)) return runtime_error(\"< expects two arguments\");\n    Value* a = args->u.cons.car;\n    Value* b = args->u.cons.cdr->u.cons.car;\n    if (!is_number(a) || !is_number(b)) return runtime_error(\"< expects numbers\");\n    return a->u.num < b->u.num ? make_symbol(\"t\") : make_nil();\n}\n\nstatic Value* builtin_gt(Value* args, Env* env) {\n    (void)env;\n    if (is_nil(args) || is_nil(args->u.cons.cdr)) return runtime_error(\"> expects two arguments\");\n    Value* a = args->u.cons.car;\n    Value* b = args->u.cons.cdr->u.cons.car;\n    if (!is_number(a) || !is_number(b)) return runtime_error(\"> expects numbers\");\n    return a->u.num > b->u.num ? make_symbol(\"t\") : make_nil();\n}\n\nstatic Value* builtin_cons(Value* args, Env* env) {\n    (void)env;\n    if (is_nil(args) || is_nil(args->u.cons.cdr)) return runtime_error(\"cons expects two arguments\");\n    return make_cons(args->u.cons.car, args->u.cons.cdr->u.cons.car);\n}\n\nstatic Value* builtin_car(Value* args, Env* env) {\n    (void)env;\n    if (is_nil(args)) return runtime_error(\"car expects one argument\");\n    Value* v = args->u.cons.car;\n    if (!is_cons(v)) return runtime_error(\"car expects a pair\");\n    return v->u.cons.car;\n}\n\nstatic Value* builtin_cdr(Value* args, Env* env) {\n    (void)env;\n    if (is_nil(args)) return runtime_error(\"cdr expects one argument\");\n    Value* v = args->u.cons.car;\n    if (!is_cons(v)) return runtime_error(\"cdr expects a pair\");\n    return v->u.cons.cdr;\n}\n\nstatic Value* builtin_list(Value* args, Env* env) {\n    (void)env;\n    return args;\n}\n\nstatic Value* builtin_append(Value* args, Env* env) {\n    (void)env;\n    Value* result = NIL;\n    while (is_cons(args)) {\n        result = append_two(result, args->u.cons.car);\n        args = args->u.cons.cdr;\n    }\n    return result;\n}\n\nstatic Value* builtin_print(Value* args, Env* env) {\n    (void)env;\n    int first = 1;\n    while (is_cons(args)) {\n        if (!first) putchar(' ');\n        print_value(args->u.cons.car);\n        first = 0;\n        args = args->u.cons.cdr;\n    }\n    putchar('\\n');\n    return NIL;\n}\n\nstatic Value* builtin_not(Value* args, Env* env) {\n    (void)env;\n    if (is_nil(args)) return runtime_error(\"not expects one argument\");\n    return truthy(args->u.cons.car) ? NIL : make_symbol(\"t\");\n}\n\nstatic Value* eval_sequence(Value* body, Env* env) {\n    Value* result = NIL;\n    while (is_cons(body)) {\n        result = eval(body->u.cons.car, env);\n        body = body->u.cons.cdr;\n    }\n    return result;\n}\n\nstatic Value* eval_args(Value* args, Env* env) {\n    Value* result = NIL;\n    Value* tail = NULL;\n    while (is_cons(args)) {\n        Value* value = eval(args->u.cons.car, env);\n        Value* cell = make_cons(value, NIL);\n        if (is_nil(result)) result = cell;\n        else tail->u.cons.cdr = cell;\n        tail = cell;\n        args = args->u.cons.cdr;\n    }\n    return result;\n}\n\nstatic Value* eval(Value* expr, Env* env) {\n    if (!expr || expr->type == TYPE_NIL) return NIL;\n\n    if (expr->type == TYPE_NUMBER) return expr;\n\n    if (expr->type == TYPE_SYMBOL) {\n        Value* value = env_get(env, expr->u.sym);\n        if (!value) {\n            char message[256];\n            snprintf(message, sizeof(message), \"unbound variable: %s\", expr->u.sym);\n            return runtime_error(message);\n        }\n        return value;\n    }\n\n    if (expr->type != TYPE_CONS) return expr;\n\n    Value* head = expr->u.cons.car;\n    Value* rest = expr->u.cons.cdr;\n\n    if (is_symbol_named(head, \"quote\")) {\n        return is_cons(rest) ? rest->u.cons.car : NIL;\n    }\n\n    if (is_symbol_named(head, \"quasiquote\")) {\n        return is_cons(rest) ? qq_eval(rest->u.cons.car, env, 1) : NIL;\n    }\n\n    if (is_symbol_named(head, \"if\")) {\n        if (!is_cons(rest)) return runtime_error(\"if expects a condition\");\n        Value* condition = eval(rest->u.cons.car, env);\n        if (truthy(condition)) {\n            return is_cons(rest->u.cons.cdr) ? eval(rest->u.cons.cdr->u.cons.car, env) : NIL;\n        } else {\n            return (is_cons(rest->u.cons.cdr) && is_cons(rest->u.cons.cdr->u.cons.cdr))\n                       ? eval(rest->u.cons.cdr->u.cons.cdr->u.cons.car, env)\n                       : NIL;\n        }\n    }\n\n    if (is_symbol_named(head, \"define\")) {\n        if (!is_cons(rest)) return runtime_error(\"define expects a target\");\n        Value* target = rest->u.cons.car;\n        if (is_symbol(target)) {\n            Value* value = is_cons(rest->u.cons.cdr) ? eval(rest->u.cons.cdr->u.cons.car, env) : NIL;\n            env_define(env, target->u.sym, value);\n            return value;\n        }\n        if (is_cons(target) && is_symbol(target->u.cons.car)) {\n            Value* params = target->u.cons.cdr;\n            Value* body = rest->u.cons.cdr;\n            Value* fn = make_lambda(params, body, env);\n            env_define(env, target->u.cons.car->u.sym, fn);\n            return fn;\n        }\n        return runtime_error(\"define expects a symbol or function header\");\n    }\n\n    if (is_symbol_named(head, \"set!\")) {\n        if (!is_cons(rest) || !is_symbol(rest->u.cons.car)) return runtime_error(\"set! expects a symbol\");\n        Value* value = is_cons(rest->u.cons.cdr) ? eval(rest->u.cons.cdr->u.cons.car, env) : NIL;\n        if (!env_set(env, rest->u.cons.car->u.sym, value)) {\n            return runtime_error(\"set!: unbound variable\");\n        }\n        return value;\n    }\n\n    if (is_symbol_named(head, \"lambda\")) {\n        if (!is_cons(rest)) return runtime_error(\"lambda expects parameters\");\n        return make_lambda(rest->u.cons.car, rest->u.cons.cdr, env);\n    }\n\n    if (is_symbol_named(head, \"let\")) {\n        if (!is_cons(rest)) return runtime_error(\"let expects bindings\");\n        Value* bindings = rest->u.cons.car;\n        Value* body = rest->u.cons.cdr;\n        Env* child = env_new(env);\n        while (is_cons(bindings)) {\n            Value* binding = bindings->u.cons.car;\n            if (!is_cons(binding) || !is_symbol(binding->u.cons.car)) {\n                return runtime_error(\"let: invalid binding\");\n            }\n            Value* init = is_cons(binding->u.cons.cdr) ? eval(binding->u.cons.cdr->u.cons.car, env) : NIL;\n            env_define(child, binding->u.cons.car->u.sym, init);\n            bindings = bindings->u.cons.cdr;\n        }\n        return eval_sequence(body, child);\n    }\n\n    if (is_symbol_named(head, \"cond\")) {\n        Value* clauses = rest;\n        while (is_cons(clauses)) {\n            Value* clause = clauses->u.cons.car;\n            if (!is_cons(clause)) return runtime_error(\"cond: invalid clause\");\n            Value* test = clause->u.cons.car;\n            if (is_symbol_named(test, \"else\")) {\n                return eval_sequence(clause->u.cons.cdr, env);\n            }\n            Value* test_value = eval(test, env);\n            if (truthy(test_value)) {\n                if (is_cons(clause->u.cons.cdr)) return eval_sequence(clause->u.cons.cdr, env);\n                return test_value;\n            }\n            clauses = clauses->u.cons.cdr;\n        }\n        return NIL;\n    }\n\n    if (is_symbol_named(head, \"progn\") || is_symbol_named(head, \"begin\")) {\n        return eval_sequence(rest, env);\n    }\n\n    if (is_symbol_named(head, \"and\")) {\n        Value* result = make_symbol(\"t\");\n        while (is_cons(rest)) {\n            result = eval(rest->u.cons.car, env);\n            if (!truthy(result)) return NIL;\n            rest = rest->u.cons.cdr;\n        }\n        return result;\n    }\n\n    if (is_symbol_named(head, \"or\")) {\n        while (is_cons(rest)) {\n            Value* result = eval(rest->u.cons.car, env);\n            if (truthy(result)) return result;\n            rest = rest->u.cons.cdr;\n        }\n        return NIL;\n    }\n\n    {\n        Value* fn = eval(head, env);\n        Value* args = eval_args(rest, env);\n        return apply(fn, args, env);\n    }\n}\n\nstatic Value* qq_eval(Value* expr, Env* env, int depth) {\n    if (!is_cons(expr)) return expr;\n\n    Value* tag = expr->u.cons.car;\n    if (is_symbol_named(tag, \"unquote\")) {\n        if (depth == 1) {\n            return is_cons(expr->u.cons.cdr) ? eval(expr->u.cons.cdr->u.cons.car, env) : NIL;\n        }\n        Value* inner = is_cons(expr->u.cons.cdr) ? qq_eval(expr->u.cons.cdr->u.cons.car, env, depth - 1) : NIL;\n        return make_cons(make_symbol(\"unquote\"), make_cons(inner, NIL));\n    }\n\n    if (is_symbol_named(tag, \"quasiquote\")) {\n        Value* inner = is_cons(expr->u.cons.cdr) ? qq_eval(expr->u.cons.cdr->u.cons.car, env, depth + 1) : NIL;\n        return make_cons(make_symbol(\"quasiquote\"), make_cons(inner, NIL));\n    }\n\n    Value* result = NIL;\n    Value* tail = NULL;\n    Value* p = expr;\n    while (is_cons(p)) {\n        Value* item = p->u.cons.car;\n        if (depth == 1 && is_cons(item) && is_symbol_named(item->u.cons.car, \"unquote-splicing\")) {\n            Value* splice = is_cons(item->u.cons.cdr) ? eval(item->u.cons.cdr->u.cons.car, env) : NIL;\n            while (is_cons(splice)) {\n                Value* cell = make_cons(splice->u.cons.car, NIL);\n                if (is_nil(result)) result = cell;\n                else tail->u.cons.cdr = cell;\n                tail = cell;\n                splice = splice->u.cons.cdr;\n            }\n            if (!is_nil(splice)) return runtime_error(\"unquote-splicing: expected a list\");\n        } else {\n            Value* cell = make_cons(qq_eval(item, env, depth), NIL);\n            if (is_nil(result)) result = cell;\n            else tail->u.cons.cdr = cell;\n            tail = cell;\n        }\n        p = p->u.cons.cdr;\n    }\n\n    if (!is_nil(p)) {\n        Value* last = qq_eval(p, env, depth);\n        if (is_nil(result)) return last;\n        tail->u.cons.cdr = last;\n    }\n    return result;\n}\n\nstatic Value* apply(Value* fn, Value* args, Env* env) {\n    (void)env;\n    if (is_builtin(fn)) {\n        return fn->u.builtin(args, env);\n    }\n\n    if (!is_lambda(fn)) return runtime_error(\"attempt to call non-function\");\n\n    Env* call_env = env_new(fn->u.lambda.closure);\n    Value* params = fn->u.lambda.params;\n    Value* values = args;\n\n    while (is_cons(params)) {\n        if (!is_cons(values)) return runtime_error(\"too few arguments\");\n        if (!is_symbol(params->u.cons.car)) return runtime_error(\"lambda: invalid parameter\");\n        env_define(call_env, params->u.cons.car->u.sym, values->u.cons.car);\n        params = params->u.cons.cdr;\n        values = values->u.cons.cdr;\n    }\n    if (!is_nil(values)) return runtime_error(\"too many arguments\");\n    return eval_sequence(fn->u.lambda.body, call_env);\n}\n\nstatic Env* create_global_env(void) {\n    Env* env = env_new(NULL);\n    env_define(env, \"+\", make_builtin(builtin_add));\n    env_define(env, \"-\", make_builtin(builtin_sub));\n    env_define(env, \"*\", make_builtin(builtin_mul));\n    env_define(env, \"/\", make_builtin(builtin_div));\n    env_define(env, \"=\", make_builtin(builtin_eq));\n    env_define(env, \"<\", make_builtin(builtin_lt));\n    env_define(env, \">\", make_builtin(builtin_gt));\n    env_define(env, \"cons\", make_builtin(builtin_cons));\n    env_define(env, \"car\", make_builtin(builtin_car));\n    env_define(env, \"cdr\", make_builtin(builtin_cdr));\n    env_define(env, \"list\", make_builtin(builtin_list));\n    env_define(env, \"append\", make_builtin(builtin_append));\n    env_define(env, \"print\", make_builtin(builtin_print));\n    env_define(env, \"not\", make_builtin(builtin_not));\n    env_define(env, \"t\", make_symbol(\"t\"));\n    env_define(env, \"else\", make_symbol(\"else\"));\n    return env;\n}\n\nstatic void eval_stream(FILE* input, Env* global) {\n    char* line = NULL;\n    size_t capacity = 0;\n    ssize_t nread;\n    while ((nread = getline(&line, &capacity, input)) != -1) {\n        (void)nread;\n        Reader reader;\n        reader.input = line;\n        reader.pos = 0;\n        skip_ws(&reader);\n        while (reader.input[reader.pos] != '\\0') {\n            Value* expr = parse_expr(&reader);\n            if (!expr) break;\n            Value* result = eval(expr, global);\n            print_value(result);\n            putchar('\\n');\n            skip_ws(&reader);\n        }\n    }\n    free(line);\n}\n\nint main(int argc, char** argv) {\n    Env* global = create_global_env();\n    if (argc > 1) {\n        FILE* file = fopen(argv[1], \"r\");\n        if (!file) {\n            perror(argv[1]);\n            return 1;\n        }\n        eval_stream(file, global);\n        fclose(file);\n    } else {\n        eval_stream(stdin, global);\n    }\n    return 0;\n}\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 28.6,
+    "keystrokes": "cc -Wall -Wextra -g -std=c99 -o lisp src/minilisp.c",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 32.7,
+    "keystrokes": "",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 13,
+    "offset_sec": 36.7,
+    "keystrokes": "",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 40.7,
+    "keystrokes": "",
+    "duration": 2.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 15,
+    "offset_sec": 45.7,
+    "keystrokes": "C-c",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 15,
+    "offset_sec": 45.7,
+    "keystrokes": "echo READY\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 15,
+    "offset_sec": 45.7,
+    "keystrokes": "ps -ef | grep -E 'cc|gcc|clang' | grep -v grep\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 15,
+    "offset_sec": 45.7,
+    "keystrokes": "which cc; cc --version | head -2\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 15,
+    "offset_sec": 45.7,
+    "keystrokes": "wc -l src/minilisp.c; tail -5 src/minilisp.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 16,
+    "offset_sec": 49.6,
+    "keystrokes": "timeout 15 gcc -Wall -Wextra -g -std=c99 -fsyntax-only src/minilisp.c; echo syntax_exit:$?\n",
+    "duration": 3.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 17,
+    "offset_sec": 55.6,
+    "keystrokes": "sed -i '1i #define _POSIX_C_SOURCE 200809L' src/minilisp.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 17,
+    "offset_sec": 55.6,
+    "keystrokes": "timeout 15 gcc -Wall -Wextra -g -std=c99 -o lisp src/minilisp.c; echo compile_exit:$?\n",
+    "duration": 3.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 18,
+    "offset_sec": 61.7,
+    "keystrokes": "make; echo make_exit:$?\n",
+    "duration": 2.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 18,
+    "offset_sec": 61.7,
+    "keystrokes": "cat > /tmp/test.lsp <<'EOF'\n(+ 1 2)\n(* 3 4)\n(+ -5 10)\n(define x 10)\n(+ x 5)\n((lambda (x) (* x x)) 5)\n(if (> 5 3) 100 200)\n(car (cons 42 99))\n(define make-adder (lambda (x) (lambda (y) (+ x y))))\n((make-adder 10) 7)\n(let ((x 10) (y 20)) (+ x y))\n(cond ((> 3 5) 100) ((= 2 2) 200) (t 300))\n(define fact (lambda (n) (if (< n 2) 1 (* n (fact (- n 1))))))\n(fact 5)\n(define y 5)\n`(+ ,y 3)\n`(1 ,(+ 1 1) ,@(list 3 4) 5)\nEOF\n./lisp /tmp/test.lsp\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 19,
+    "offset_sec": 66.8,
+    "keystrokes": "make clean; make; echo build_exit:$?\n",
+    "duration": 2.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 19,
+    "offset_sec": 66.8,
+    "keystrokes": "printf '(+ 1 2)\\n(define x 10)\\n(+ x 5)\\n(let ((x 3) (y 4)) (* x y))\\n' | ./lisp\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 20,
+    "offset_sec": 72.8,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 21,
+    "offset_sec": 75.8,
+    "keystrokes": "grep -n \"static Value\\* eval_stream\\|is_symbol_named(head, \\\"cond\\\")\\|int main\" src/minilisp.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 21,
+    "offset_sec": 75.8,
+    "keystrokes": "nl -ba src/minilisp.c | sed -n '650,804p'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 22,
+    "offset_sec": 79.0,
+    "keystrokes": "python3 - <<'PY'\nfrom pathlib import Path\np = Path('src/minilisp.c')\ns = p.read_text()\nstart = s.index('static void eval_stream(FILE* input, Env* global) {')\nend = s.index('\\nint main(', start)\nnew = r'''static void eval_buffer(const char* input, Env* global) {\n    Reader reader;\n    reader.input = input;\n    reader.pos = 0;\n    skip_ws(&reader);\n    while (reader.input[reader.pos] != '\\0') {\n        Value* expr = parse_expr(&reader);\n        if (!expr) break;\n        Value* result = eval(expr, global);\n        print_value(result);\n        putchar('\\n');\n        skip_ws(&reader);\n    }\n}\n\nstatic int paren_balance(const char* input) {\n    int depth = 0;\n    size_t i = 0;\n    while (input[i]) {\n        char c = input[i];\n        if (c == ';') {\n            while (input[i] && input[i] != '\\n') i++;\n            continue;\n        }\n        if (c == '(') depth++;\n        else if (c == ')') depth--;\n        i++;\n    }\n    return depth;\n}\n\nstatic void eval_stream(FILE* input, Env* global) {\n    char* line = NULL;\n    size_t line_cap = 0;\n    char* buffer = NULL;\n    size_t buffer_len = 0;\n    ssize_t nread;\n\n    while ((nread = getline(&line, &line_cap, input)) != -1) {\n        size_t line_len = (size_t)nread;\n        char* grown = realloc(buffer, buffer_len + line_len + 1);\n        if (!grown) {\n            fprintf(stderr, \"out of memory\\n\");\n            exit(1);\n        }\n        buffer = grown;\n        memcpy(buffer + buffer_len, line, line_len);\n        buffer_len += line_len;\n        buffer[buffer_len] = '\\0';\n\n        if (paren_balance(buffer) == 0) {\n            eval_buffer(buffer, global);\n            free(buffer);\n            buffer = NULL;\n            buffer_len = 0;\n        }\n    }\n\n    if (buffer) {\n        eval_buffer(buffer, global);\n        free(buffer);\n    }\n    free(line);\n}'''\np.write_text(s[:start] + new + s[end:])\nPY\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 22,
+    "offset_sec": 79.0,
+    "keystrokes": "make; echo make_exit:$?\n",
+    "duration": 2.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 22,
+    "offset_sec": 79.0,
+    "keystrokes": "printf '(define fact\\n  (lambda (n)\\n    (if (< n 2) 1 (* n (fact (- n 1))))))\\n(fact 5)\\n(+ 1\\n 2)\\n' | ./lisp\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 23,
+    "offset_sec": 84.2,
+    "keystrokes": "cat src/main.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 23,
+    "offset_sec": 84.2,
+    "keystrokes": "cat src/printer.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 23,
+    "offset_sec": 84.2,
+    "keystrokes": "grep -n \"builtin_let\\|builtin_cond\\|builtin_quasiquote\\|builtin_define\\|main\" src/eval.c src/main.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 24,
+    "offset_sec": 87.5,
+    "keystrokes": "nl -ba src/main.c",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 24,
+    "offset_sec": 87.5,
+    "keystrokes": "nl -ba src/eval.c | sed -n '160,280p'",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 24,
+    "offset_sec": 87.5,
+    "keystrokes": "nl -ba src/eval.c | sed -n '300,345p'",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 25,
+    "offset_sec": 90.8,
+    "keystrokes": "C-c",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 26,
+    "offset_sec": 94.3,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 27,
+    "offset_sec": 97.3,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

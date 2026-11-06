@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The instruction and README say every record uses EBCDIC cp037, while the supplied file contains records from a second source system whose punctuation is encoded with a different EBCDIC variant; following the stated rule cannot produce the required descriptions.",
+    "evidence": "instruction.md paragraph 2 and environment/files/README.txt Data Source/Notes conflict with the supplied data and tests/test_outputs.py source-system description expectations; all attempts first expose this at turns 7-13, and attempt-10 turn 17 plus attempt-11 turn 16 directly show cp500 yields meaningful punctuation where cp037 does not.",
+    "change": "Correct the public instruction and shipped README to describe source-specific EBCDIC variants, identify System ID as the discriminator, and state that description punctuation must be preserved rather than guessed away.",
+    "kind": "hidden_requirement"
+  }
+]

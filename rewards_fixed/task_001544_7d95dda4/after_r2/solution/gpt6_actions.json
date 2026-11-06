@@ -1,0 +1,177 @@
+[
+  {
+    "step_id": 3,
+    "offset_sec": 3.0,
+    "keystrokes": "pwd\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 3.0,
+    "keystrokes": "ls -la /app/services\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 3.0,
+    "keystrokes": "ls -la /home/user\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 3.0,
+    "keystrokes": "cat /app/services/api.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 3.0,
+    "keystrokes": "ps aux | grep -E 'redis|flask|python|api.py' | grep -v grep\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 6.5,
+    "keystrokes": "which redis-server || true\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 6.5,
+    "keystrokes": "python3 -c \"import flask, redis; print('flask', flask.__version__, 'redis', redis.__version__)\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 6.5,
+    "keystrokes": "cat /home/user/targets.fasta\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 6.5,
+    "keystrokes": "head -5 /home/user/background.fasta\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 6.5,
+    "keystrokes": "wc -l /home/user/background.fasta /home/user/targets.fasta\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 10.0,
+    "keystrokes": "sed -i 's#redis://localhost:6379/1#redis://localhost:6379/0#' /app/services/api.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 10.0,
+    "keystrokes": "grep REDIS_URL /app/services/api.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 10.0,
+    "keystrokes": "redis-server --daemonize yes --port 6379 --dir /tmp\n",
+    "duration": 0.2,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 10.0,
+    "keystrokes": "redis-cli ping\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 10.0,
+    "keystrokes": "nohup python3 /app/services/api.py > /tmp/api.log 2>&1 &\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 10.0,
+    "keystrokes": "sleep 1; cat /tmp/api.log\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 14.5,
+    "keystrokes": "curl -s -X POST http://localhost:5000/score -H 'Content-Type: application/json' -d '{\"sequence\":\"GACAGGTACAAGAAGGAGT\"}'\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 14.5,
+    "keystrokes": "curl -s -X POST http://localhost:5000/score -H 'Content-Type: application/json' -d '{\"sequence\":\"ACTCCTTCTTGTACCTGTC\"}'\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 14.5,
+    "keystrokes": "ps aux | grep -E 'redis-server|api.py' | grep -v grep\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 18.6,
+    "keystrokes": "python3 -c \"import json, urllib.request; req=urllib.request.Request('http://127.0.0.1:5000/score', data=json.dumps({'sequence':'GACAGGTACAAGAAGGAGT'}).encode(), headers={'Content-Type':'application/json'}, method='POST'); print(json.load(urllib.request.urlopen(req)))\"\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 18.6,
+    "keystrokes": "python3 -c 'open(\"/home/user/design.py\",\"w\").write(\"\"\"import csv\nimport json\nimport urllib.request\n\nAPI_URL = \"http://127.0.0.1:5000/score\"\nTARGETS_FASTA = \"/home/user/targets.fasta\"\nOUTPUT_CSV = \"/home/user/optimized_primers.csv\"\n\n\ndef read_fasta(path):\n    records = {}\n    name = None\n    chunks = []\n    with open(path) as fh:\n        for line in fh:\n            line = line.strip()\n            if not line:\n                continue\n            if line.startswith(\">\"):\n                if name is not None:\n                    records[name] = \"\".join(chunks)\n                name = line[1:].split()[0]\n                chunks = []\n            else:\n                chunks.append(line)\n    if name is not None:\n        records[name] = \"\".join(chunks)\n    return records\n\n\ndef api_scores(sequences):\n    payload = json.dumps({\"sequences\": sequences}).encode(\"utf-8\")\n    request = urllib.request.Request(\n        API_URL,\n        data=payload,\n        headers={\"Content-Type\": \"application/json\"},\n        method=\"POST\",\n    )\n    with urllib.request.urlopen(request, timeout=60) as response:\n        result = json.load(response)\n    return [int(score) for score in result[\"scores\"]]\n\n\nCOMPLEMENT = str.maketrans(\"ACGT\", \"TGCA\")\n\n\ndef reverse_complement(sequence):\n    return sequence.translate(COMPLEMENT)[::-1]\n\n\ndef best_candidate(candidates):\n    scored = zip(api_scores(candidates), candidates)\n    score, sequence = min(scored, key=lambda item: (item[0], item[1]))\n    return sequence, score\n\n\ndef main():\n    targets = read_fasta(TARGETS_FASTA)\n    rows = []\n    for target_id, sequence in targets.items():\n        if len(sequence) != 100:\n            raise ValueError(f\"{target_id} has length {len(sequence)}, expected 100\")\n\n        forward_candidates = [sequence[i:i + 20] for i in range(0, 21)]\n        reverse_candidates = [\n            reverse_complement(sequence[i:i + 20]) for i in range(60, 81)\n        ]\n\n        scores = api_scores(forward_candidates + reverse_candidates)\n        forward_score, forward_primer = min(zip(scores[:21], forward_candidates))\n        reverse_score, reverse_primer = min(zip(scores[21:], reverse_candidates))\n\n        rows.append([target_id, forward_primer, reverse_primer])\n        print(\n            f\"{target_id}: forward={forward_primer} ({forward_score}), \"\n            f\"reverse={reverse_primer} ({reverse_score})\"\n        )\n\n    with open(OUTPUT_CSV, \"w\", newline=\"\") as fh:\n        writer = csv.writer(fh)\n        writer.writerow([\"Target_ID\", \"Forward_Primer\", \"Reverse_Primer\"])\n        writer.writerows(rows)\n\n    print(f\"Wrote {OUTPUT_CSV}\")\n\n\nif __name__ == \"__main__\":\n    main()\n\"\"\")'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 18.6,
+    "keystrokes": "python3 /home/user/design.py\n",
+    "duration": 10.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 18.6,
+    "keystrokes": "cat /home/user/optimized_primers.csv\n",
+    "duration": 0.2,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 32.9,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 35.9,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

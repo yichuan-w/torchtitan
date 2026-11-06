@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The instruction limits corruption to metadata headers, while the supplied archive contains checksum-detectable file-data corruption or padding and successful recovery requires restoring the intended payloads.",
+    "evidence": "instruction.md says metadata headers are corrupted; environment/files/data.blob has checksum mismatches in config.json and schema.sql; attempt-01.jsonl turn 14 and attempt-12.jsonl turn 40 preserve schema corruption specifically because they regard it as original data rather than a recovery target.",
+    "change": "State that corruption may affect metadata and file data, and direct the solver generally to use integrity checks when deciding whether extracted payloads are restored.",
+    "kind": "hidden_requirement"
+  }
+]

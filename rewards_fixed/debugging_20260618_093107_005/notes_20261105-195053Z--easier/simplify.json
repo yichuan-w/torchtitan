@@ -1,0 +1,22 @@
+{
+  "retained_skill": "Recovering every checksum-valid record from a structurally damaged binary log while interpreting each record in its device byte order.",
+  "bottleneck": "Ten attempts omitted the seven big-endian records and recovered only 28 records; the two attempts that did recover all 35 were nevertheless rejected because the verifier required decimal-rounded values rather than the native IEEE-754 numbers requested by the instruction.",
+  "change": "Repair in the scratch verifier: compare each recovered numeric value to the documented record value with a small floating-point tolerance instead of requiring exact equality with a two-decimal literal. This is grader-side help at the original correctness signal; it removes the hidden representation obstacle while leaving mixed-endian discovery and recovery entirely with the student.",
+  "restore": "No later restoration is appropriate: exact two-decimal serialization was never a public requirement, so the semantic numeric comparison is a permanent verifier repair rather than removable task help.",
+  "prediction": "The change addresses the final exact-value comparison that rejects attempts 03 and 11 after they recover all 35 records. Their unchanged next action—submitting native unpacked float values—will now satisfy the numeric content check; this is refuted if either replay still fails any retained check after the repair.",
+  "expected": "2 of 12",
+  "evidence": [
+    {"attempt":"attempt-01.jsonl","turn":7,"observation":"Recovered 28 records. Replayed turn 6 on a fresh reset and graded: file existence, JSON validity, field types, and corrupted-record exclusion passed; record count and all-expected-record content failed."},
+    {"attempt":"attempt-02.jsonl","turn":5,"observation":"Reported 28 recovered records, omitting the mixed-endian records."},
+    {"attempt":"attempt-03.jsonl","turn":18,"observation":"Recovered all 35 records. Replayed turn 18 on a fresh reset and graded: five checks passed; only all-expected-record content failed, reporting all 35 missing because native floats such as 980.510009765625 were compared exactly to decimal literals such as 980.51."},
+    {"attempt":"attempt-04.jsonl","turn":10,"observation":"Reported 28 valid records after using little-endian field parsing."},
+    {"attempt":"attempt-05.jsonl","turn":10,"observation":"Reported 28 valid records after little-endian recovery."},
+    {"attempt":"attempt-06.jsonl","turn":11,"observation":"Identified seven big-endian records during diagnosis but the submitted output still reported 28 records, so mixed-endian results were not integrated."},
+    {"attempt":"attempt-07.jsonl","turn":5,"observation":"Reported 28 valid records from little-endian parsing."},
+    {"attempt":"attempt-08.jsonl","turn":8,"observation":"Reported 28 recovered records despite scanning structural alignments."},
+    {"attempt":"attempt-09.jsonl","turn":11,"observation":"Reported 28 valid records beginning at offset 27 and omitted earlier and big-endian records."},
+    {"attempt":"attempt-10.jsonl","turn":8,"observation":"Reported 28 recovered records using the little-endian interpretation."},
+    {"attempt":"attempt-11.jsonl","turn":8,"observation":"Recovered all 35 records in both byte orders. Replayed turn 7 on a fresh reset and graded: count and all other checks passed; only exact expected-record comparison failed because all native float values differed from two-decimal literals."},
+    {"attempt":"attempt-12.jsonl","turn":11,"observation":"Recovered 28 records and stated the first valid record was at offset 27, omitting valid big-endian records."}
+  ]
+}

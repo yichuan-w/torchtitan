@@ -1,0 +1,70 @@
+{
+  "retained_skill": "Modeling a flex/bison C build as a correct Make dependency graph, including parallel ordering, generated outputs, linking, and source/header-driven incremental rebuilds.",
+  "bottleneck": "All 12 scored attempts submitted and validated clean parallel builds and normal incremental edits, but the verifier additionally deletes src/parser.h by hand and requires recovery. The instruction only requires rebuilds after editing source files, so this is an unstated extra state-repair case rather than a failure of the requested build workflow.",
+  "change": "Repair the verifier at the original build signal: replace manual deletion of a generated file with an edit to the parser grammar followed by a parallel rebuild and parser execution. This changes no student-facing requirement and gives no implementation hint; it removes only the hidden deletion-recovery obstacle while retaining the dependency-graph decision.",
+  "restore": "Restore the original generated-header deletion check only if a later task version explicitly states that deleting generated artifacts must be recovered without cleaning; no supplied implementation or final answer is introduced here.",
+  "prediction": "The failing action addressed is grading a manually deleted generated header, which attempts did not have reason to support. Grading a parser source edit instead lets submissions that correctly modeled ordinary incremental regeneration take the next action and pass; this is refuted if replayed submissions still fail any retained clean-build, parser-output, determinism, or source-edit rebuild check.",
+  "expected": "2 of 12",
+  "evidence": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turn": 43,
+      "observation": "The trace ends after five successful clean parallel builds and earlier parser/header/source-edit checks. Replaying its full command stream on a fresh seed and running ./sandbox grade produced 4 passed and 1 failed: only test_generated_header_dependency failed after the grader manually removed src/parser.h; clean parallel build, parser execution, deterministic builds, and config-header incremental rebuild all passed. After the verifier repair, replaying the same full approach from a fresh ./sandbox reset and grading reached the parser.y source-edit rebuild and passed all 5 checks (reward 1.0); nothing this attempt failed remains."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turn": 45,
+      "observation": "The trace's final validation successfully runs a clean parallel build and parser. Replaying its full command stream on a fresh seed and running ./sandbox grade produced 4 passed and 1 failed: only test_generated_header_dependency failed after manual generated-header deletion; every stated build and execution check passed."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turn": 73,
+      "observation": "The attempt finishes by successfully running a clean parallel build and parser after repeatedly exercising parser.y and header edits; its first unsupported case is the verifier-only manual deletion of the generated header after build."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turn": 40,
+      "observation": "The attempt reaches successful final clean parallel build and parser validation; the trace does not establish recovery after an external deletion of a generated header, which the public task never requests."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turn": 39,
+      "observation": "The attempt completes clean parallel and incremental build checks, but its generated-output rule is not shown recovering from manual parser.h deletion; that unstated case is the first remaining grading obstacle."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turn": 45,
+      "observation": "The attempt reaches successful clean parallel builds and parser execution with generated parser files in the build directory; the unsupported verifier-only action is deleting the separately expected src/parser.h path."
+    },
+    {
+      "attempt": "attempt-07.jsonl",
+      "turn": 37,
+      "observation": "The attempt's final workflow validates clean parallel build, parser output, and edits; no public cue asks it to recover a manually removed generated header, the remaining hidden grading case."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turn": 44,
+      "observation": "The attempt submits after successful clean and incremental builds; the first requirement not demonstrated is only the grader's external generated-header deletion scenario."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turn": 36,
+      "observation": "The attempt reaches successful repeated parallel builds and parser execution; it does not target recovery from manual parser.h deletion because that behavior is absent from the instruction."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turn": 38,
+      "observation": "The attempt validates its clean parallel build and parser after generated-source edits; the residual mismatch is the verifier's unstated generated-header deletion recovery check."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turn": 72,
+      "observation": "The attempt spends its final turns successfully testing clean builds, parser output, ast.h edits, and parser.y edits; the first unsupported case remains manual deletion of parser.h by the grader."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turn": 34,
+      "observation": "The attempt successfully runs repeated clean parallel builds and the parser, then checks a header edit; it is not told to support external deletion of a generated header, which is the hidden remaining case."
+    }
+  ]
+}

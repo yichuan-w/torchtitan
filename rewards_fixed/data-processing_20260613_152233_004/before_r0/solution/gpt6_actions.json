@@ -1,0 +1,114 @@
+[
+  {
+    "step_id": 3,
+    "offset_sec": 0.0,
+    "keystrokes": "ls -la\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.0,
+    "keystrokes": "file orders.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.0,
+    "keystrokes": "wc -c -l orders.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.0,
+    "keystrokes": "xxd -g 1 -l 512 orders.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.4,
+    "keystrokes": "od -An -tx1 -N 600 orders.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.4,
+    "keystrokes": "python3 - <<'PY'\nfrom pathlib import Path\nb = Path('orders.csv').read_bytes()\nprint('len=', len(b))\nprint('first 128 repr=', repr(b[:128]))\nfor i, line in enumerate(b.splitlines(keepends=True), 1):\n    print(i, repr(line))\nPY\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 0.6,
+    "keystrokes": "python3 - <<'PY'\nimport csv\nwith open('orders.csv', newline='', encoding='utf-8-sig') as f:\n    rows = list(csv.reader(f, delimiter='|', quotechar='\"', escapechar='\\\\', doublequote=False, skipinitialspace=True))\nprint('num rows:', len(rows))\nfor i, row in enumerate(rows, 1):\n    print(i, 'len=', len(row), repr(row))\nPY\n",
+    "duration": 0.3,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 0.9,
+    "keystrokes": "python3 - <<'PY'\nfrom pathlib import Path\nfrom decimal import Decimal, ROUND_HALF_UP\nimport csv\nimport json\nfrom datetime import datetime\n\nCSV_PATH = Path('/app/orders.csv')\nOUT_PATH = Path('/app/output.json')\n\ndef money(value):\n    return format(value.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP), 'f')\n\ndef parse_amount(value):\n    value = value.strip()\n    return Decimal(value) if value else Decimal('0.00')\n\ndef normalize_date(value):\n    value = value.strip()\n    for fmt in ('%Y-%m-%d', '%m/%d/%Y'):\n        try:\n            return datetime.strptime(value, fmt).strftime('%Y-%m-%d')\n        except ValueError:\n            pass\n    raise ValueError(f'Unsupported date format: {value!r}')\n\nwith CSV_PATH.open(newline='', encoding='utf-8-sig') as f:\n    reader = csv.reader(\n        f,\n        delimiter='|',\n        quotechar='\"',\n        escapechar='\\\\',\n        doublequote=False,\n    )\n    header = [h.strip() for h in next(reader)]\n    orders = []\n    for raw_row in reader:\n        if not raw_row:\n            continue\n        if len(raw_row) > len(header):\n            extra = [v for v in raw_row[len(header):] if v.strip()]\n            if extra:\n                raise ValueError(f'Unexpected extra columns: {extra!r}')\n            raw_row = raw_row[:len(header)]\n        elif len(raw_row) < len(header):\n            raw_row = raw_row + [''] * (len(header) - len(raw_row))\n        row = {header[i]: raw_row[i].strip() for i in range(len(header))}\n        row['OrderDate'] = normalize_date(row['OrderDate'])\n        orders.append(row)\n\ntotal_records = len(orders)\ntotal_amount = sum((parse_amount(o['TotalAmount']) for o in orders), Decimal('0.00'))\n\nstatus_counts = {}\nfor order in orders:\n    status = order['Status']\n    status_counts[status] = status_counts.get(status, 0) + 1\nstatus_counts = dict(sorted(status_counts.items()))\n\nmonthly_data = {}\nfor order in orders:\n    month = order['OrderDate'][:7]\n    if month not in monthly_data:\n        monthly_data[month] = {'revenue': Decimal('0.00'), 'order_count': 0}\n    monthly_data[month]['revenue'] += parse_amount(order['TotalAmount'])\n    monthly_data[month]['order_count'] += 1\n\nmonthly_revenue = [\n    {\n        'month': month,\n        'revenue': money(data['revenue']),\n        'order_count': data['order_count'],\n    }\n    for month, data in sorted(monthly_data.items())\n]\n\norders_sorted = sorted(orders, key=lambda o: (o['Status'], int(o['OrderID'])))\n\ncustomer_data = {}\nfor order in orders:\n    name = order['CustomerName']\n    if name not in customer_data:\n        customer_data[name] = {'count': 0, 'spend': Decimal('0.00')}\n    customer_data[name]['count'] += 1\n    customer_data[name]['spend'] += parse_amount(order['TotalAmount'])\n\ncustomers = [\n    {\n        'CustomerName': name,\n        'OrderCount': data['count'],\n        'TotalSpend': money(data['spend']),\n    }\n    for name, data in customer_data.items()\n]\ncustomers.sort(key=lambda c: c['CustomerName'])\n\nreport = {\n    'summary': {\n        'total_records': total_records,\n        'total_amount': money(total_amount),\n        'status_counts': status_counts,\n        'monthly_revenue': monthly_revenue,\n    },\n    'orders': orders_sorted,\n    'customers': customers,\n}\n\nOUT_PATH.write_text(json.dumps(report, indent=2, ensure_ascii=False) + '\\n', encoding='utf-8')\nprint(json.dumps(report, indent=2, ensure_ascii=False))\nPY\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 0.9,
+    "keystrokes": "cat /app/output.json\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 2.0,
+    "keystrokes": "python3 - <<'PY'\nimport json\nfrom pathlib import Path\np = Path('/app/output.json')\ndata = json.loads(p.read_text(encoding='utf-8'))\nassert set(data) == {'summary', 'orders', 'customers'}\ns = data['summary']\nassert s['total_records'] == 13\nassert s['total_amount'] == '8811.99'\nassert s['status_counts'] == {'Cancelled': 1, 'Delivered': 2, 'Pending': 2, 'Processing': 2, 'Shipped': 6}\nassert [(m['month'], m['revenue'], m['order_count']) for m in s['monthly_revenue']] == [\n    ('2024-01', '3000.50', 3),\n    ('2024-02', '1175.00', 2),\n    ('2024-03', '500.00', 1),\n    ('2024-04', '320.50', 1),\n    ('2024-05', '450.75', 1),\n    ('2024-06', '2375.25', 2),\n    ('2024-07', '890.00', 1),\n    ('2024-08', '99.99', 1),\n]\nassert [(o['Status'], int(o['OrderID'])) for o in data['orders']] == sorted((o['Status'], int(o['OrderID'])) for o in data['orders'])\nassert [c['CustomerName'] for c in data['customers']] == sorted(c['CustomerName'] for c in data['customers'])\nassert Path('/app/orders.csv').exists()\nprint('VALIDATION OK')\nPY\n",
+    "duration": 0.3,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 2.0,
+    "keystrokes": "ls -l /app/output.json /app/orders.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 2.4,
+    "keystrokes": "python3 - <<'PY'\nimport json\nfrom pathlib import Path\ndata = json.loads(Path('/app/output.json').read_text(encoding='utf-8'))\ns = data['summary']\nprint('total_records =', s['total_records'])\nprint('total_amount =', repr(s['total_amount']))\nprint('status_counts =', s['status_counts'])\nfor m in s['monthly_revenue']:\n    print(repr(m))\nPY\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 2.5,
+    "keystrokes": "python3 - <<'PY'\nimport json\nfrom pathlib import Path\n\np = Path('/app/output.json')\ndata = json.loads(p.read_text(encoding='utf-8'))\nassert set(data) == {'summary', 'orders', 'customers'}\n\ns = data['summary']\nassert s['total_records'] == 13\nassert s['total_amount'] == '8811.99'\nassert s['status_counts'] == {'Cancelled': 1, 'Delivered': 2, 'Pending': 2, 'Processing': 2, 'Shipped': 6}\n\nexpected_monthly = [\n    ('2024-01', '3000.50', 3),\n    ('2024-02', '1175.00', 2),\n    ('2024-03', '500.00', 2),\n    ('2024-04', '320.50', 1),\n    ('2024-05', '450.75', 1),\n    ('2024-06', '2375.25', 2),\n    ('2024-07', '890.00', 1),\n    ('2024-08', '99.99', 1),\n]\nactual_monthly = [(m['month'], m['revenue'], m['order_count']) for m in s['monthly_revenue']]\nassert actual_monthly == expected_monthly\nassert sum(m['order_count'] for m in s['monthly_revenue']) == 13\n\nassert [(o['Status'], int(o['OrderID'])) for o in data['orders']] == sorted((o['Status'], int(o['OrderID'])) for o in data['orders'])\nassert [c['CustomerName'] for c in data['customers']] == sorted(c['CustomerName'] for c in data['customers'])\nassert all(c['TotalSpend'].count('.') == 1 and len(c['TotalSpend'].split('.')[1]) == 2 for c in data['customers'])\nassert Path('/app/orders.csv').exists()\n\nprint('VALIDATION OK')\nPY\n",
+    "duration": 0.3,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 2.5,
+    "keystrokes": "wc -c /app/orders.csv /app/output.json\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 2.9,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 2.9,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

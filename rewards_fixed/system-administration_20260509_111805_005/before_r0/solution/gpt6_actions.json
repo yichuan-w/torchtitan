@@ -1,0 +1,380 @@
+[
+  {
+    "step_id": 3,
+    "offset_sec": 3.0,
+    "keystrokes": "ls -la /srv/git\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 3.0,
+    "keystrokes": "ls -la /etc/nginx/sites-enabled\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 3.0,
+    "keystrokes": "cat /etc/nginx/sites-enabled/git-http\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 3.0,
+    "keystrokes": "systemctl status nginx --no-pager\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 3.0,
+    "keystrokes": "systemctl status fcgiwrap --no-pager\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 3.0,
+    "keystrokes": "ps aux | grep -E 'fcgiwrap|nginx' | grep -v grep\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 8.4,
+    "keystrokes": "cat /etc/os-release\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 8.4,
+    "keystrokes": "ls -la /etc/init.d\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 8.4,
+    "keystrokes": "command -v nginx fcgiwrap spawn-fcgi htpasswd || true\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 8.4,
+    "keystrokes": "nginx -t\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 8.4,
+    "keystrokes": "ls -la /var/run /run\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 8.4,
+    "keystrokes": "ls -la /srv/git/project-alpha.git\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 8.4,
+    "keystrokes": "cat /srv/git/project-alpha.git/config\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 13.9,
+    "keystrokes": "cat /etc/init.d/fcgiwrap\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 13.9,
+    "keystrokes": "cat /etc/default/fcgiwrap 2>/dev/null || true\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 13.9,
+    "keystrokes": "cat /etc/nginx/nginx.conf\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 13.9,
+    "keystrokes": "id www-data 2>/dev/null || true\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 13.9,
+    "keystrokes": "ls -l /usr/lib/git-core/git-http-backend\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 13.9,
+    "keystrokes": "ss -lntup || true\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 18.4,
+    "keystrokes": "cat > /etc/nginx/sites-available/git-http <<'EOF'\n# Git HTTP server configuration\nserver {\n    listen 80 default_server;\n    server_name _;\n\n    root /srv/git;\n    client_max_body_size 0;\n\n    location ~ \\.git(/.*)?$ {\n        auth_basic \"Git Repository\";\n        auth_basic_user_file /etc/nginx/git-htpasswd;\n\n        include fastcgi_params;\n        fastcgi_pass unix:/run/fcgiwrap.socket;\n        fastcgi_param SCRIPT_FILENAME /usr/lib/git-core/git-http-backend;\n        fastcgi_param PATH_INFO $uri;\n        fastcgi_param GIT_PROJECT_ROOT /srv/git;\n        fastcgi_param GIT_HTTP_EXPORT_ALL \"1\";\n        fastcgi_param REMOTE_USER $remote_user;\n    }\n}\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 18.4,
+    "keystrokes": "htpasswd -c -m -b /etc/nginx/git-htpasswd gituser gitpass\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 18.4,
+    "keystrokes": "git --git-dir=/srv/git/project-alpha.git config http.receivepack true\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 18.4,
+    "keystrokes": "touch /srv/git/project-alpha.git/git-daemon-export-ok\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 18.4,
+    "keystrokes": "chown -R www-data:www-data /srv/git\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 18.4,
+    "keystrokes": "nginx -t\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 18.4,
+    "keystrokes": "command -v start-stop-daemon runuser setpriv || true\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 18.4,
+    "keystrokes": "grep -E '^(gituser|receivepack)' /etc/nginx/git-htpasswd /srv/git/project-alpha.git/config || true\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 22.6,
+    "keystrokes": "fcgiwrap -h 2>&1 | head -40\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 22.6,
+    "keystrokes": "dpkg -L fcgiwrap | grep -E 'spawn|fcgiwrap' | head -30\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 22.6,
+    "keystrokes": "apt-cache policy spawn-fcgi 2>/dev/null | head -20\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 22.6,
+    "keystrokes": "service nginx start\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 22.6,
+    "keystrokes": "ps aux | grep nginx | grep -v grep\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 27.4,
+    "keystrokes": "command -v spawn-fcgi || true\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 27.4,
+    "keystrokes": "fcgiwrap -h 2>&1 | head -30\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 27.4,
+    "keystrokes": "ls -la /run/fcgiwrap.socket /run/fcgiwrap.pid 2>/dev/null || true\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 27.4,
+    "keystrokes": "ps aux | grep fcgiwrap | grep -v grep || true\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 27.4,
+    "keystrokes": "apt-cache policy spawn-fcgi 2>/dev/null | head -20\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 31.3,
+    "keystrokes": "apt-get install -y spawn-fcgi\n",
+    "duration": 5.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 31.3,
+    "keystrokes": "service fcgiwrap start\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 31.3,
+    "keystrokes": "ls -la /run/fcgiwrap.socket /run/fcgiwrap.pid 2>/dev/null || true\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 31.3,
+    "keystrokes": "ps aux | grep fcgiwrap | grep -v grep || true\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 13,
+    "offset_sec": 40.9,
+    "keystrokes": "curl -v -u gituser:gitpass 'http://localhost/project-alpha.git/info/refs?service=git-upload-pack' -o /tmp/git-info-refs.out\n",
+    "duration": 2.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 13,
+    "offset_sec": 40.9,
+    "keystrokes": "rm -rf /tmp/clone-test && git clone http://gituser:gitpass@localhost/project-alpha.git /tmp/clone-test\n",
+    "duration": 2.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 47.9,
+    "keystrokes": "cd /tmp/clone-test\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 47.9,
+    "keystrokes": "git config user.name \"Git Test User\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 47.9,
+    "keystrokes": "git config user.email \"gituser@example.com\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 47.9,
+    "keystrokes": "git branch --show-current\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 47.9,
+    "keystrokes": "echo \"push test $(date +%s)\" > push-test.txt\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 47.9,
+    "keystrokes": "git add push-test.txt\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 47.9,
+    "keystrokes": "git commit -m \"Test push over HTTP\"\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 47.9,
+    "keystrokes": "git push http://gituser:gitpass@localhost/project-alpha.git HEAD\n",
+    "duration": 2.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 47.9,
+    "keystrokes": "git --git-dir=/srv/git/project-alpha.git log --oneline -2\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 15,
+    "offset_sec": 54.5,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 16,
+    "offset_sec": 57.5,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

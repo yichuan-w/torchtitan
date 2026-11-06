@@ -1,0 +1,128 @@
+SBMF - Simple Binary Message Format Specification v1.0
+========================================================
+
+SBMF is a binary encoding format for structured data. It is designed to be
+compact and simple to parse. All multi-byte integers are encoded in big-endian
+(network byte order).
+
+Value Encoding
+--------------
+
+Each value begins with a 1-byte tag that determines its type. The tag may be
+followed by additional payload bytes depending on the type.
+
+Tag byte ranges:
+
+  0x00 - 0x7F   Positive fixint
+  0x80 - 0x9F   Negative fixint
+  0xA0          null
+  0xA1          false
+  0xA2          true
+  0xA3 - 0xA7   (reserved)
+  0xA8          uint8
+  0xA9          uint16
+  0xAA          uint32
+  0xAB          uint64
+  0xAC          int8
+  0xAD          int16
+  0xAE          int32
+  0xAF          int64
+  0xB0          float32
+  0xB1          float64
+  0xC0          string (1-byte length)
+  0xC1          string (2-byte length)
+  0xD0          array (1-byte count)
+  0xD1          array (2-byte count)
+  0xE0          map (1-byte pair count)
+  0xE1          map (2-byte pair count)
+
+Detailed Type Descriptions
+---------------------------
+
+Positive fixint (0x00 - 0x7F):
+  The integer value is the tag byte itself. Stores integers 0 through 127.
+  No additional payload bytes.
+
+Negative fixint (0x80 - 0x9F):
+  The integer value is: -((tag & 0x1F) + 1). Stores integers -32 through -1.
+  No additional payload bytes.
+
+null (0xA0):
+  Represents a null value. No additional payload bytes.
+
+false (0xA1):
+  Boolean false. No additional payload bytes.
+
+true (0xA2):
+  Boolean true. No additional payload bytes.
+
+uint8 (0xA8):
+  Followed by 1 byte. Value is that byte as an unsigned integer (0-255).
+
+uint16 (0xA9):
+  Followed by 2 bytes. Value is the big-endian unsigned 16-bit integer.
+
+uint32 (0xAA):
+  Followed by 4 bytes. Value is the big-endian unsigned 32-bit integer.
+
+uint64 (0xAB):
+  Followed by 8 bytes. Value is the big-endian unsigned 64-bit integer.
+
+int8 (0xAC):
+  Followed by 1 byte. Value is the signed 8-bit integer (two's complement).
+
+int16 (0xAD):
+  Followed by 2 bytes. Value is the big-endian signed 16-bit integer (two's complement).
+
+int32 (0xAE):
+  Followed by 4 bytes. Value is the big-endian signed 32-bit integer (two's complement).
+
+int64 (0xAF):
+  Followed by 8 bytes. Value is the big-endian signed 64-bit integer (two's complement).
+
+float32 (0xB0):
+  Followed by 4 bytes. Value is the big-endian IEEE 754 single-precision float.
+  Byte order: sign bit is the MSB of the first byte, followed by exponent and mantissa
+  in big-endian order.
+
+float64 (0xB1):
+  Followed by 8 bytes. Value is the big-endian IEEE 754 double-precision float.
+
+string, 1-byte length (0xC0):
+  Followed by 1 byte giving the string length (0-255), then that many bytes of
+  UTF-8 encoded text.
+
+string, 2-byte length (0xC1):
+  Followed by 2 bytes (big-endian unsigned 16-bit integer) giving the string
+  length, then that many bytes of UTF-8 encoded text.
+
+array, 1-byte count (0xD0):
+  Followed by 1 byte giving the number of elements (0-255), then that many
+  encoded values.
+
+array, 2-byte count (0xD1):
+  Followed by 2 bytes (big-endian unsigned 16-bit integer) giving the number of
+  elements, then that many encoded values.
+
+map, 1-byte pair count (0xE0):
+  Followed by 1 byte giving the number of key-value pairs (0-255), then that
+  many pairs of encoded values (key first, then value).
+
+map, 2-byte pair count (0xE1):
+  Followed by 2 bytes (big-endian unsigned 16-bit integer) giving the number of
+  key-value pairs, then that many pairs of encoded values (key first, then value).
+
+Output Format
+-------------
+
+The parser prints decoded values in a human-readable text format:
+
+  - Integers: printed as decimal numbers (e.g., 42, -17)
+  - Floats: printed with up to 9 significant digits (e.g., 3.14159265)
+  - Strings: printed in double quotes (e.g., "hello")
+  - null: printed as "null"
+  - Booleans: printed as "true" or "false"
+  - Arrays: printed with each element indented on its own line between [ and ]
+  - Maps: printed with each key-value pair on consecutive indented lines between { and }
+
+Each value is printed on its own line with 2-space indentation per nesting level.

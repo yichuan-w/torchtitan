@@ -1,0 +1,33 @@
+; Test comparison operations
+
+PUSH 5
+PUSH 3
+EQ
+PRINT
+
+PUSH 5
+PUSH 3
+NE
+PRINT
+
+PUSH 5
+PUSH 3
+LT
+PRINT
+
+PUSH 5
+PUSH 3
+GT
+PRINT
+
+PUSH 5
+PUSH 3
+LE
+PRINT
+
+PUSH 5
+PUSH 3
+GE
+PRINT
+
+HALT

@@ -1,0 +1,168 @@
+{
+  "retained_skill": "Reverse-engineer enough of an undocumented binary format to implement a C compressor whose output the supplied decompressor accepts, including framing, literal encoding, length handling, and integrity data.",
+  "bottleneck": "All 12 scored attempts spent their available time probing token and back-reference semantics. Six never reached an implementation, and the six that wrote compress.c still had invalid framing or token semantics and continued debugging until timeout.",
+  "change": "Instruction help at the task's original decompression-failure signal: state, as a removable vague direction, that a literal-only encoding is sufficient and back-references are not required. Remove the unstated compression-ratio requirement and its checks. This eliminates the back-reference discovery and match-finding stage while leaving the student to infer and implement the framing, literal lengths, terminator, CRC, bounds, and C API.",
+  "restore": "Remove the literal-only sentence, restore the requirement that repetitive data compress substantially, restore the compression-ratio checks, and restore the reference's match finder.",
+  "prediction": "Attempts currently keep constructing back-reference probes after valid-looking streams fail. Telling them that back-references are unnecessary enables them to stop after discovering the literal path and implement a literal-only encoder; this is refuted if the next group still spends most of its time on back-reference experiments or cannot round-trip short literal inputs.",
+  "expected": "5 of 12",
+  "evidence": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turn": 53,
+      "observation": "Timed out without editing compress.c after turns 9-53 repeatedly probed decompressor internals and token behavior. Pre-edit replay represented by untouched stubs failed all semantic checks; shared-library presence also failed."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turn": 18,
+      "observation": "Timed out without an implementation after turns 7-18 created twelve format probes."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turn": 17,
+      "observation": "Timed out without an implementation after turns 6-17 iterated malformed stream probes."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turn": 19,
+      "observation": "Timed out without an implementation after turns 5-19 repeatedly probed the opaque decoder."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turn": 23,
+      "observation": "First implementation at turn 14, then rewrote it at turns 17, 19, 21, and 23 while debugging token semantics through timeout. Restoring its final compress.c showed it did not complete because its command depended on an unsaved test file; the source itself still pursued back-reference encoding."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turn": 27,
+      "observation": "Timed out without editing compress.c after turns 6-27 focused on literal and back-reference stream probes."
+    },
+    {
+      "attempt": "attempt-07.jsonl",
+      "turn": 43,
+      "observation": "Spent turns 6-33 probing the format, implemented at turn 34, then continued debugging size and token boundary behavior through timeout."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turn": 34,
+      "observation": "Implemented at turn 26 but its own round-trip at turn 32 returned -1 for every sample; rewrote twice more while still guessing framing and token layout, then timed out."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turn": 24,
+      "observation": "Spent turns 6-23 probing literal and match encodings and only began writing compress.c on the final turn. Post-edit replay of its final approach on a fresh reset built the library and still failed all 11 retained round-trip checks (only existence/export passed); the new hint would redirect it before this invalid guessed block encoder."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turn": 27,
+      "observation": "Implemented and rewrote at turns 13, 14, 16, and 27 while continuing token probes. Replaying the final submitted source and grading produced reward 0; isolated grading aborted at repeated-pattern decoding, so the round-trip and later checks remained unsatisfied."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turn": 27,
+      "observation": "Timed out without an implementation after turns 5-27 created and revised more than twenty decoder probes."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turn": 21,
+      "observation": "Its turn-19 self-test showed decompress returned -1 for all three samples. Replaying its final compress.c and grading passed only library existence/export; all 13 round-trip and ratio tests failed, including short literals and large inputs."
+    }
+  ],
+  "budget": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turns": [
+        9,
+        53
+      ],
+      "stage": "Format probing, especially token/back-reference control flow; the change removes back-reference discovery entirely."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turns": [
+        7,
+        18
+      ],
+      "stage": "Repeated format probe construction; the change narrows this to literal-stream probing."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turns": [
+        6,
+        17
+      ],
+      "stage": "Repeated token-format probing; the change removes the back-reference branch."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turns": [
+        5,
+        19
+      ],
+      "stage": "Opaque decoder experiments; the change removes match-token investigation."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turns": [
+        8,
+        36
+      ],
+      "stage": "Token probes and repeated match-capable encoder rewrites; the change removes match encoding and search."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turns": [
+        6,
+        27
+      ],
+      "stage": "Literal and back-reference probing; the change removes back-reference probing."
+    },
+    {
+      "attempt": "attempt-07.jsonl",
+      "turns": [
+        6,
+        43
+      ],
+      "stage": "Format probes followed by match/token debugging; the change removes match behavior and its boundaries."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turns": [
+        6,
+        34
+      ],
+      "stage": "Decoder probes and repeated encoder rewrites; the change reduces the encoder to literal streams."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turns": [
+        6,
+        24
+      ],
+      "stage": "Format and match experiments before a last-turn implementation; the change removes match experiments."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turns": [
+        5,
+        27
+      ],
+      "stage": "Repeated format tests and match-capable rewrites; the change removes match encoding."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turns": [
+        5,
+        27
+      ],
+      "stage": "Twenty-plus stream probes, many targeting terminators and matches; the change removes match investigation."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turns": [
+        6,
+        22
+      ],
+      "stage": "Format probes and repeated guessed block encoders; the change removes back-reference blocks."
+    }
+  ]
+}

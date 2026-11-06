@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "VM validation silently requires one exact QEMU option and boolean spelling although the instruction requires behavior and the installed QEMU accepts equivalent forms.",
+    "evidence": "instruction.md:14 describes the VNC behavior; tests/test.sh:76 requires only `-vnc 127.0.0.1:2,password=on`; attempt-01.jsonl turn 4 and attempt-05.jsonl turn 5 use accepted QEMU alternatives that grading rejects.",
+    "change": "Accept the installed QEMU's `-vnc` and display-backend VNC forms, with either its short or explicit true password boolean spelling, while retaining localhost, display 2, password authentication, and every other VM requirement.",
+    "kind": "hidden_requirement"
+  }
+]

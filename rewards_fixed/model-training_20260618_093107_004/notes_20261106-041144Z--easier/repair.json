@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The default Python interpreter had none of the required data-science packages and had no pip, while the alternate system interpreter was not the default. This made the stated LightGBM task begin with an avoidable interpreter and package-manager repair.",
+    "evidence": "All 12 scored traces hit the defect before model development: attempt-01.jsonl turn 6, attempt-02.jsonl turn 7, attempt-03.jsonl turn 5, attempt-04.jsonl turn 2, attempt-05.jsonl turn 2, attempt-06.jsonl turn 8, attempt-07.jsonl turn 6, attempt-08.jsonl turn 2, attempt-09.jsonl turn 4, attempt-10.jsonl turn 2, attempt-11.jsonl turn 4, and attempt-12.jsonl turn 6 report missing pandas or LightGBM; subsequent turns report that the default interpreter has no pip.",
+    "change": "Install the runtime library and pinned LightGBM, pandas, and scikit-learn packages into the default /opt/verifier Python environment during the image build.",
+    "kind": "broken_setup"
+  }
+]

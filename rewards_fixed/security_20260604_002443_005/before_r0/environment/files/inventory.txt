@@ -1,0 +1,7 @@
+# Server Inventory — SSH Certificate Migration
+# Format: name,hostname,ip,key_type
+app1,app1.prod.internal,10.0.1.10,ed25519
+app2,app2.prod.internal,10.0.1.11,ed25519
+db1,db1.prod.internal,10.0.2.10,rsa
+db2,db2.prod.internal,10.0.2.11,ecdsa
+monitor,monitor.prod.internal,10.0.3.10,ed25519

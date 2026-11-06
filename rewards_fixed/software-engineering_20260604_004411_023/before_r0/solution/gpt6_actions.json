@@ -1,0 +1,212 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "ls -la\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "sed -n '1,240p' lz4_decompress.h\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "sed -n '1,260p' lz4_decompress.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "sed -n '1,200p' Makefile\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.4,
+    "keystrokes": "sed -n '1,240p' test_runner.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.5,
+    "keystrokes": "cat > lz4_decompress.c <<'EOF'\n#include \"lz4_decompress.h\"\n#include <string.h>\n\n/* Minimum match length */\n#define MINMATCH 4\n\n/* --- Helper: read a single byte --- */\nstatic inline int read_u8(const uint8_t **p, const uint8_t *end, uint8_t *out) {\n    if (*p >= end) return -1;\n    *out = **p;\n    (*p)++;\n    return 0;\n}\n\n/* --- Helper: read a 16-bit little-endian value --- */\nstatic inline int read_u16_le(const uint8_t **p, const uint8_t *end, uint16_t *out) {\n    if (*p + 2 > end) return -1;\n    *out = (uint16_t)(*p)[0] | ((uint16_t)(*p)[1] << 8);\n    *p += 2;\n    return 0;\n}\n\n/* --- Helper: read a variable-length encoded integer ---\n * When a nibble value is 15, additional bytes follow.\n * Each byte's value is added to the running total.\n * A byte value of 255 means another byte follows.\n * The 'base' parameter is the starting value.\n * Returns 0 on success, or -1 on error/overflow.\n */\nstatic int read_varlen(const uint8_t **p, const uint8_t *end,\n                       size_t base, size_t *out) {\n    size_t total = base;\n    uint8_t b;\n\n    do {\n        if (read_u8(p, end, &b) != 0) return -1;\n        if (total > SIZE_MAX - (size_t)b) return -1;\n        total += (size_t)b;\n    } while (b == 255);\n\n    *out = total;\n    return 0;\n}\n\n/*\n * Decompress an LZ4 compressed block.\n *\n * Returns the number of decompressed bytes on success, or -1 on error.\n */\nssize_t lz4_block_decompress(const void *src, size_t src_size,\n                              void *dst, size_t dst_capacity) {\n    const uint8_t *ip;\n    const uint8_t *iend;\n    uint8_t *output_start;\n    uint8_t *op;\n    uint8_t *oend;\n\n    if (src == NULL || dst == NULL) return -1;\n\n    /* A valid block always contains at least the final token byte. */\n    if (src_size == 0) return -1;\n\n    ip = (const uint8_t *)src;\n    iend = ip + src_size;\n    output_start = (uint8_t *)dst;\n    op = output_start;\n    oend = output_start + dst_capacity;\n\n    while (ip < iend) {\n        uint8_t token;\n        size_t lit_len;\n        size_t match_len;\n        uint16_t offset_u16;\n        size_t offset;\n\n        if (read_u8(&ip, iend, &token) != 0) return -1;\n\n        /* Literal length is the high nibble. */\n        lit_len = token >> 4;\n        if (lit_len == 15) {\n            if (read_varlen(&ip, iend, 15, &lit_len) != 0) return -1;\n        }\n\n        /* Copy literals and verify both input and output bounds. */\n        if (lit_len > (size_t)(iend - ip)) return -1;\n        if (lit_len > (size_t)(oend - op)) return -1;\n\n        if (lit_len > 0) {\n            memcpy(op, ip, lit_len);\n            ip += lit_len;\n            op += lit_len;\n        }\n\n        /* If the input is consumed after literals, this was the final sequence. */\n        if (ip == iend) break;\n\n        /* Every non-final sequence has a 16-bit little-endian offset. */\n        if (read_u16_le(&ip, iend, &offset_u16) != 0) return -1;\n        offset = (size_t)offset_u16;\n\n        /* Offset zero is invalid, and the match source must already exist. */\n        if (offset == 0) return -1;\n        if (offset > (size_t)(op - output_start)) return -1;\n\n        /* Match length is the low nibble plus MINMATCH, with optional extension. */\n        match_len = token & 0x0F;\n        if (match_len == 15) {\n            if (read_varlen(&ip, iend, 15, &match_len) != 0) return -1;\n        }\n        if (match_len > SIZE_MAX - MINMATCH) return -1;\n        match_len += MINMATCH;\n\n        if (match_len > (size_t)(oend - op)) return -1;\n\n        /* Copy byte-by-byte to correctly support overlapping matches. */\n        {\n            const uint8_t *match = op - offset;\n            while (match_len > 0) {\n                *op++ = *match++;\n                match_len--;\n            }\n        }\n    }\n\n    return (ssize_t)(op - output_start);\n}\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.5,
+    "keystrokes": "make\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 1.6,
+    "keystrokes": "python3 - <<'PY'\nimport subprocess\n\ndef run(comp):\n    p = subprocess.run(['./test_runner'], input=comp, stdout=subprocess.PIPE, stderr=subprocess.PIPE)\n    return p.returncode, p.stdout, p.stderr\n\ncases = [\n    (b'\\x00', 0, b'', 'empty block'),\n    (b'\\x50hello', 0, b'hello', 'literal only'),\n    (b'\\x12a\\x01\\x00', 0, b'a'*7, 'overlapping match'),\n    (b'\\xf0\\x00' + b'A'*15, 0, b'A'*15, '15 literals via extension'),\n    (b'\\xf0\\x04' + b'B'*19, 0, b'B'*19, '19 literals via extension'),\n    (b'\\x1fa\\x01\\x00\\x02\\x00', 0, b'a'*22, 'extended match length'),\n    (b'', 1, b'', 'zero-length input should fail'),\n    (b'\\x10a\\x00\\x00', 1, b'', 'zero offset should fail'),\n    (b'\\x10a\\x01', 1, b'', 'truncated offset should fail'),\n    (b'\\x1fa\\x01\\x00\\xff', 1, b'', 'truncated match length should fail'),\n]\n\nok = True\nfor comp, exp_rc, exp_out, name in cases:\n    rc, out, err = run(comp)\n    passed = (rc == exp_rc and out == exp_out)\n    print(('PASS' if passed else 'FAIL'), name, 'rc=', rc, 'out_len=', len(out))\n    if not passed:\n        print('  expected rc', exp_rc, 'out_len', len(exp_out))\n        print('  stderr:', err)\n        ok = False\n\nprint('ALL PASS' if ok else 'SOME FAILED')\nPY\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 2.6,
+    "keystrokes": "make test_runner\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 2.6,
+    "keystrokes": "python3 - <<'PY'\nimport subprocess\n\ndef run(comp):\n    p = subprocess.run(['./test_runner'], input=comp, stdout=subprocess.PIPE, stderr=subprocess.PIPE)\n    return p.returncode, p.stdout, p.stderr\n\ncases = [\n    (b'\\x00', 0, b'', 'empty block'),\n    (b'\\x50hello', 0, b'hello', 'literal only'),\n    (b'\\x12a\\x01\\x00', 0, b'a'*7, 'overlapping match'),\n    (b'\\xf0\\x00' + b'A'*15, 0, b'A'*15, '15 literals via extension'),\n    (b'\\xf0\\x04' + b'B'*19, 0, b'B'*19, '19 literals via extension'),\n    (b'\\x1fa\\x01\\x00\\x02\\x00', 0, b'a'*22, 'extended match length'),\n    (b'', 1, b'', 'zero-length input should fail'),\n    (b'\\x10a\\x00\\x00', 1, b'', 'zero offset should fail'),\n    (b'\\x10a\\x01', 1, b'', 'truncated offset should fail'),\n    (b'\\x1fa\\x01\\x00\\xff', 1, b'', 'truncated match length should fail'),\n]\n\nok = True\nfor comp, exp_rc, exp_out, name in cases:\n    rc, out, err = run(comp)\n    passed = (rc == exp_rc and out == exp_out)\n    print(('PASS' if passed else 'FAIL'), name, 'rc=', rc, 'out_len=', len(out))\n    if not passed:\n        print('  expected rc', exp_rc, 'out_len', len(exp_out))\n        print('  stderr:', err)\n        ok = False\n\nprint('ALL PASS' if ok else 'SOME FAILED')\nPY\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 4.6,
+    "keystrokes": "python3 - <<'PY'\nfrom pathlib import Path\np = Path('lz4_decompress.c')\ns = p.read_text()\nold = \"\"\"        /* Copy byte-by-byte to correctly support overlapping matches. */\n        {\n            const uint8_t *match = op - offset;\n            while (match_len > 0) {\n                *op++ = *match++;\n                match_len--;\n            }\n        }\n\"\"\"\nnew = \"\"\"        /* Copy byte-by-byte to correctly support overlapping matches. */\n        {\n            const uint8_t *match = op - offset;\n            while (match_len > 0) {\n                *op++ = *match++;\n                match_len--;\n            }\n        }\n\n        /* The block must end after the final literals, never after a match. */\n        if (ip == iend) return -1;\n\"\"\"\nif old not in s:\n    raise SystemExit('target text not found')\np.write_text(s.replace(old, new))\nPY\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 4.6,
+    "keystrokes": "make clean && make && make test_runner\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 4.6,
+    "keystrokes": "python3 - <<'PY'\nimport subprocess\n\ndef run(comp):\n    p = subprocess.run(['./test_runner'], input=comp, stdout=subprocess.PIPE, stderr=subprocess.PIPE)\n    return p.returncode, p.stdout, p.stderr\n\ncases = [\n    (b'\\x00', 0, b'', 'empty block'),\n    (b'\\x50hello', 0, b'hello', 'literal only'),\n    (b'\\x12a\\x01\\x00', 0, b'a'*7, 'overlapping match'),\n    (b'\\xf0\\x00' + b'A'*15, 0, b'A'*15, '15 literals via extension'),\n    (b'\\xf0\\x04' + b'B'*19, 0, b'B'*19, '19 literals via extension'),\n    (b'\\x1fa\\x01\\x00\\x02\\x00', 0, b'a'*22, 'extended match length'),\n    (b'', 1, b'', 'zero-length input should fail'),\n    (b'\\x10a\\x00\\x00', 1, b'', 'zero offset should fail'),\n    (b'\\x10a\\x01', 1, b'', 'truncated offset should fail'),\n    (b'\\x1fa\\x01\\x00\\xff', 1, b'', 'truncated match length should fail'),\n    (b'\\x10a\\x01\\x00', 1, b'', 'block ending after match should fail'),\n]\n\nok = True\nfor comp, exp_rc, exp_out, name in cases:\n    rc, out, err = run(comp)\n    passed = (rc == exp_rc and out == exp_out)\n    print(('PASS' if passed else 'FAIL'), name, 'rc=', rc, 'out_len=', len(out))\n    if not passed:\n        print('  expected rc', exp_rc, 'out_len', len(exp_out))\n        print('  stderr:', err)\n        ok = False\n\nprint('ALL PASS' if ok else 'SOME FAILED')\nPY\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 6.7,
+    "keystrokes": "python3 - <<'PY'\nfrom pathlib import Path\np = Path('lz4_decompress.c')\ns = p.read_text()\nold = \"\"\"static inline int read_u16_le(const uint8_t **p, const uint8_t *end, uint16_t *out) {\n    if (*p + 2 > end) return -1;\n    *out = (uint16_t)(*p)[0] | ((uint16_t)(*p)[1] << 8);\n    *p += 2;\n    return 0;\n}\n\"\"\"\nnew = \"\"\"static inline int read_u16_le(const uint8_t **p, const uint8_t *end, uint16_t *out) {\n    if (*p > end || (size_t)(end - *p) < 2) return -1;\n    *out = (uint16_t)(*p)[0] | ((uint16_t)(*p)[1] << 8);\n    *p += 2;\n    return 0;\n}\n\"\"\"\nif old not in s:\n    raise SystemExit('read_u16_le target not found')\np.write_text(s.replace(old, new))\nPY\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 6.7,
+    "keystrokes": "make clean && make && make test_runner\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 6.7,
+    "keystrokes": "python3 - <<'PY'\nimport subprocess\n\ndef run(comp):\n    p = subprocess.run(['./test_runner'], input=comp, stdout=subprocess.PIPE, stderr=subprocess.PIPE)\n    return p.returncode, p.stdout, p.stderr\n\ncases = [\n    (b'\\x00', 0, b'', 'empty block'),\n    (b'\\x50hello', 0, b'hello', 'literal only'),\n    (b'\\x12a\\x01\\x00\\x00', 0, b'a'*7, 'overlapping match with final token'),\n    (b'\\xf0\\x00' + b'A'*15, 0, b'A'*15, '15 literals via extension'),\n    (b'\\xf0\\x04' + b'B'*19, 0, b'B'*19, '19 literals via extension'),\n    (b'\\x1fa\\x01\\x00\\x02\\x00\\x00', 0, b'a'*22, 'extended match length with final token'),\n    (b'', 1, b'', 'zero-length input should fail'),\n    (b'\\x10a\\x00\\x00', 1, b'', 'zero offset should fail'),\n    (b'\\x10a\\x01', 1, b'', 'truncated offset should fail'),\n    (b'\\x1fa\\x01\\x00\\xff', 1, b'', 'truncated match length should fail'),\n    (b'\\x10a\\x01\\x00', 1, b'', 'block ending after match should fail'),\n]\n\nok = True\nfor comp, exp_rc, exp_out, name in cases:\n    rc, out, err = run(comp)\n    passed = (rc == exp_rc and out == exp_out)\n    print(('PASS' if passed else 'FAIL'), name, 'rc=', rc, 'out_len=', len(out))\n    if not passed:\n        print('  expected rc', exp_rc, 'out_len', len(exp_out))\n        print('  stderr:', err)\n        ok = False\nprint('ALL PASS' if ok else 'SOME FAILED')\nPY\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 8.8,
+    "keystrokes": "grep -n -A45 -B10 \"Match length\" lz4_decompress.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 8.8,
+    "keystrokes": "printf '\\x1f\\x61\\x01\\x00\\x02\\x00\\x00' | ./test_runner | xxd -p\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 8.8,
+    "keystrokes": "printf '\\x1f\\x61\\x01\\x00\\x02\\x00' | ./test_runner | xxd -p\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 9.1,
+    "keystrokes": "python3 - <<'PY'\nimport subprocess\ncomp = b'\\x1f\\x61\\x01\\x00\\x02\\x00\\x00'\nprint('len', len(comp), 'hex', comp.hex())\np = subprocess.run(['./test_runner'], input=comp, stdout=subprocess.PIPE, stderr=subprocess.PIPE)\nprint('rc', p.returncode)\nprint('out_len', len(p.stdout), 'out_hex', p.stdout.hex())\nprint('stderr', p.stderr)\nPY\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 9.1,
+    "keystrokes": "printf '\\x1f\\x61\\x01\\x00\\x02\\x00\\x00' | ./test_runner | od -An -tx1\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 9.1,
+    "keystrokes": "sed -n '65,130p' lz4_decompress.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 9.4,
+    "keystrokes": "python3 - <<'PY'\nimport subprocess\n\ndef run(comp):\n    p = subprocess.run(['./test_runner'], input=comp, stdout=subprocess.PIPE, stderr=subprocess.PIPE)\n    return p.returncode, p.stdout, p.stderr\n\ncases = [\n    (b'\\x00', 0, b'', 'empty block'),\n    (b'\\x50hello', 0, b'hello', 'literal only'),\n    (b'\\x12a\\x01\\x00\\x00', 0, b'a'*7, 'overlapping match with final token'),\n    (b'\\xf0\\x00' + b'A'*15, 0, b'A'*15, '15 literals via extension'),\n    (b'\\xf0\\x04' + b'B'*19, 0, b'B'*19, '19 literals via extension'),\n    (b'\\x1fa\\x01\\x00\\x02\\x00', 0, b'a'*22, 'extended match length with final token'),\n    (b'\\x30abc\\x03\\x00\\x10!', 0, b'abcabc!', 'match followed by final literal sequence'),\n    (b'', 1, b'', 'zero-length input should fail'),\n    (b'\\x10a\\x00\\x00', 1, b'', 'zero offset should fail'),\n    (b'\\x10a\\x01', 1, b'', 'truncated offset should fail'),\n    (b'\\x1fa\\x01\\x00\\xff', 1, b'', 'truncated match length should fail'),\n    (b'\\x10a\\x01\\x00', 1, b'', 'block ending after match should fail'),\n]\n\nok = True\nfor comp, exp_rc, exp_out, name in cases:\n    rc, out, err = run(comp)\n    passed = (rc == exp_rc and out == exp_out)\n    print(('PASS' if passed else 'FAIL'), name, 'rc=', rc, 'out_len=', len(out))\n    if not passed:\n        print('  expected rc', exp_rc, 'out_len', len(exp_out), 'hex', exp_out.hex())\n        print('  got out_hex', out.hex())\n        print('  stderr:', err)\n        ok = False\nprint('ALL PASS' if ok else 'SOME FAILED')\nPY\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 13,
+    "offset_sec": 10.4,
+    "keystrokes": "python3 - <<'PY'\nimport subprocess\n\ndef run(comp):\n    p = subprocess.run(['./test_runner'], input=comp, stdout=subprocess.PIPE, stderr=subprocess.PIPE)\n    return p.returncode, p.stdout, p.stderr\n\ncases = [\n    (b'\\x00', 0, b'', 'empty block'),\n    (b'\\x50hello', 0, b'hello', 'literal only'),\n    (b'\\x12a\\x01\\x00\\x00', 0, b'a'*7, 'overlapping match with final token'),\n    (b'\\xf0\\x00' + b'A'*15, 0, b'A'*15, '15 literals via extension'),\n    (b'\\xf0\\x04' + b'B'*19, 0, b'B'*19, '19 literals via extension'),\n    (b'\\x1fa\\x01\\x00\\x02\\x00', 0, b'a'*22, 'extended match length with final token'),\n    (b'\\x30abc\\x03\\x00\\x10!', 0, b'abcabca!', 'match followed by final literal sequence'),\n    (b'', 1, b'', 'zero-length input should fail'),\n    (b'\\x10a\\x00\\x00', 1, b'', 'zero offset should fail'),\n    (b'\\x10a\\x01', 1, b'', 'truncated offset should fail'),\n    (b'\\x1fa\\x01\\x00\\xff', 1, b'', 'truncated match length should fail'),\n    (b'\\x10a\\x01\\x00', 1, b'', 'block ending after match should fail'),\n    (b'\\x10a\\x02\\x00\\x00', 1, b'', 'offset beyond produced bytes should fail'),\n]\n\nok = True\nfor comp, exp_rc, exp_out, name in cases:\n    rc, out, err = run(comp)\n    passed = (rc == exp_rc and out == exp_out)\n    print(('PASS' if passed else 'FAIL'), name, 'rc=', rc, 'out_len=', len(out))\n    if not passed:\n        print('  expected rc', exp_rc, 'out_hex', exp_out.hex())\n        print('  got out_hex', out.hex(), 'stderr', err)\n        ok = False\nprint('ALL PASS' if ok else 'SOME FAILED')\nPY\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 11.4,
+    "keystrokes": "cat > /tmp/test_capacity.c <<'EOF'\n#include \"lz4_decompress.h\"\n#include <stdio.h>\n#include <string.h>\n\nint main(void) {\n    unsigned char out[64];\n    ssize_t n;\n\n    /* Literal-only block: output \"hello\" (5 bytes). */\n    {\n        const unsigned char in[] = {0x50, 'h','e','l','l','o'};\n        memset(out, 0, sizeof(out));\n        n = lz4_block_decompress(in, sizeof(in), out, 5);\n        if (n != 5 || memcmp(out, \"hello\", 5) != 0) return 1;\n        n = lz4_block_decompress(in, sizeof(in), out, 4);\n        if (n != -1) return 2;\n    }\n\n    /* Match block producing \"aaaaaa\" (6 bytes). */\n    {\n        const unsigned char in[] = {0x10, 'a', 0x01, 0x00, 0x00};\n        memset(out, 0, sizeof(out));\n        n = lz4_block_decompress(in, sizeof(in), out, 6);\n        if (n != 6 || memcmp(out, \"aaaaaa\", 6) != 0) return 3;\n        n = lz4_block_decompress(in, sizeof(in), out, 5);\n        if (n != -1) return 4;\n    }\n\n    /* Empty block with zero capacity. */\n    {\n        const unsigned char in[] = {0x00};\n        n = lz4_block_decompress(in, sizeof(in), out, 0);\n        if (n != 0) return 5;\n    }\n\n    puts(\"capacity tests passed\");\n    return 0;\n}\nEOF\ngcc -Wall -Wextra -std=c11 -O2 -I/app -o /tmp/test_capacity /tmp/test_capacity.c -L/app -llz4dec\n/tmp/test_capacity\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 15,
+    "offset_sec": 11.5,
+    "keystrokes": "cat > /tmp/test_capacity.c <<'EOF'\n#include \"lz4_decompress.h\"\n#include <stdio.h>\n#include <string.h>\n\nint main(void) {\n    unsigned char out[64];\n    ssize_t n;\n\n    /* Literal-only block: output \"hello\" (5 bytes). */\n    {\n        const unsigned char in[] = {0x50, 'h','e','l','l','o'};\n        memset(out, 0, sizeof(out));\n        n = lz4_block_decompress(in, sizeof(in), out, 5);\n        if (n != 5 || memcmp(out, \"hello\", 5) != 0) return 1;\n        n = lz4_block_decompress(in, sizeof(in), out, 4);\n        if (n != -1) return 2;\n    }\n\n    /* Match block producing \"aaaaa\" (5 bytes). */\n    {\n        const unsigned char in[] = {0x10, 'a', 0x01, 0x00, 0x00};\n        memset(out, 0, sizeof(out));\n        n = lz4_block_decompress(in, sizeof(in), out, 5);\n        if (n != 5 || memcmp(out, \"aaaaa\", 5) != 0) return 3;\n        n = lz4_block_decompress(in, sizeof(in), out, 4);\n        if (n != -1) return 4;\n    }\n\n    /* Empty block with zero capacity. */\n    {\n        const unsigned char in[] = {0x00};\n        n = lz4_block_decompress(in, sizeof(in), out, 0);\n        if (n != 0) return 5;\n    }\n\n    puts(\"capacity tests passed\");\n    return 0;\n}\nEOF\ngcc -Wall -Wextra -std=c11 -O2 -I/app -o /tmp/test_capacity /tmp/test_capacity.c /app/lz4_decompress.c\n/tmp/test_capacity\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 15,
+    "offset_sec": 11.5,
+    "keystrokes": "gcc -Wall -Wextra -std=c11 -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer -I/app -o /tmp/test_capacity_san /tmp/test_capacity.c /app/lz4_decompress.c\n/tmp/test_capacity_san\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 15,
+    "offset_sec": 11.5,
+    "keystrokes": "make clean && make && make test_runner\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 16,
+    "offset_sec": 13.6,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 17,
+    "offset_sec": 13.6,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

@@ -1,0 +1,201 @@
+order_id,date,category,revenue,discount
+ORD-1000,2024-01-15,Electronics,150,10
+ORD-1001,2024-01-16,Clothing,200,5
+ORD-1002,2024-01-17,Home & Garden,$180,0
+ORD-1003,invalid_date,Electronics,220,15
+ORD-1004,2024-01-19,Clothing,95,
+ORD-1005,2024-01-20,Electro​nics,310,20
+ORD-1006,2024-01-21,Home & Garden,125,10
+ORD-1007,2024-01-22,Clothing,$175,5
+ORD-1008,2024-01-23,Electronics,290,0
+ORD-1009,2024-01-24,Home & Garden,145,
+ORD-1010,2024-01-25,Clothing,380,15
+ORD-1011,2024-01-26,Electro​nics,$420,10
+ORD-1012,2024-01-27,Home & Garden,165,5
+ORD-1013,2024-01-28,Clothing,195,0
+ORD-1014,invalid_date,Electronics,275,
+ORD-1015,2024-01-30,Home & Garden,$320,20
+ORD-1016,2024-01-31,Clothing,185,10
+ORD-1017,2024-02-01,Electronics,245,5
+ORD-1018,2024-02-02,Electro​nics,390,0
+ORD-1019,2024-02-03,Home & Garden,155,
+ORD-1020,2024-02-04,Clothing,$285,15
+ORD-1021,2024-02-05,Electronics,210,10
+ORD-1022,2024-02-06,Home & Garden,340,5
+ORD-1023,2024-02-07,Clothing,190,0
+ORD-1024,invalid_date,Electro​nics,$265,
+ORD-1025,2024-02-09,Home & Garden,175,20
+ORD-1026,2024-02-10,Clothing,230,10
+ORD-1027,2024-02-11,Electronics,355,5
+ORD-1028,2024-02-12,Home & Garden,$195,0
+ORD-1029,2024-02-13,Clothing,280,
+ORD-1030,2024-02-14,Electro​nics,165,15
+ORD-1031,2024-02-15,Home & Garden,305,10
+ORD-1032,2024-02-16,Clothing,$245,5
+ORD-1033,2024-02-17,Electronics,190,0
+ORD-1034,2024-02-18,Home & Garden,225,
+ORD-1035,invalid_date,Clothing,385,20
+ORD-1036,2024-02-20,Electro​nics,$275,10
+ORD-1037,2024-02-21,Home & Garden,145,5
+ORD-1038,2024-02-22,Clothing,260,0
+ORD-1039,2024-02-23,Electronics,335,
+ORD-1040,2024-02-24,Home & Garden,$185,15
+ORD-1041,2024-02-25,Clothing,215,10
+ORD-1042,2024-02-26,Electro​nics,295,5
+ORD-1043,2024-02-27,Home & Garden,170,0
+ORD-1044,2024-02-28,Clothing,$350,
+ORD-1045,2024-02-29,Electronics,205,20
+ORD-1046,2024-03-01,Home & Garden,315,10
+ORD-1047,invalid_date,Clothing,240,5
+ORD-1048,2024-03-03,Electro​nics,$285,0
+ORD-1049,2024-03-04,Home & Garden,195,
+ORD-1050,2024-03-05,Clothing,365,15
+ORD-1051,2024-03-06,Electronics,180,10
+ORD-1052,2024-03-07,Home & Garden,$345,5
+ORD-1053,2024-03-08,Clothing,225,0
+ORD-1054,2024-03-09,Electro​nics,275,
+ORD-1055,2024-03-10,Home & Garden,155,20
+ORD-1056,2024-03-11,Clothing,$310,10
+ORD-1057,2024-03-12,Electronics,245,5
+ORD-1058,2024-03-13,Home & Garden,190,0
+ORD-1059,2024-03-14,Clothing,385,
+ORD-1060,invalid_date,Electro​nics,$215,15
+ORD-1061,2024-03-16,Home & Garden,265,10
+ORD-1062,2024-03-17,Clothing,175,5
+ORD-1063,2024-03-18,Electronics,335,0
+ORD-1064,2024-03-19,Home & Garden,$205,
+ORD-1065,2024-03-20,Clothing,290,20
+ORD-1066,2024-03-21,Electro​nics,165,10
+ORD-1067,2024-03-22,Home & Garden,235,5
+ORD-1068,2024-03-23,Clothing,$355,0
+ORD-1069,2024-03-24,Electronics,195,
+ORD-1070,2024-03-25,Home & Garden,285,15
+ORD-1071,2024-03-26,Clothing,225,10
+ORD-1072,invalid_date,Electro​nics,$305,5
+ORD-1073,2024-03-28,Home & Garden,175,0
+ORD-1074,2024-03-29,Clothing,345,
+ORD-1075,2024-03-30,Electronics,215,20
+ORD-1076,2024-03-31,Home & Garden,$265,10
+ORD-1077,2024-01-05,Clothing,185,5
+ORD-1078,2024-01-06,Electro​nics,325,0
+ORD-1079,2024-01-07,Home & Garden,145,
+ORD-1080,2024-01-08,Clothing,$295,15
+ORD-1081,2024-01-09,Electronics,235,10
+ORD-1082,2024-01-10,Home & Garden,185,5
+ORD-1083,invalid_date,Clothing,375,0
+ORD-1084,2024-01-12,Electro​nics,$255,
+ORD-1085,2024-01-13,Home & Garden,165,20
+ORD-1086,2024-01-14,Clothing,215,10
+ORD-1087,2024-02-08,Electronics,345,5
+ORD-1088,2024-02-09,Home & Garden,$195,0
+ORD-1089,2024-02-10,Clothing,275,
+ORD-1090,2024-02-11,Electro​nics,185,15
+ORD-1091,2024-02-12,Home & Garden,315,10
+ORD-1092,2024-02-13,Clothing,$235,5
+ORD-1093,2024-02-14,Electronics,175,0
+ORD-1094,invalid_date,Home & Garden,295,
+ORD-1095,2024-02-16,Clothing,205,20
+ORD-1096,2024-02-17,Electro​nics,$335,10
+ORD-1097,2024-02-18,Home & Garden,155,5
+ORD-1098,2024-02-19,Clothing,265,0
+ORD-1099,2024-02-20,Electronics,225,
+ORD-1100,2024-03-05,Home & Garden,$375,15
+ORD-1101,2024-03-06,Clothing,195,10
+ORD-1102,2024-03-07,Electro​nics,285,5
+ORD-1103,2024-03-08,Home & Garden,165,0
+ORD-1104,2024-03-09,Clothing,$345,
+ORD-1105,2024-03-10,Electronics,215,20
+ORD-1106,invalid_date,Home & Garden,255,10
+ORD-1107,2024-03-12,Clothing,185,5
+ORD-1108,2024-03-13,Electro​nics,$315,0
+ORD-1109,2024-03-14,Home & Garden,175,
+ORD-1110,2024-03-15,Clothing,295,15
+ORD-1111,2024-03-16,Electronics,235,10
+ORD-1112,2024-03-17,Home & Garden,$205,5
+ORD-1113,2024-03-18,Clothing,375,0
+ORD-1114,2024-03-19,Electro​nics,165,
+ORD-1115,2024-03-20,Home & Garden,245,20
+ORD-1116,2024-03-21,Clothing,$285,10
+ORD-1117,2024-03-22,Electronics,195,5
+ORD-1118,invalid_date,Home & Garden,335,0
+ORD-1119,2024-03-24,Clothing,225,
+ORD-1120,2024-03-25,Electro​nics,$275,15
+ORD-1121,2024-03-26,Home & Garden,175,10
+ORD-1122,2024-03-27,Clothing,315,5
+ORD-1123,2024-03-28,Electronics,205,0
+ORD-1124,2024-03-29,Home & Garden,$345,
+ORD-1125,2024-03-30,Clothing,185,20
+ORD-1126,2024-01-02,Electro​nics,265,10
+ORD-1127,2024-01-03,Home & Garden,155,5
+ORD-1128,2024-01-04,Clothing,$325,0
+ORD-1129,2024-01-05,Electronics,195,
+ORD-1130,invalid_date,Home & Garden,235,15
+ORD-1131,2024-01-07,Clothing,295,10
+ORD-1132,2024-01-08,Electro​nics,$175,5
+ORD-1133,2024-01-09,Home & Garden,345,0
+ORD-1134,2024-01-10,Clothing,215,
+ORD-1135,2024-01-11,Electronics,275,20
+ORD-1136,2024-01-12,Home & Garden,$185,10
+ORD-1137,2024-01-13,Clothing,315,5
+ORD-1138,2024-01-14,Electro​nics,165,0
+ORD-1139,2024-01-15,Home & Garden,255,
+ORD-1140,invalid_date,Clothing,$335,15
+ORD-1141,2024-01-17,Electronics,195,10
+ORD-1142,2024-01-18,Home & Garden,285,5
+ORD-1143,2024-01-19,Clothing,225,0
+ORD-1144,2024-01-20,Electro​nics,$175,
+ORD-1145,2024-01-21,Home & Garden,345,20
+ORD-1146,2024-01-22,Clothing,205,10
+ORD-1147,2024-01-23,Electronics,265,5
+ORD-1148,2024-01-24,Home & Garden,$155,0
+ORD-1149,2024-01-25,Clothing,325,
+ORD-1150,2024-01-26,Electro​nics,185,15
+ORD-1151,2024-01-27,Home & Garden,235,10
+ORD-1152,invalid_date,Clothing,$295,5
+ORD-1153,2024-01-29,Electronics,175,0
+ORD-1154,2024-01-30,Home & Garden,345,
+ORD-1155,2024-01-31,Clothing,215,20
+ORD-1156,2024-02-01,Electro​nics,$255,10
+ORD-1157,2024-02-02,Home & Garden,185,5
+ORD-1158,2024-02-03,Clothing,315,0
+ORD-1159,2024-02-04,Electronics,165,
+ORD-1160,2024-02-05,Home & Garden,$275,15
+ORD-1161,2024-02-06,Clothing,195,10
+ORD-1162,invalid_date,Electro​nics,335,5
+ORD-1163,2024-02-08,Home & Garden,225,0
+ORD-1164,2024-02-09,Clothing,$175,
+ORD-1165,2024-02-10,Electronics,285,20
+ORD-1166,2024-02-11,Electro​nics,155,10
+ORD-1167,2024-02-12,Home & Garden,245,5
+ORD-1168,2024-02-13,Clothing,$345,0
+ORD-1169,2024-02-14,Electronics,185,
+ORD-1170,2024-02-15,Home & Garden,295,15
+ORD-1171,2024-02-16,Clothing,215,10
+ORD-1172,invalid_date,Electro​nics,$265,5
+ORD-1173,2024-02-18,Home & Garden,175,0
+ORD-1174,2024-02-19,Clothing,325,
+ORD-1175,2024-02-20,Electronics,195,20
+ORD-1176,2024-02-21,Electro​nics,$235,10
+ORD-1177,2024-02-22,Home & Garden,165,5
+ORD-1178,2024-02-23,Clothing,315,0
+ORD-1179,2024-02-24,Electronics,255,
+ORD-1180,2024-02-25,Home & Garden,$185,15
+ORD-1181,2024-02-26,Clothing,275,10
+ORD-1182,2024-02-27,Electro​nics,175,5
+ORD-1183,2024-02-28,Home & Garden,345,0
+ORD-1184,invalid_date,Clothing,$225,
+ORD-1185,2024-03-01,Electronics,195,20
+ORD-1186,2024-03-02,Home & Garden,265,10
+ORD-1187,2024-03-03,Clothing,155,5
+ORD-1188,2024-03-04,Electro​nics,$335,0
+ORD-1189,2024-03-05,Home & Garden,185,
+ORD-1190,2024-03-06,Clothing,295,15
+ORD-1191,2024-03-07,Electronics,215,10
+ORD-1192,2024-03-08,Home & Garden,$245,5
+ORD-1193,2024-03-09,Clothing,175,0
+ORD-1194,2024-03-10,Electro​nics,325,
+ORD-1195,2024-03-11,Home & Garden,195,20
+ORD-1196,invalid_date,Clothing,$285,10
+ORD-1197,2024-03-13,Electronics,165,5
+ORD-1198,2024-03-14,Home & Garden,235,0
+ORD-1199,2024-03-15,Clothing,345,

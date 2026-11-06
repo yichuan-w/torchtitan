@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The verifier requires new, cur and tmp directly beneath each user directory although the instruction only requires Maildir storage under /var/mail/vhosts/, so the conventional per-user Maildir subdirectory is unfairly rejected.",
+    "evidence": "instruction.md requires storage under /var/mail/vhosts/; tests/test_outputs.py hard-codes /var/mail/vhosts/example.com/<user>/new; attempt-04.jsonl turn 9 and attempt-11.jsonl turn 9 configure the conventional /Maildir child and their grades fail the direct-path assertions.",
+    "change": "Allow either a complete direct Maildir or a complete Maildir child, and use the resolved location consistently when cleaning and checking delivered messages.",
+    "kind": "hidden_requirement"
+  }
+]

@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The instruction says the solver must make all four test ROMs correct, but the starting workspace supplies five test ROMs and the verifier requires correct behavior for all five.",
+    "evidence": "instruction.md line 2 conflicts with environment/Dockerfile COPY entries and the five checks in tests/test_outputs.py; attempt-01.jsonl turns 5-9 and attempt-12.jsonl turns 5-9 show students encounter and run all five.",
+    "change": "State that all five supplied test ROMs must produce correct results.",
+    "kind": "hidden_requirement"
+  }
+]

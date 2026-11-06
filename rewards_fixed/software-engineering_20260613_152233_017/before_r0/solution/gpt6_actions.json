@@ -1,0 +1,268 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "ls -la\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "mkdir -p /app/calc\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.2,
+    "keystrokes": "cat > /app/calc/calc.c <<'EOF'\n#include <ctype.h>\n#include <errno.h>\n#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n\ntypedef long long Integer;\n\ntypedef enum { EXPR_NUM, EXPR_VAR, EXPR_LIST } ExprType;\n\ntypedef struct Expr Expr;\nstruct Expr {\n    ExprType type;\n    Integer num;\n    char *name;\n    Expr **items;\n    int count;\n};\n\ntypedef enum { VAL_INT, VAL_FUNC } ValueType;\n\ntypedef struct Function Function;\ntypedef struct {\n    ValueType type;\n    Integer num;\n    Function *func;\n} Value;\n\ntypedef struct Binding Binding;\ntypedef struct Env Env;\n\nstruct Binding {\n    char *name;\n    Value value;\n    Binding *next;\n};\n\nstruct Env {\n    Binding *head;\n    Env *parent;\n};\n\nstruct Function {\n    char **params;\n    int param_count;\n    Expr **body;\n    int body_count;\n    Env *env;\n};\n\nstatic void fail(void) {\n    fprintf(stderr, \"Error\\n\");\n    exit(1);\n}\n\nstatic void *xmalloc(size_t n) {\n    void *p = malloc(n);\n    if (!p) {\n        fail();\n    }\n    return p;\n}\n\nstatic void *xrealloc(void *p, size_t n) {\n    void *q = realloc(p, n);\n    if (!q) {\n        fail();\n    }\n    return q;\n}\n\nstatic char *xstrndup(const char *s, size_t n) {\n    char *p = xmalloc(n + 1);\n    memcpy(p, s, n);\n    p[n] = '\\0';\n    return p;\n}\n\nstatic char *xstrdup(const char *s) {\n    return xstrndup(s, strlen(s));\n}\n\nstatic Value make_int(Integer n) {\n    Value v;\n    v.type = VAL_INT;\n    v.num = n;\n    v.func = NULL;\n    return v;\n}\n\nstatic Value make_func(Function *f) {\n    Value v;\n    v.type = VAL_FUNC;\n    v.num = 0;\n    v.func = f;\n    return v;\n}\n\nstatic char *read_line(FILE *f) {\n    size_t cap = 128;\n    size_t len = 0;\n    char *buf = xmalloc(cap);\n    int c;\n\n    while ((c = fgetc(f)) != EOF && c != '\\n') {\n        if (len + 1 >= cap) {\n            cap *= 2;\n            buf = xrealloc(buf, cap);\n        }\n        buf[len++] = (char)c;\n    }\n\n    if (c == EOF && len == 0) {\n        free(buf);\n        return NULL;\n    }\n\n    if (len > 0 && buf[len - 1] == '\\r') {\n        len--;\n    }\n    buf[len] = '\\0';\n    return buf;\n}\n\ntypedef struct {\n    const char *s;\n    size_t pos;\n} Parser;\n\nstatic int is_delim(int c) {\n    return c == '\\0' || isspace((unsigned char)c) || c == '(' || c == ')';\n}\n\nstatic void skip_ws(Parser *p) {\n    while (isspace((unsigned char)p->s[p->pos])) {\n        p->pos++;\n    }\n}\n\nstatic Expr *new_list(void) {\n    Expr *e = xmalloc(sizeof(Expr));\n    e->type = EXPR_LIST;\n    e->num = 0;\n    e->name = NULL;\n    e->items = NULL;\n    e->count = 0;\n    return e;\n}\n\nstatic void list_append(Expr *list, Expr *item) {\n    size_t n = (size_t)list->count + 1;\n    list->items = xrealloc(list->items, sizeof(Expr *) * n);\n    list->items[list->count] = item;\n    list->count++;\n}\n\nstatic Expr *parse_expr(Parser *p);\n\nstatic Expr *parse_list(Parser *p) {\n    Expr *list = new_list();\n\n    p->pos++;\n    for (;;) {\n        skip_ws(p);\n        if (p->s[p->pos] == ')') {\n            p->pos++;\n            return list;\n        }\n        if (p->s[p->pos] == '\\0') {\n            fail();\n        }\n        list_append(list, parse_expr(p));\n    }\n}\n\nstatic Expr *parse_atom(Parser *p) {\n    const char *s = p->s;\n    size_t start = p->pos;\n    unsigned char c = (unsigned char)s[start];\n\n    if (isdigit(c) || (c == '-' && isdigit((unsigned char)s[start + 1]))) {\n        char *end;\n        long long n;\n\n        errno = 0;\n        n = strtoll(s + start, &end, 10);\n        if (errno == ERANGE || !is_delim((unsigned char)*end)) {\n            fail();\n        }\n\n        p->pos = (size_t)(end - s);\n\n        Expr *e = xmalloc(sizeof(Expr));\n        e->type = EXPR_NUM;\n        e->num = (Integer)n;\n        e->name = NULL;\n        e->items = NULL;\n        e->count = 0;\n        return e;\n    }\n\n    while (!is_delim((unsigned char)s[p->pos])) {\n        p->pos++;\n    }\n    if (p->pos == start) {\n        fail();\n    }\n\n    Expr *e = xmalloc(sizeof(Expr));\n    e->type = EXPR_VAR;\n    e->num = 0;\n    e->name = xstrndup(s + start, p->pos - start);\n    e->items = NULL;\n    e->count = 0;\n    return e;\n}\n\nstatic Expr *parse_expr(Parser *p) {\n    skip_ws(p);\n    if (p->s[p->pos] == '(') {\n        return parse_list(p);\n    }\n    if (p->s[p->pos] == ')') {\n        fail();\n    }\n    return parse_atom(p);\n}\n\nstatic Expr *parse_line(const char *line) {\n    Parser p;\n    Expr *e;\n\n    p.s = line;\n    p.pos = 0;\n\n    skip_ws(&p);\n    if (p.s[p.pos] == '\\0') {\n        fail();\n    }\n\n    e = parse_expr(&p);\n    skip_ws(&p);\n    if (p.s[p.pos] != '\\0') {\n        fail();\n    }\n    return e;\n}\n\nstatic Env *env_new(Env *parent) {\n    Env *env = xmalloc(sizeof(Env));\n    env->head = NULL;\n    env->parent = parent;\n    return env;\n}\n\nstatic Binding *env_find_binding(Env *env, const char *name) {\n    Env *e;\n    Binding *b;\n\n    for (e = env; e != NULL; e = e->parent) {\n        for (b = e->head; b != NULL; b = b->next) {\n            if (strcmp(b->name, name) == 0) {\n                return b;\n            }\n        }\n    }\n    return NULL;\n}\n\nstatic void env_add_binding(Env *env, const char *name, Value value) {\n    Binding *b = xmalloc(sizeof(Binding));\n    b->name = xstrdup(name);\n    b->value = value;\n    b->next = env->head;\n    env->head = b;\n}\n\nstatic Value env_lookup(Env *env, const char *name) {\n    Binding *b = env_find_binding(env, name);\n    if (!b) {\n        fail();\n    }\n    return b->value;\n}\n\nstatic void env_define(Env *env, const char *name, Value value) {\n    Binding *b = env_find_binding(env, name);\n    if (b) {\n        b->value = value;\n    } else {\n        env_add_binding(env, name, value);\n    }\n}\n\nstatic Value eval(Env *env, Expr *expr);\nstatic Value eval_application(Env *env, Expr *expr);\nstatic Integer eval_integer(Env *env, Expr *expr);\n\nstatic Integer eval_integer(Env *env, Expr *expr) {\n    Value v = eval(env, expr);\n    if (v.type != VAL_INT) {\n        fail();\n    }\n    return v.num;\n}\n\nstatic int is_symbol(Expr *expr, const char *name) {\n    return expr->type == EXPR_VAR && strcmp(expr->name, name) == 0;\n}\n\nstatic Value eval_add(Expr *list, Env *env) {\n    Integer acc = 0;\n    int i;\n\n    for (i = 1; i < list->count; i++) {\n        acc += eval_integer(env, list->items[i]);\n    }\n    return make_int(acc);\n}\n\nstatic Value eval_sub(Expr *list, Env *env) {\n    Integer acc;\n    int i;\n\n    if (list->count < 2) {\n        fail();\n    }\n\n    acc = eval_integer(env, list->items[1]);\n    if (list->count == 2) {\n        return make_int(-acc);\n    }\n\n    for (i = 2; i < list->count; i++) {\n        acc -= eval_integer(env, list->items[i]);\n    }\n    return make_int(acc);\n}\n\nstatic Value eval_mul(Expr *list, Env *env) {\n    Integer acc = 1;\n    int i;\n\n    for (i = 1; i < list->count; i++) {\n        acc *= eval_integer(env, list->items[i]);\n    }\n    return make_int(acc);\n}\n\nstatic Value eval_div(Expr *list, Env *env) {\n    Integer acc;\n    int i;\n\n    if (list->count < 2) {\n        fail();\n    }\n\n    acc = eval_integer(env, list->items[1]);\n    if (list->count == 2) {\n        if (acc == 0) {\n            fail();\n        }\n        return make_int(1 / acc);\n    }\n\n    for (i = 2; i < list->count; i++) {\n        Integer d = eval_integer(env, list->items[i]);\n        if (d == 0) {\n            fail();\n        }\n        acc /= d;\n    }\n    return make_int(acc);\n}\n\nstatic Value eval_cmp(Expr *list, Env *env, const char *op) {\n    Integer a;\n    Integer b;\n    int result = 0;\n\n    if (list->count != 3) {\n        fail();\n    }\n\n    a = eval_integer(env, list->items[1]);\n    b = eval_integer(env, list->items[2]);\n\n    if (strcmp(op, \"=\") == 0) {\n        result = (a == b);\n    } else if (strcmp(op, \"<\") == 0) {\n        result = (a < b);\n    } else if (strcmp(op, \">\") == 0) {\n        result = (a > b);\n    } else {\n        fail();\n    }\n\n    return make_int(result ? 1 : 0);\n}\n\nstatic Value eval_if(Expr *list, Env *env) {\n    if (list->count != 4) {\n        fail();\n    }\n\n    if (eval_integer(env, list->items[1]) != 0) {\n        return eval(env, list->items[2]);\n    }\n    return eval(env, list->items[3]);\n}\n\nstatic Value eval_cond(Expr *list, Env *env) {\n    int i;\n\n    for (i = 1; i < list->count; i++) {\n        Expr *clause = list->items[i];\n        Expr *test;\n\n        if (clause->type != EXPR_LIST || clause->count != 2) {\n            fail();\n        }\n\n        test = clause->items[0];\n        if (is_symbol(test, \"else\")) {\n            return eval(env, clause->items[1]);\n        }\n        if (eval_integer(env, test) != 0) {\n            return eval(env, clause->items[1]);\n        }\n    }\n\n    fail();\n    return make_int(0);\n}\n\nstatic Value eval_begin(Expr *list, Env *env) {\n    Value result;\n    int i;\n\n    if (list->count < 2) {\n        fail();\n    }\n\n    result = make_int(0);\n    for (i = 1; i < list->count; i++) {\n        result = eval(env, list->items[i]);\n    }\n    return result;\n}\n\nstatic Function *make_function(Env *env, Expr *params, int start,\n                               Expr **body, int body_count) {\n    Function *f;\n    int pcount;\n    int i;\n\n    if (params->type != EXPR_LIST || body_count < 1) {\n        fail();\n    }\n\n    pcount = params->count - start;\n    if (pcount < 0) {\n        fail();\n    }\n\n    f = xmalloc(sizeof(Function));\n    f->param_count = pcount;\n    f->params = pcount ? xmalloc(sizeof(char *) * (size_t)pcount) : NULL;\n    for (i = 0; i < pcount; i++) {\n        Expr *param = params->items[start + i];\n        if (param->type != EXPR_VAR) {\n            fail();\n        }\n        f->params[i] = param->name;\n    }\n\n    f->body = body;\n    f->body_count = body_count;\n    f->env = env;\n    return f;\n}\n\nstatic Value eval_define(Env *env, Expr *list) {\n    Expr *target;\n\n    if (list->count < 3) {\n        fail();\n    }\n\n    target = list->items[1];\n\n    if (target->type == EXPR_VAR) {\n        Value value;\n\n        if (list->count != 3) {\n            fail();\n        }\n        value = eval(env, list->items[2]);\n        env_define(env, target->name, value);\n        return value;\n    }\n\n    if (target->type != EXPR_LIST || target->count < 1 ||\n        target->items[0]->type != EXPR_VAR) {\n        fail();\n    }\n\n    Function *f = make_function(env, target, 1, list->items + 2,\n                                list->count - 2);\n    Value value = make_func(f);\n    env_define(env, target->items[0]->name, value);\n    return value;\n}\n\nstatic Value eval_lambda(Env *env, Expr *list) {\n    Expr *params;\n\n    if (list->count < 3) {\n        fail();\n    }\n\n    params = list->items[1];\n    if (params->type != EXPR_LIST) {\n        fail();\n    }\n\n    Function *f = make_function(env, params, 0, list->items + 2,\n                                list->count - 2);\n    return make_func(f);\n}\n\nstatic Value eval_let(Env *env, Expr *list) {\n    Expr *bindings;\n    Value *vals;\n    Env *local;\n    Value result;\n    int n;\n    int i;\n\n    if (list->count < 3) {\n        fail();\n    }\n\n    bindings = list->items[1];\n    if (bindings->type != EXPR_LIST) {\n        fail();\n    }\n\n    n = bindings->count;\n    vals = n ? xmalloc(sizeof(Value) * (size_t)n) : NULL;\n\n    for (i = 0; i < n; i++) {\n        Expr *binding = bindings->items[i];\n\n        if (binding->type != EXPR_LIST || binding->count != 2 ||\n            binding->items[0]->type != EXPR_VAR) {\n            fail();\n        }\n        vals[i] = eval(env, binding->items[1]);\n    }\n\n    local = env_new(env);\n    for (i = 0; i < n; i++) {\n        Expr *binding = bindings->items[i];\n        env_add_binding(local, binding->items[0]->name, vals[i]);\n    }\n\n    result = make_int(0);\n    for (i = 2; i < list->count; i++) {\n        result = eval(local, list->items[i]);\n    }\n\n    free(vals);\n    return result;\n}\n\nstatic Value eval_application(Env *env, Expr *expr) {\n    Value fv;\n    Value *args;\n    Value result;\n    Env *call_env;\n    int argc;\n    int i;\n\n    if (expr->count < 1) {\n        fail();\n    }\n\n    fv = eval(env, expr->items[0]);\n    if (fv.type != VAL_FUNC) {\n        fail();\n    }\n\n    argc = expr->count - 1;\n    if (argc != fv.func->param_count) {\n        fail();\n    }\n\n    args = argc ? xmalloc(sizeof(Value) * (size_t)argc) : NULL;\n    for (i = 0; i < argc; i++) {\n        args[i] = eval(env, expr->items[i + 1]);\n    }\n\n    call_env = env_new(fv.func->env);\n    for (i = 0; i < argc; i++) {\n        env_add_binding(call_env, fv.func->params[i], args[i]);\n    }\n\n    result = make_int(0);\n    for (i = 0; i < fv.func->body_count; i++) {\n        result = eval(call_env, fv.func->body[i]);\n    }\n\n    free(args);\n    return result;\n}\n\nstatic Value eval(Env *env, Expr *expr) {\n    Expr *head;\n    const char *name;\n\n    if (expr->type == EXPR_NUM) {\n        return make_int(expr->num);\n    }\n    if (expr->type == EXPR_VAR) {\n        return env_lookup(env, expr->name);\n    }\n\n    if (expr->count < 1) {\n        fail();\n    }\n\n    head = expr->items[0];\n    if (head->type == EXPR_VAR) {\n        name = head->name;\n        if (strcmp(name, \"+\") == 0) {\n            return eval_add(expr, env);\n        }\n        if (strcmp(name, \"-\") == 0) {\n            return eval_sub(expr, env);\n        }\n        if (strcmp(name, \"*\") == 0) {\n            return eval_mul(expr, env);\n        }\n        if (strcmp(name, \"/\") == 0) {\n            return eval_div(expr, env);\n        }\n        if (strcmp(name, \"=\") == 0 || strcmp(name, \"<\") == 0 ||\n            strcmp(name, \">\") == 0) {\n            return eval_cmp(expr, env, name);\n        }\n        if (strcmp(name, \"if\") == 0) {\n            return eval_if(expr, env);\n        }\n        if (strcmp(name, \"cond\") == 0) {\n            return eval_cond(expr, env);\n        }\n        if (strcmp(name, \"define\") == 0) {\n            return eval_define(env, expr);\n        }\n        if (strcmp(name, \"lambda\") == 0) {\n            return eval_lambda(env, expr);\n        }\n        if (strcmp(name, \"let\") == 0) {\n            return eval_let(env, expr);\n        }\n        if (strcmp(name, \"begin\") == 0) {\n            return eval_begin(expr, env);\n        }\n    }\n\n    return eval_application(env, expr);\n}\n\nint main(void) {\n    Env *global = env_new(NULL);\n    char *line;\n\n    while ((line = read_line(stdin)) != NULL) {\n        Expr *expr = parse_line(line);\n        Value value = eval(global, expr);\n\n        if (value.type == VAL_FUNC) {\n            printf(\"0\\n\");\n        } else {\n            printf(\"%lld\\n\", value.num);\n        }\n\n        free(line);\n    }\n\n    return 0;\n}\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.2,
+    "keystrokes": "cat > /app/calc/Makefile <<'EOF'\nCC = gcc\nCFLAGS = -Wall -Wextra -std=c99\n\nall: calc\n\ncalc: calc.c\n\t$(CC) $(CFLAGS) -o calc calc.c\n\nclean:\n\trm -f calc\n\n.PHONY: all clean\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 0.4,
+    "keystrokes": "sed -n '1,20p' /app/calc/Makefile\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 0.4,
+    "keystrokes": "sed -n '1,20p' /app/calc/calc.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 0.4,
+    "keystrokes": "cd /app/calc && make\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 1.6,
+    "keystrokes": "cd /app/calc && { echo 'CC = gcc'; echo 'CFLAGS = -Wall -Wextra -std=c99'; echo; echo 'all: calc'; echo; echo 'calc: calc.c'; printf '\\t$(CC) $(CFLAGS) -o calc calc.c\\n'; echo; echo 'clean:'; printf '\\trm -f calc\\n'; echo; echo '.PHONY: all clean'; } > Makefile\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 1.6,
+    "keystrokes": "cat -A /app/calc/Makefile\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 1.6,
+    "keystrokes": "cd /app/calc && make\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 2.8,
+    "keystrokes": "cd /app/calc && ./calc <<'EOF'\n(define (fact n) (if (= n 0) 1 (* n (fact (- n 1)))))\n(fact 5)\n(define (make-counter start)\n  (lambda ()\n    (define result start)\n    (define start (+ start 1))\n    result))\n(define c (make-counter 10))\n(c)\n(c)\n(cond ((< 3 1) 100) ((= 5 5) 200) (else 300))\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 2.8,
+    "keystrokes": "cd /app/calc && ./calc <<'EOF'\n(+)\n(*)\n(+ 1 2 3)\n(* 2 3 4)\n(- 5)\n(- 10 3 2)\n(/ 20 2)\n(/ 20 2 5)\n(let ((x 2) (y 3)) (+ x y) (* x y))\n(begin 1 2 3)\n((lambda (x y) (+ x y)) 4 5)\n(if 0 10 20)\n(if 5 10 20)\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 2.8,
+    "keystrokes": "cd /app/calc && ./calc <<'EOF' 2>/tmp/calc_err1; echo \"exit=$?\"; cat /tmp/calc_err1\n(/ 1 0)\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 2.8,
+    "keystrokes": "cd /app/calc && ./calc <<'EOF' 2>/tmp/calc_err2; echo \"exit=$?\"; cat /tmp/calc_err2\n(foo 1 2)\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 2.8,
+    "keystrokes": "cd /app/calc && ./calc <<'EOF' 2>/tmp/calc_err3; echo \"exit=$?\"; cat /tmp/calc_err3\n(+ 1 2\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 3.3,
+    "keystrokes": "cd /app/calc && ./calc <<'EOF'\n(define (f x) x)\n(f 5)\n(define (g x) (lambda () x))\n(define h (g 10))\n(h)\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 3.3,
+    "keystrokes": "cd /app/calc && ./calc <<'EOF'\n(define (f x) (define y x) y)\n(f 7)\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 3.3,
+    "keystrokes": "cd /app/calc && ./calc <<'EOF'\n(define (f x) (lambda () (define y x) y))\n(define h (f 10))\n(h)\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 3.3,
+    "keystrokes": "cd /app/calc && ./calc <<'EOF'\n(define (make-counter start)\n  (lambda ()\n    (define result start)\n    (define start (+ start 1))\n    result))\n(define c (make-counter 10))\n(c)\n(c)\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 3.7,
+    "keystrokes": "cd /app/calc && ./calc <<'EOF'\n(define (make-counter start) (lambda () (define result start) (define start (+ start 1)) result))\n(define c (make-counter 10))\n(c)\n(c)\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 3.8,
+    "keystrokes": "grep -n \"static char \\*read_line\\|static Expr \\*parse_line\\|int main\" /app/calc/calc.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 3.8,
+    "keystrokes": "sed -n '90,190p' /app/calc/calc.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 3.8,
+    "keystrokes": "tail -n 30 /app/calc/calc.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 4.1,
+    "keystrokes": "grep -n \"read_line\\|parse_line\\|int main\" /app/calc/calc.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 4.1,
+    "keystrokes": "nl -ba /app/calc/calc.c | sed -n '70,190p'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 4.1,
+    "keystrokes": "nl -ba /app/calc/calc.c | tail -n 40\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 4.4,
+    "keystrokes": "python3 - <<'PY'\nfrom pathlib import Path\n\npath = Path('/app/calc/calc.c')\ns = path.read_text()\n\nold = '''int main(void) {\n    Env *global = env_new(NULL);\n    char *line;\n\n    while ((line = read_line(stdin)) != NULL) {\n        Expr *expr = parse_line(line);\n        Value value = eval(global, expr);\n\n        if (value.type == VAL_FUNC) {\n            printf(\"0\\\\n\");\n        } else {\n            printf(\"%lld\\\\n\", value.num);\n        }\n\n        free(line);\n    }\n\n    return 0;\n}\n'''\n\nnew = '''int main(void) {\n    Env *global = env_new(NULL);\n    char *line;\n    char *buf = NULL;\n    size_t cap = 0;\n    size_t len = 0;\n    int depth = 0;\n\n    while ((line = read_line(stdin)) != NULL) {\n        size_t line_len = strlen(line);\n        size_t need = len + line_len + 2;\n        size_t i;\n\n        if (need > cap) {\n            while (cap < need) {\n                cap = cap ? cap * 2 : 128;\n            }\n            buf = xrealloc(buf, cap);\n        }\n\n        if (len > 0) {\n            buf[len++] = ' ';\n        }\n        memcpy(buf + len, line, line_len);\n        len += line_len;\n        buf[len] = '\\\\0';\n\n        for (i = 0; i < line_len; i++) {\n            if (line[i] == '(') {\n                depth++;\n            } else if (line[i] == ')') {\n                depth--;\n                if (depth < 0) {\n                    fail();\n                }\n            }\n        }\n\n        free(line);\n\n        if (depth == 0) {\n            Value value;\n            Expr *expr;\n\n            if (len == 0) {\n                continue;\n            }\n\n            expr = parse_line(buf);\n            value = eval(global, expr);\n\n            if (value.type == VAL_FUNC) {\n                printf(\"0\\\\n\");\n            } else {\n                printf(\"%lld\\\\n\", value.num);\n            }\n\n            len = 0;\n            buf[0] = '\\\\0';\n        }\n    }\n\n    if (depth != 0 || len != 0) {\n        fail();\n    }\n\n    free(buf);\n    return 0;\n}\n'''\n\nif old not in s:\n    raise SystemExit('old main not found')\npath.write_text(s.replace(old, new, 1))\nPY\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 4.4,
+    "keystrokes": "cd /app/calc && make clean && make\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 4.4,
+    "keystrokes": "cd /app/calc && ./calc <<'EOF'\n(define (fact n) (if (= n 0) 1 (* n (fact (- n 1)))))\n(fact 5)\n(define (make-counter start)\n  (lambda ()\n    (define result start)\n    (define start (+ start 1))\n    result))\n(define c (make-counter 10))\n(c)\n(c)\n(cond ((< 3 1) 100) ((= 5 5) 200) (else 300))\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 13,
+    "offset_sec": 5.6,
+    "keystrokes": "cd /app/calc && ./calc <<'EOF'\n(if 1 5 (/ 1 0))\n(if 0 (/ 1 0) 5)\n(cond (1 7) (else (/ 1 0)))\n(cond (0 (/ 1 0)) (else 9))\n(define x 0)\n(define (pair a b) (+ a b))\n(pair (define x 1) (define x (+ x 10)))\nx\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 13,
+    "offset_sec": 5.6,
+    "keystrokes": "cd /app/calc && ./calc <<'EOF'\n(define x 1)\n(define (f y) (+ x y))\n(define (g x) (f 10))\n(g 100)\n(define (make-adder x) (lambda (y) (+ x y)))\n(define add5 (make-adder 5))\n(add5 3)\n(define (h x) (lambda (y) (lambda (z) (+ x y z))))\n(((h 1) 2) 3)\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 13,
+    "offset_sec": 5.6,
+    "keystrokes": "cd /app/calc && ./calc <<'EOF'\n(- 5)\n(/ 4)\n(/ 5)\n(*)\n(+)\n(define id (lambda (x) x))\nid\n(id 42)\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 13,
+    "offset_sec": 5.6,
+    "keystrokes": "cd /app/calc && ./calc <<'EOF' 2>/tmp/e1; echo \"exit=$?\"; cat /tmp/e1\n(cond (0 1))\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 13,
+    "offset_sec": 5.6,
+    "keystrokes": "cd /app/calc && ./calc <<'EOF' 2>/tmp/e2; echo \"exit=$?\"; cat /tmp/e2\n(= 1 1 1)\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 13,
+    "offset_sec": 5.6,
+    "keystrokes": "cd /app/calc && ./calc <<'EOF' 2>/tmp/e3; echo \"exit=$?\"; cat /tmp/e3\n(lambda (x) x) 99\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 13,
+    "offset_sec": 5.6,
+    "keystrokes": "cd /app/calc && ./calc <<'EOF' 2>/tmp/e4; echo \"exit=$?\"; cat /tmp/e4\n((lambda (x) x))\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 6.3,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 15,
+    "offset_sec": 6.3,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

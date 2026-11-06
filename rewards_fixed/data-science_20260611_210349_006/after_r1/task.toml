@@ -1,0 +1,22 @@
+version = "1.0"
+
+[metadata]
+author_name = "authoring-agent"
+difficulty = "medium"
+category = "data-science"
+tags = ["data-cleaning", "csv-parsing", "schema-inference", "data-normalization", "parquet", "pandas"]
+
+[verifier]
+timeout_sec = 600.0
+
+[agent]
+timeout_sec = 1800.0
+
+[environment]
+build_timeout_sec = 600.0
+# docker_image = "tb2_verifier_base_20260601_051403_485561"
+docker_image = "aweaiteam/calibforge:data-science_20260611_210349_006_20260620_203601_454879"
+cpus = 1
+memory = "2G"
+storage = "10G"
+

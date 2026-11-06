@@ -1,0 +1,24 @@
+version = "1.0"
+
+[metadata]
+author_name = "authoring-agent"
+difficulty = "medium"
+category = "debugging"
+tags = ["c", "integer-overflow", "heap-overflow", "binary-parsing", "memory-safety"]
+expert_time_estimate_min = 25.0
+junior_time_estimate_min = 600.0
+
+[verifier]
+timeout_sec = 600.0
+
+[agent]
+timeout_sec = 1800.0
+
+[environment]
+build_timeout_sec = 600.0
+# docker_image = "alexgshaw/custom-memory-heap-crash:20251031"
+docker_image = "aweaiteam/calibforge:tb2_contrast_dpsk_failed_icm_debugging_20260606_172554_002_20260622_113313_20118_28285"
+cpus = 1
+memory = "2G"
+storage = "10G"
+

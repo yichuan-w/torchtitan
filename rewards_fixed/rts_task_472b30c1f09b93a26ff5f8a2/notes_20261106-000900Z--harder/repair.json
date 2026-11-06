@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The verifier requires GDB to be installed although the public instruction allows any method of finding the password.",
+    "evidence": "tests/test_state.py test_check_01_required_evidence; successful attempts such as traces/attempt-09.jsonl turns 4-9 solve through static inspection without using GDB.",
+    "change": "Remove the tool-availability assertion from the scratch verifier while retaining all checks of the requested password, cleanup report, and final state.",
+    "kind": "hidden_requirement"
+  }
+]

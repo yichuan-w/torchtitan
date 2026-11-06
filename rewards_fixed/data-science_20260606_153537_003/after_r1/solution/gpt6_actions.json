@@ -1,0 +1,198 @@
+[
+  {
+    "step_id": 3,
+    "offset_sec": 0.0,
+    "keystrokes": "ls -la /app\n",
+    "duration": 0.2,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.0,
+    "keystrokes": "find /app/results -maxdepth 3 -type f | head -50\n",
+    "duration": 0.2,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.0,
+    "keystrokes": "find /app/results -type f | wc -l\n",
+    "duration": 0.2,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.6,
+    "keystrokes": "cat /app/results/README.md\n",
+    "duration": 0.2,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.6,
+    "keystrokes": "file /app/results/*/* /app/results/README.md\n",
+    "duration": 0.2,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.6,
+    "keystrokes": "head -5 /app/results/team_alpha/results.csv\n</｜｜DSML｜｜ parameter>\n<｜｜DSML｜｜ parameter name=\"commands\">\n<keystrokes duration=\"0.2\">head -5 /app/results/team_epsilon/results.csv\n",
+    "duration": 0.2,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.6,
+    "keystrokes": "head -5 /app/results/team_delta/scores.tsv\n",
+    "duration": 0.2,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.6,
+    "keystrokes": "zcat /app/results/team_delta/extra_scores.csv.gz | head -5\n",
+    "duration": 0.2,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.6,
+    "keystrokes": "head -c 2000 /app/results/team_gamma/run1.json; echo\n",
+    "duration": 0.2,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.6,
+    "keystrokes": "head -c 2000 /app/results/team_gamma/run2.json; echo\n",
+    "duration": 0.2,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.6,
+    "keystrokes": "cat /app/results/team_beta/benchmark_log.txt\n",
+    "duration": 0.2,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 2.2,
+    "keystrokes": "head -20 /app/results/team_epsilon/results.csv\n",
+    "duration": 0.2,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 2.2,
+    "keystrokes": "wc -l /app/results/team_alpha/results.csv /app/results/team_epsilon/results.csv /app/results/team_delta/scores.tsv\n",
+    "duration": 0.2,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 2.2,
+    "keystrokes": "zcat /app/results/team_delta/extra_scores.csv.gz | wc -l\n",
+    "duration": 0.2,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 2.2,
+    "keystrokes": "python3 - <<'PY'\nimport json\nfor f in ['/app/results/team_gamma/run1.json','/app/results/team_gamma/run2.json']:\n    data=json.load(open(f))\n    print(f, len(data))\nPY\n",
+    "duration": 0.2,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 3.0,
+    "keystrokes": "cat /app/results/team_alpha/results.csv\n",
+    "duration": 0.2,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 3.0,
+    "keystrokes": "cat /app/results/team_epsilon/results.csv\n",
+    "duration": 0.2,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 3.0,
+    "keystrokes": "cat /app/results/team_delta/scores.tsv\n",
+    "duration": 0.2,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 3.0,
+    "keystrokes": "zcat /app/results/team_delta/extra_scores.csv.gz\n",
+    "duration": 0.2,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 3.0,
+    "keystrokes": "python3 - <<'PY'\nimport csv, json, re, gzip, glob, os\n\nrecords=[]\n# alpha\nwith open('/app/results/team_alpha/results.csv', encoding='utf-8-sig', newline='') as f:\n    for r in csv.DictReader(f): records.append(('alpha',r))\n# epsilon\nwith open('/app/results/team_epsilon/results.csv', encoding='latin-1', newline='') as f:\n    lines=[ln for ln in f if not ln.startswith('#')]\n    for r in csv.DictReader(lines): records.append(('epsilon',r))\n# delta scores\nwith open('/app/results/team_delta/scores.tsv', newline='') as f:\n    for r in csv.DictReader(f, delimiter='\\t'): records.append(('delta',r))\n# delta extra\nwith gzip.open('/app/results/team_delta/extra_scores.csv.gz','rt',newline='') as f:\n    for r in csv.DictReader(f): records.append(('delta_extra',r))\n# gamma\nfor path in ['/app/results/team_gamma/run1.json','/app/results/team_gamma/run2.json']:\n    for r in json.load(open(path)): records.append(('gamma',r))\n\nprint('Total structured records:', len(records))\nfor rec in records:\n    print(rec)\nPY\n",
+    "duration": 0.2,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 4.0,
+    "keystrokes": "python3 - <<'PY'\nimport csv, json, gzip, re\nfrom collections import defaultdict\n\ndef norm_model(m):\n    s=re.sub(r'[^a-z0-9]', '', m.lower())\n    aliases={\n        'catboost':'CatBoost','catboostv1':'CatBoost',\n        'fttransformer':'FT-Transformer','ftt':'FT-Transformer',\n        'lightgbm':'LightGBM','lgbm':'LightGBM','lgbmv3':'LightGBM',\n        'mlp':'MLP','multilayerperceptron':'MLP',\n        'randomforest':'RandomForest','rf':'RandomForest',\n        'resnet':'ResNet',\n        'saint':'SAINT',\n        'xgboost':'XGBoost','xgboostv2':'XGBoost','xgb':'XGBoost'\n    }\n    return aliases.get(s, m)\n\nrecs=[]\ndef add(src, model, dataset, acc, rows, feats):\n    recs.append(dict(src=src, model=norm_model(str(model)), dataset=str(dataset).lower(), acc=float(acc), rows=int(rows), feats=int(feats)))\n\nfor r in csv.DictReader(open('/app/results/team_alpha/results.csv', encoding='utf-8-sig', newline='')):\n    add('alpha', r['model'], r['dataset'], r['accuracy'], r['rows'], r['features'])\nlines=[ln for ln in open('/app/results/team_epsilon/results.csv', encoding='latin-1') if not ln.startswith('#')]\nfor r in csv.DictReader(lines):\n    add('epsilon', r['model'], r['dataset'], r['accuracy'], r['rows'], r['features'])\nfor r in csv.DictReader(open('/app/results/team_delta/scores.tsv', newline=''), delimiter='\\t'):\n    add('delta', r['algo'], r['data'], r['score'], r['size_rows'], r['num_features'])\nwith gzip.open('/app/results/team_delta/extra_scores.csv.gz','rt',newline='') as f:\n    for r in csv.DictReader(f):\n        add('delta', r['algo'], r['data'], r['score'], r['size_rows'], r['num_features'])\nfor path in ['/app/results/team_gamma/run1.json','/app/results/team_gamma/run2.json']:\n    for r in json.load(open(path)):\n        add('gamma', r['model_name'], r['dataset_name'], r['acc'], r['n_rows'], r['n_features'])\n# beta log: only Acc lines, excluding F1 lines\npat=re.compile(r'Model:\\s*(\\S+)\\s*\\|\\s*Dataset:\\s*(\\S+)\\s*\\|\\s*(Acc|F1):\\s*([0-9.]+)\\s*\\|\\s*Rows:\\s*(\\d+)\\s*\\|\\s*Feats:\\s*(\\d+)')\nfor ln in open('/app/results/team_beta/benchmark_log.txt'):\n    m=pat.search(ln)\n    if m and m.group(3)=='Acc':\n        add('beta', m.group(1), m.group(2), m.group(4), m.group(5), m.group(6))\n\ndef report(label, data, dedupe):\n    q=[r for r in data if r['rows']>=1000 and r['feats']<=50]\n    models=defaultdict(list)\n    if dedupe:\n        seen={}\n        for r in q:\n            key=(r['model'], r['dataset'])\n            if key not in seen:\n                seen[key]=r\n        q=list(seen.values())\n    for r in q: models[r['model']].append(r['acc'])\n    stats=[(sum(v)/len(v),len(v),k) for k,v in models.items() if len(v)>=5]\n    stats.sort(reverse=True)\n    print('\\n'+label, 'qualifying records/model-datasets:', len(q))\n    for mean,n,k in stats[:15]:\n        print(f'{k:15s} mean={mean:.6f} n={n}')\n\nnon_eps=[r for r in recs if r['src']!='epsilon']\nreport('ALL records, no dedupe', recs, False)\nreport('ALL records, dedupe model+dataset', recs, True)\nreport('NO epsilon, no dedupe', non_eps, False)\nreport('NO epsilon, dedupe model+dataset', non_eps, True)\nPY\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 5.0,
+    "keystrokes": "python3 - <<'PY'\nimport csv, json, gzip, re\nfrom collections import defaultdict\n\ndef nmodel(m):\n    s=re.sub(r'[^a-z0-9]', '', str(m).lower())\n    s=re.sub(r'v\\d+$','',s)\n    d={'catboost':'CatBoost','fttransformer':'FT-Transformer','ftt':'FT-Transformer',\n       'lightgbm':'LightGBM','lgbm':'LightGBM','mlp':'MLP','multilayerperceptron':'MLP',\n       'randomforest':'RandomForest','rf':'RandomForest','resnet':'ResNet','saint':'SAINT',\n       'xgboost':'XGBoost','xgb':'XGBoost'}\n    return d.get(s,str(m))\n\ndef ndataset(d):\n    s=re.sub(r'[^a-z0-9]', '', str(d).lower())\n    s=re.sub(r'dataset$','',s)\n    mp={'bankmkt':'bankmarketing','bankmarketing':'bankmarketing','creditg':'creditg',\n        'miniboone':'miniboone','adult':'adult','electricity':'electricity','elec':'electricity',\n        'gesture':'gesture','jungle':'jungle','jannis':'jannis','albert':'albert','helena':'helena',\n        'phoneme':'phoneme','volkert':'volkert'}\n    return mp.get(s,s)\n\nrows=[]\ndef add(src,m,d,a,r,f):\n    rows.append(dict(src=src,m=nmodel(m),d=ndataset(d),a=float(a),r=int(r),f=int(f)))\n\nfor r in csv.DictReader(open('/app/results/team_alpha/results.csv',encoding='utf-8-sig',newline='')):\n    add('alpha',r['model'],r['dataset'],r['accuracy'],r['rows'],r['features'])\nlines=[x for x in open('/app/results/team_epsilon/results.csv',encoding='latin-1') if not x.startswith('#')]\nfor r in csv.DictReader(lines):\n    add('epsilon',r['model'],r['dataset'],r['accuracy'],r['rows'],r['features'])\nfor r in csv.DictReader(open('/app/results/team_delta/scores.tsv',newline=''),delimiter='\\t'):\n    add('delta',r['algo'],r['data'],r['score'],r['size_rows'],r['num_features'])\nwith gzip.open('/app/results/team_delta/extra_scores.csv.gz','rt',newline='') as f:\n    for r in csv.DictReader(f): add('delta',r['algo'],r['data'],r['score'],r['size_rows'],r['num_features'])\nfor p in ['/app/results/team_gamma/run1.json','/app/results/team_gamma/run2.json']:\n    for r in json.load(open(p)): add('gamma',r['model_name'],r['dataset_name'],r['acc'],r['n_rows'],r['n_features'])\npat=re.compile(r'Model:\\s*(\\S+)\\s*\\|\\s*Dataset:\\s*(\\S+)\\s*\\|\\s*(Acc|F1):\\s*([0-9.]+)\\s*\\|\\s*Rows:\\s*(\\d+)\\s*\\|\\s*Feats:\\s*(\\d+)')\nfor line in open('/app/results/team_beta/benchmark_log.txt'):\n    q=pat.search(line)\n    if q and q.group(3)=='Acc': add('beta',q.group(1),q.group(2),q.group(4),q.group(5),q.group(6))\n\ndef analyze(label,data):\n    q=[x for x in data if x['r']>=1000 and x['f']<=50]\n    pairs=defaultdict(list)\n    for x in q: pairs[(x['m'],x['d'])].append(x['a'])\n    by=defaultdict(list)\n    for (m,d),vals in pairs.items(): by[m].append(sum(vals)/len(vals))\n    res=sorted([(sum(v)/len(v),len(v),m) for m,v in by.items() if len(v)>=5],reverse=True)\n    print('\\n'+label)\n    for mean,n,m in res: print(f'{m:15s} mean={mean:.6f} datasets={n}')\n    if not res: print('(no models with >=5 distinct qualifying datasets)')\n    print('All model counts/means:')\n    for m,v in sorted(by.items(),key=lambda kv:-sum(kv[1])/len(kv[1])):\n        print(f'  {m:15s} mean={sum(v)/len(v):.6f} datasets={len(v)}')\n\nanalyze('ALL normalized unique datasets',rows)\nanalyze('NO epsilon normalized unique datasets',[x for x in rows if x['src']!='epsilon'])\nPY\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 6.0,
+    "keystrokes": "python3 - <<'PY'\nimport csv, json, gzip, re\nfrom collections import defaultdict\n\ndef parse_all():\n    R=[]\n    def add(src,m,d,a,r,f): R.append({'src':src,'m':str(m),'d':str(d),'a':float(a),'r':int(r),'f':int(f)})\n    for x in csv.DictReader(open('/app/results/team_alpha/results.csv',encoding='utf-8-sig',newline='')): add('alpha',x['model'],x['dataset'],x['accuracy'],x['rows'],x['features'])\n    lines=[z for z in open('/app/results/team_epsilon/results.csv',encoding='latin-1') if not z.startswith('#')]\n    for x in csv.DictReader(lines): add('epsilon',x['model'],x['dataset'],x['accuracy'],x['rows'],x['features'])\n    for x in csv.DictReader(open('/app/results/team_delta/scores.tsv',newline=''),delimiter='\\t'): add('delta',x['algo'],x['data'],x['score'],x['size_rows'],x['num_features'])\n    with gzip.open('/app/results/team_delta/extra_scores.csv.gz','rt',newline='') as f:\n        for x in csv.DictReader(f): add('delta',x['algo'],x['data'],x['score'],x['size_rows'],x['num_features'])\n    for p in ['/app/results/team_gamma/run1.json','/app/results/team_gamma/run2.json']:\n        for x in json.load(open(p)): add('gamma',x['model_name'],x['dataset_name'],x['acc'],x['n_rows'],x['n_features'])\n    pat=re.compile(r'Model:\\s*(\\S+)\\s*\\|\\s*Dataset:\\s*(\\S+)\\s*\\|\\s*(Acc|F1):\\s*([0-9.]+)\\s*\\|\\s*Rows:\\s*(\\d+)\\s*\\|\\s*Feats:\\s*(\\d+)')\n    for line in open('/app/results/team_beta/benchmark_log.txt'):\n        q=pat.search(line)\n        if q and q.group(3)=='Acc': add('beta',q.group(1),q.group(2),q.group(4),q.group(5),q.group(6))\n    return R\n\ndef model_norm(m):\n    s=re.sub(r'[^a-z0-9]','',m.lower())\n    s=re.sub(r'v\\d+$','',s)\n    return {'catboost':'CatBoost','ftt':'FT-Transformer','fttransformer':'FT-Transformer','lightgbm':'LightGBM','lgbm':'LightGBM','mlp':'MLP','multilayerperceptron':'MLP','randomforest':'RandomForest','rf':'RandomForest','resnet':'ResNet','saint':'SAINT','xgboost':'XGBoost','xgb':'XGBoost'}.get(s,m)\n\ndef data_norm(d):\n    s=re.sub(r'[^a-z0-9]','',d.lower())\n    s=re.sub(r'dataset$','',s)\n    q={'bankmkt':'bankmarketing','bankmarketing':'bankmarketing','creditg':'creditg','miniboone':'miniboone','adult':'adult','electricity':'electricity','elec':'electricity','gesture':'gesture','jungle':'jungle','jannis':'jannis','albert':'albert','helena':'helena','phoneme':'phoneme','volkert':'volkert'}\n    return q.get(s,s)\n\ndef eval_mode(R, mn, dn, pair_first, eps):\n    data=[x for x in R if x['r']>=1000 and x['f']<=50 and (eps or x['src']!='epsilon')]\n    if mn:\n        for x in data: x['m']=model_norm(x['m'])\n    if dn:\n        for x in data: x['d']=data_norm(x['d'])\n    by=defaultdict(lambda: defaultdict(list))\n    if pair_first:\n        for x in data: by[x['m']][x['d']].append(x['a'])\n        vals={m:[sum(v)/len(v) for v in dd.values()] for m,dd in by.items()}\n    else:\n        for x in data: by[x['m']][x['d']].append(x['a'])\n        vals={}\n        for m,dd in by.items():\n            allv=[a for vs in dd.values() for a in vs]\n            vals[m]=allv\n    stat=[]\n    for m,vs in vals.items():\n        if len(vs)>=5: stat.append((sum(vs)/len(vs),len(vs),m))\n    stat.sort(reverse=True)\n    return stat\n\nR=parse_all()\nfor eps in [True,False]:\n    for mn in [False,True]:\n        for dn in [False,True]:\n            for pf in [False,True]:\n                st=eval_mode(R,mn,dn,pf,eps)\n                top=st[0] if st else None\n                tag=f\"eps={eps} model_norm={mn} data_norm={dn} pair_first={pf}\"\n                print(f\"{tag:55s} -> {top}\")\nPY\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 7.0,
+    "keystrokes": "python3 - <<'PY'\nimport csv, json, gzip, re\nfrom collections import defaultdict\ndef mn(m):\n    s=re.sub(r'[^a-z0-9]','',m.lower()); s=re.sub(r'v\\d+$','',s)\n    return {'catboost':'CatBoost','ftt':'FT-Transformer','fttransformer':'FT-Transformer','lightgbm':'LightGBM','lgbm':'LightGBM','mlp':'MLP','multilayerperceptron':'MLP','randomforest':'RandomForest','rf':'RandomForest','resnet':'ResNet','saint':'SAINT','xgboost':'XGBoost','xgb':'XGBoost'}.get(s,m)\ndef dn(d):\n    s=re.sub(r'[^a-z0-9]','',d.lower()); s=re.sub(r'dataset$','',s)\n    return {'bankmkt':'bank_marketing','bankmarketing':'bank_marketing','creditg':'credit_g','miniboone':'mini_boone','adult':'adult','electricity':'electricity','elec':'electricity','gesture':'gesture','jungle':'jungle','jannis':'jannis','albert':'albert','helena':'helena','phoneme':'phoneme','volkert':'volkert'}.get(s,s)\ng=defaultdict(list)\ndef add(src,m,d,a,r,f):\n    if int(r)>=1000 and int(f)<=50: g[(mn(m),dn(d))].append((src,float(a),int(r),int(f)))\nfor x in csv.DictReader(open('/app/results/team_alpha/results.csv',encoding='utf-8-sig',newline='')): add('alpha',x['model'],x['dataset'],x['accuracy'],x['rows'],x['features'])\nlines=[z for z in open('/app/results/team_epsilon/results.csv',encoding='latin-1') if not z.startswith('#')]\nfor x in csv.DictReader(lines): add('epsilon',x['model'],x['dataset'],x['accuracy'],x['rows'],x['features'])\nfor x in csv.DictReader(open('/app/results/team_delta/scores.tsv',newline=''),delimiter='\\t'): add('delta',x['algo'],x['data'],x['score'],x['size_rows'],x['num_features'])\nwith gzip.open('/app/results/team_delta/extra_scores.csv.gz','rt',newline='') as f:\n    for x in csv.DictReader(f): add('delta',x['algo'],x['data'],x['score'],x['size_rows'],x['num_features'])\nfor p in ['/app/results/team_gamma/run1.json','/app/results/team_gamma/run2.json']:\n    for x in json.load(open(p)): add('gamma',x['model_name'],x['dataset_name'],x['acc'],x['n_rows'],x['n_features'])\npat=re.compile(r'Model:\\s*(\\S+)\\s*\\|\\s*Dataset:\\s*(\\S+)\\s*\\|\\s*(Acc|F1):\\s*([0-9.]+)\\s*\\|\\s*Rows:\\s*(\\d+)\\s*\\|\\s*Feats:\\s*(\\d+)')\nfor line in open('/app/results/team_beta/benchmark_log.txt'):\n    q=pat.search(line)\n    if q and q.group(3)=='Acc': add('beta',q.group(1),q.group(2),q.group(4),q.group(5),q.group(6))\nfor (m,d),vals in sorted(g.items()):\n    if len(vals)>1:\n        print(f'{m:15s} {d:15s}: ', ', '.join(f'{s}={a}' for s,a,_,_ in vals))\nPY\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 8.0,
+    "keystrokes": "python3 - <<'PY'\nimport csv, json, gzip, re\nfrom collections import defaultdict\n\ndef model_name(raw):\n    s = re.sub(r'[^a-z0-9]', '', str(raw).lower())\n    s = re.sub(r'v\\d+$', '', s)\n    aliases = {\n        'catboost': 'CatBoost',\n        'fttransformer': 'FT-Transformer', 'ftt': 'FT-Transformer',\n        'lightgbm': 'LightGBM', 'lgbm': 'LightGBM',\n        'mlp': 'MLP', 'multilayerperceptron': 'MLP',\n        'randomforest': 'RandomForest', 'rf': 'RandomForest',\n        'resnet': 'ResNet', 'saint': 'SAINT',\n        'xgboost': 'XGBoost', 'xgb': 'XGBoost',\n    }\n    return aliases.get(s, str(raw))\n\ndef dataset_name(raw):\n    s = re.sub(r'[^a-z0-9]', '', str(raw).lower())\n    s = re.sub(r'dataset$', '', s)\n    aliases = {\n        'adult': 'adult', 'bankmarketing': 'bank_marketing', 'bankmkt': 'bank_marketing',\n        'creditg': 'credit_g', 'miniboone': 'mini_boone', 'electricity': 'electricity',\n        'elec': 'electricity', 'gesture': 'gesture', 'jungle': 'jungle',\n        'jannis': 'jannis', 'albert': 'albert', 'helena': 'helena',\n        'phoneme': 'phoneme', 'volkert': 'volkert',\n    }\n    return aliases.get(s, s)\n\naccs = defaultdict(lambda: defaultdict(list))\n\ndef add(model, dataset, accuracy, rows, features):\n    rows, features = int(rows), int(features)\n    if rows >= 1000 and features <= 50:\n        m, d = model_name(model), dataset_name(dataset)\n        accs[m][d].append(float(accuracy))\n\n# alpha\nwith open('/app/results/team_alpha/results.csv', encoding='utf-8-sig', newline='') as f:\n    for r in csv.DictReader(f):\n        add(r['model'], r['dataset'], r['accuracy'], r['rows'], r['features'])\n\n# epsilon (Latin-1, comment line)\nwith open('/app/results/team_epsilon/results.csv', encoding='latin-1', newline='') as f:\n    lines = [line for line in f if not line.startswith('#')]\n    for r in csv.DictReader(lines):\n        add(r['model'], r['dataset'], r['accuracy'], r['rows'], r['features'])\n\n# delta TSV\nwith open('/app/results/team_delta/scores.tsv', newline='') as f:\n    for r in csv.DictReader(f, delimiter='\\t'):\n        add(r['algo'], r['data'], r['score'], r['size_rows'], r['num_features'])\n\n# delta gzipped CSV\nwith gzip.open('/app/results/team_delta/extra_scores.csv.gz', 'rt', newline='') as f:\n    for r in csv.DictReader(f):\n        add(r['algo'], r['data'], r['score'], r['size_rows'], r['num_features'])\n\n# gamma JSON\nfor path in ['/app/results/team_gamma/run1.json', '/app/results/team_gamma/run2.json']:\n    for r in json.load(open(path)):\n        add(r['model_name'], r['dataset_name'], r['acc'], r['n_rows'], r['n_features'])\n\n# beta log: only Acc rows, ignore F1 rows\npat = re.compile(r'Model:\\s*(\\S+)\\s*\\|\\s*Dataset:\\s*(\\S+)\\s*\\|\\s*(Acc|F1):\\s*([0-9.]+)\\s*\\|\\s*Rows:\\s*(\\d+)\\s*\\|\\s*Feats:\\s*(\\d+)')\nwith open('/app/results/team_beta/benchmark_log.txt') as f:\n    for line in f:\n        m = pat.search(line)\n        if m and m.group(3) == 'Acc':\n            add(m.group(1), m.group(2), m.group(4), m.group(5), m.group(6))\n\nscores = []\nfor model, datasets in accs.items():\n    if len(datasets) >= 5:\n        mean_acc = sum(sum(vals) / len(vals) for vals in datasets.values()) / len(datasets)\n        scores.append((mean_acc, model, len(datasets)))\n\nscores.sort(reverse=True)\nprint('Eligible models by distinct-dataset mean accuracy:')\nfor mean_acc, model, n in scores:\n    print(f'{model:15s} mean={mean_acc:.6f} datasets={n}')\n\nbest = scores[0][1]\nwith open('/app/best_model.txt', 'w') as f:\n    f.write(best + '\\n')\nPY\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 8.0,
+    "keystrokes": "cat /app/best_model.txt\n",
+    "duration": 0.2,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 9.2,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 9.2,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

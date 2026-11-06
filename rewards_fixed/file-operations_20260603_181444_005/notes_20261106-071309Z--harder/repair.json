@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The original verifier required /app/data.db itself to have a repaired header, but the original instruction did not unambiguously require the original path to remain and open afterward.",
+    "evidence": "The earlier attempt-04 turn 20 and attempt-08 turn 19 repaired copied databases and produced semantically complete dumps; replay grading failed only because /app/data.db remained corrupted, as recorded in traces/history/20261106-010541Z--easier.notes.md.",
+    "change": "Retain the explicit requirement that /app/data.db itself must open normally after its binary header is repaired.",
+    "kind": "hidden_requirement"
+  }
+]

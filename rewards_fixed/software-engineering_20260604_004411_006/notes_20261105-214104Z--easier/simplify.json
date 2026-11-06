@@ -1,0 +1,22 @@
+{
+  "retained_skill": "Diagnose and repair the C string-splitting logic after separately fixing the Makefile link rule.",
+  "bottleneck": "All 12 scored attempts fixed the build, read src/strsplit.c, and passed every public example, but none could infer the verifier's unstated requirement that adjacent delimiters represent an empty part.",
+  "change": "Instruction help at the original logic-bug signal: state the required empty-part semantics for adjacent delimiters, while leaving the student to identify and implement the C control-flow repair. This is a hidden-requirement repair rather than structural help.",
+  "restore": "Remove the standalone adjacent-delimiter semantics sentence to restore the original task after the student can infer and test unspecified edge cases independently.",
+  "prediction": "The change addresses the action of declaring the splitter correct after only the three listed examples. Once adjacent-delimiter semantics are stated, attempts that already inspect strsplit.c can recognize that its delimiter-skipping branch violates the contract and edit that logic; this is refuted if they continue to submit after observing that adjacent delimiters lose a part.",
+  "expected": "9 of 12",
+  "evidence": [
+    {"attempt": "attempt-01.jsonl", "turn": 24, "observation": "Ran a,b with adjacent delimiters as a,,b and observed only two parts, but still submitted. Rebuilt this state with the attempt's Makefile fix and graded it: binary_exists, simple, space, and single passed; consecutive failed because the empty middle part was absent. After the instruction repair, replayed this approach from a fresh reset through its target: fixing the inspected loop to preserve an empty field made one,,three report three parts with an empty middle part, and grading passed all five checks."},
+    {"attempt": "attempt-02.jsonl", "turn": 8, "observation": "Read src/strsplit.c, fixed only the link rule, and submitted after the three public examples. Replayed its approach on a fresh reset and graded it: binary_exists, simple, space, and single passed; consecutive alone failed."},
+    {"attempt": "attempt-03.jsonl", "turn": 6, "observation": "Read src/strsplit.c, then treated the successful public examples as completion; grading reports only the consecutive-delimiter check failed."},
+    {"attempt": "attempt-04.jsonl", "turn": 19, "observation": "Observed that a,,b produced only a and b, also tested leading and trailing delimiters, but lacked a stated expected semantic and submitted; only the consecutive check failed."},
+    {"attempt": "attempt-05.jsonl", "turn": 8, "observation": "Read the splitter and concluded its logic was already correct after public examples passed; only the consecutive check failed."},
+    {"attempt": "attempt-06.jsonl", "turn": 7, "observation": "Read the splitter and judged its logic mostly correct; later edge probes still led to submission, and only the consecutive check failed."},
+    {"attempt": "attempt-07.jsonl", "turn": 7, "observation": "Read the splitter but made only the build fix, explicitly noting that the mentioned logic bug was not exposed by the listed examples; only the consecutive check failed."},
+    {"attempt": "attempt-08.jsonl", "turn": 5, "observation": "Inspected the splitter, fixed the Makefile, and stopped when the three examples passed; only the consecutive check failed."},
+    {"attempt": "attempt-09.jsonl", "turn": 8, "observation": "Said the splitter seemed correct at first glance and ultimately reported no logic bug after the public examples; only the consecutive check failed."},
+    {"attempt": "attempt-10.jsonl", "turn": 7, "observation": "Read src/strsplit.c, pursued an unrelated suspected free-loop issue, and submitted after public examples passed; only the consecutive check failed."},
+    {"attempt": "attempt-11.jsonl", "turn": 7, "observation": "Read the splitter, called it mostly correct, and submitted after public and extra probes; only the consecutive check failed."},
+    {"attempt": "attempt-12.jsonl", "turn": 6, "observation": "Read the splitter, fixed only the build, and declared all functionality correct from the three examples; only the consecutive check failed."}
+  ]
+}

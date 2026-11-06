@@ -1,0 +1,70 @@
+{
+  "retained_skill": "Diagnosing nginx's live load-balancing behavior across multiple healthy services, rather than treating a plausible upstream configuration or one successful proxy response as proof.",
+  "bottleneck": "All 12 scored attempts first fail grading on live request distribution: repeated fresh proxy requests reach only port 8001. Eleven otherwise pass every retained check; attempt-04 additionally leaves the event listener broken, and attempts 07 and 10 additionally leave log rotation invalid. The dominant cause is a missing runtime-validation decision, not terminal mechanics or a task defect.",
+  "change": "Instruction help (vague): add one removable sentence directing the student to verify that repeated requests are actually served by multiple backends and to investigate nginx runtime behavior if they are not. This exposes the same observable signal as the original task\u2014repeated proxy responses naming one backend\u2014without naming the configuration change, command sequence, or answer. No work in the retained skill is supplied.",
+  "restore": "Delete the standalone runtime-distribution hint sentence; the original load-balancing requirement and all correctness checks remain unchanged.",
+  "prediction": "The change addresses the action shared by all failures: stopping after a healthy proxy response or visually correct upstream list without checking distribution. It enables a different next action\u2014repeat requests, observe one backend, and investigate nginx runtime behavior. About half should connect that signal to the worker/runtime configuration and pass; this is refuted if the next group still submits with responses only from one backend or if nearly all solve it.",
+  "expected": "6 of 12",
+  "evidence": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turn": 0,
+      "observation": "Grader reports 11 passed and only nginx load balancing failed: repeated requests saw only port 8001."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turn": 0,
+      "observation": "Grader reports 11 passed and only nginx load balancing failed; direct health checks and proxying passed but live distribution did not."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turn": 0,
+      "observation": "Grader reports 11 passed and only nginx load balancing failed."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turn": 0,
+      "observation": "Grader reports load balancing plus event-listener running/configuration failures; load balancing is the shared first failure across the group."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turn": 0,
+      "observation": "The attempt hit its recorded maximum-turn endpoint, but was scored; grader reports 11 passed and only nginx load balancing failed."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turn": 0,
+      "observation": "Grader reports 11 passed and only nginx load balancing failed."
+    },
+    {
+      "attempt": "attempt-07.jsonl",
+      "turn": 0,
+      "observation": "The attempt hit its recorded maximum-turn endpoint and was scored; grader reports load balancing and log-rotation failures."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turn": 0,
+      "observation": "Grader reports 11 passed and only nginx load balancing failed. Pre-edit sandbox replay used all submitted commands, then ./sandbox grade; compressed replay timing caused backend port-reuse fallout and failed supervisord, all backend health, proxy, and load-balancing checks, while nginx-running, logs, rotation, and listener checks passed. The trace's actual grader state is the authoritative final state and isolates load balancing."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turn": 0,
+      "observation": "Grader reports 11 passed and only nginx load balancing failed."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turn": 0,
+      "observation": "Grader reports load balancing and log-rotation failures."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turn": 0,
+      "observation": "Grader reports 11 passed and only nginx load balancing failed."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turn": 0,
+      "observation": "Grader reports 11 passed and only nginx load balancing failed. Pre-edit sandbox replay used turns 1-50, then ./sandbox grade; compressed replay timing left ports in use and failed supervisord, all backend health, proxy, and load-balancing checks. The trace's actual grader diagnostics show its paced final state passed the other 11 checks. Post-edit fresh reset replayed turns 1-23 to the targeted state: twelve repeated proxy requests still all reported backend1/8001. Following the new direction, investigating runtime behavior and reducing nginx to one worker made responses cycle through 8001, 8002, and 8003; ./sandbox grade then passed all 12 checks. This replay removes the attempt's only actual graded failure, so it supports potential success under the hint."
+    }
+  ]
+}

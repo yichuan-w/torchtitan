@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The verifier required the exact path data/reports/transactions.csv even though the instruction named no CSV file and left the representation open; every attempt used the reasonable descriptive path data/reports/sales.csv.",
+    "evidence": "instruction.md identifies only 'the recovered CSV'; tests/test_outputs.py requires transactions.csv; attempt-01.jsonl turn 24 through attempt-12.jsonl turn 11 all choose sales.csv, and reconstructed attempt-12 grading fails only the missing transactions.csv check.",
+    "change": "State that a descriptive CSV filename under data/reports is allowed and check the promised CSV content at either transactions.csv or sales.csv.",
+    "kind": "hidden_requirement"
+  }
+]

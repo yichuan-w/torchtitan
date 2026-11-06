@@ -1,0 +1,51 @@
+[
+  {
+    "step_id": 3,
+    "offset_sec": 0.0,
+    "keystrokes": "ls -la\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.0,
+    "keystrokes": "sed -n '1,260p' ntlib.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.0,
+    "keystrokes": "sed -n '1,260p' ecc.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 0.3,
+    "keystrokes": "cat > ntlib.py <<'PY'\n\"\"\"\nNumber theory library for modular arithmetic.\n\nProvides basic number-theoretic functions used by the elliptic curve\ncryptography module.\n\"\"\"\n\n\ndef gcd(a: int, b: int) -> int:\n    \"\"\"Compute the greatest common divisor of a and b.\"\"\"\n    while b != 0:\n        a, b = b, a % b\n    return abs(a)\n\n\ndef egcd(a: int, b: int) -> tuple:\n    \"\"\"Extended Euclidean algorithm.\n\n    Returns (g, x, y) such that a*x + b*y = g = gcd(a, b).\n    \"\"\"\n    if a == 0:\n        return b, 0, 1\n    g, x1, y1 = egcd(b % a, a)\n    return g, y1 - (b // a) * x1, x1\n\n\ndef modinv(a: int, m: int) -> int:\n    \"\"\"Compute the modular multiplicative inverse of a modulo m.\n\n    Returns x such that (a * x) % m == 1.\n    Raises ValueError if no inverse exists.\n    \"\"\"\n    g, x, _ = egcd(a, m)\n    if g != 1:\n        raise ValueError(f\"No modular inverse exists for {a} modulo {m}\")\n    return x % m\n\n\ndef _factorize(n: int) -> list:\n    \"\"\"Return the prime factorization of n as a list of (prime, exponent).\"\"\"\n    factors = []\n    d = 2\n    while n >= d * d:\n        if n % d == 0:\n            e = 0\n            while n % d == 0:\n                n //= d\n                e += 1\n            factors.append((d, e))\n        if d == 2:\n            d = 3\n        else:\n            d += 2\n    if n > 1:\n        factors.append((n, 1))\n    return factors\n\n\ndef _sqrt_mod_odd_prime(a: int, p: int) -> int:\n    \"\"\"Tonelli-Shanks square root modulo an odd prime p.\"\"\"\n    a %= p\n    if a == 0:\n        return 0\n\n    if pow(a, (p - 1) // 2, p) != 1:\n        raise ValueError(f\"{a} is not a quadratic residue modulo {p}\")\n\n    if p % 4 == 3:\n        return pow(a, (p + 1) // 4, p)\n\n    q = p - 1\n    s = 0\n    while q % 2 == 0:\n        q //= 2\n        s += 1\n\n    z = 2\n    while pow(z, (p - 1) // 2, p) != p - 1:\n        z += 1\n\n    c = pow(z, q, p)\n    r = pow(a, (q + 1) // 2, p)\n    t = pow(a, q, p)\n    m = s\n\n    while t != 1:\n        i = 1\n        t2 = (t * t) % p\n        while t2 != 1:\n            t2 = (t2 * t2) % p\n            i += 1\n\n        b = pow(c, 1 << (m - i - 1), p)\n        r = (r * b) % p\n        t = (t * b * b) % p\n        c = (b * b) % p\n        m = i\n\n    return r\n\n\ndef _sqrt_mod_odd_prime_power_unit(a: int, p: int, k: int) -> int:\n    \"\"\"Square root of a modulo p^k, where p is odd and gcd(a, p) = 1.\"\"\"\n    modulus = p\n    r = _sqrt_mod_odd_prime(a, p)\n\n    for _ in range(1, k):\n        old_modulus = modulus\n        modulus *= p\n        diff = ((a % modulus) - r * r) // old_modulus\n        t = ((diff % p) * modinv((2 * r) % p, p)) % p\n        r = (r + t * old_modulus) % modulus\n\n    return r\n\n\ndef _sqrt_mod_two_power(a: int, k: int) -> int:\n    \"\"\"Square root of a modulo 2^k, if one exists.\"\"\"\n    modulus = 1 << k\n    a %= modulus\n    if a == 0:\n        return 0\n\n    v = 0\n    odd_part = a\n    while odd_part % 2 == 0:\n        odd_part //= 2\n        v += 1\n\n    if v >= k:\n        return 0\n    if v % 2 == 1:\n        raise ValueError(f\"{a} is not a quadratic residue modulo {modulus}\")\n\n    remaining_bits = k - v\n\n    if remaining_bits == 1:\n        y = 1\n    elif remaining_bits == 2:\n        if odd_part % 4 != 1:\n            raise ValueError(f\"{a} is not a quadratic residue modulo {modulus}\")\n        y = 1\n    else:\n        if odd_part % 8 != 1:\n            raise ValueError(f\"{a} is not a quadratic residue modulo {modulus}\")\n        y = 1\n        for j in range(4, remaining_bits + 1):\n            if (y * y - odd_part) % (1 << j) != 0:\n                y += 1 << (j - 2)\n        y %= 1 << remaining_bits\n\n    return ((1 << (v // 2)) * y) % modulus\n\n\ndef _sqrt_mod_prime_power(a: int, p: int, e: int) -> int:\n    \"\"\"Square root of a modulo p^e, if one exists.\"\"\"\n    modulus = p ** e\n    a %= modulus\n    if a == 0:\n        return 0\n\n    if p == 2:\n        return _sqrt_mod_two_power(a, e)\n\n    v = 0\n    unit_part = a\n    while unit_part % p == 0:\n        unit_part //= p\n        v += 1\n\n    if v >= e:\n        return 0\n    if v % 2 == 1:\n        raise ValueError(f\"{a} is not a quadratic residue modulo {modulus}\")\n\n    unit_modulus = p ** (e - v)\n    unit_part %= unit_modulus\n    y = _sqrt_mod_odd_prime_power_unit(unit_part, p, e - v)\n\n    return (pow(p, v // 2, modulus) * y) % modulus\n\n\ndef sqrt_mod(a: int, n: int) -> int:\n    \"\"\"Compute a square root of a modulo n (n may be composite).\n\n    Returns r such that r^2 == a (mod n), or raises ValueError if no\n    square root exists.  The result is always in the range 0 <= r < n.\n    \"\"\"\n    if n <= 0:\n        raise ValueError(\"Modulus must be positive\")\n    if n == 1:\n        return 0\n\n    a %= n\n    if a == 0:\n        return 0\n\n    residues = []\n    moduli = []\n\n    for p, e in _factorize(n):\n        modulus = p ** e\n        residues.append(_sqrt_mod_prime_power(a, p, e))\n        moduli.append(modulus)\n\n    result = 0\n    current_modulus = 1\n    for residue, modulus in zip(residues, moduli):\n        t = ((residue - result) % modulus)\n        t = (t * modinv(current_modulus % modulus, modulus)) % modulus\n        result += current_modulus * t\n        current_modulus *= modulus\n\n    return result % n\nPY\npython3 -m py_compile ntlib.py\n",
+    "duration": 0.2,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 0.5,
+    "keystrokes": "python3 - <<'PY'\nfrom ntlib import sqrt_mod\nfrom ecc import make_curve\n\nfor n in range(1, 151):\n    for a in range(n):\n        roots = [x for x in range(n) if (x * x - a) % n == 0]\n        exists = bool(roots)\n        try:\n            r = sqrt_mod(a, n)\n        except ValueError:\n            if exists:\n                raise AssertionError(f\"sqrt_mod({a}, {n}) raised, but roots exist: {roots}\")\n        else:\n            if not exists:\n                raise AssertionError(f\"sqrt_mod({a}, {n}) returned {r}, but no root exists\")\n            if (r * r - a) % n != 0:\n                raise AssertionError(f\"sqrt_mod({a}, {n}) = {r}, but r^2 != a\")\n\nprint(\"exhaustive small-modulus tests passed\")\n\ncurve = make_curve(\"test\")\nchecked = 0\nfor x in range(curve.p):\n    y_sq = (pow(x, 3, curve.p) + curve.a * x + curve.b) % curve.p\n    for parity in (0, 1):\n        roots = [y for y in range(curve.p) if (y * y - y_sq) % curve.p == 0]\n        if not roots:\n            continue\n        px, py = curve.decompress_point(x, parity)\n        assert py % 2 == parity\n        assert curve.is_on_curve(px, py)\n        checked += 1\n\nprint(f\"ecc decompression tests passed ({checked} cases)\")\nPY\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 1.5,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 1.5,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

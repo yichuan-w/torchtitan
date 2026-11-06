@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The image irreversibly replaces the first byte of each deleted FAT 8.3 directory name, while the instruction required the exact original base filename and grading accepted only one hidden reconstruction.",
+    "evidence": "instruction.md requires original base filenames; environment/files/gen_disk.py marks deletion by replacing entry byte 0 with 0xE5; tests/test_outputs.py requires exact canonical names. attempt-02.jsonl turn 21 and attempt-06.jsonl turn 28 recovered exact payloads under reasonable alternate names and were rejected.",
+    "change": "Allow reasonable reconstructed base filenames where deletion erased characters, and identify required deleted files by their exact payloads while still rejecting missing, live, duplicate, or extra files.",
+    "kind": "hidden_requirement"
+  }
+]

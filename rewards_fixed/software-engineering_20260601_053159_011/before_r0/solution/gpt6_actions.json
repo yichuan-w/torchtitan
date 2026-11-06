@@ -1,0 +1,170 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "ls -la\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "cat Makefile\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.2,
+    "keystrokes": "cat gen_config.sh kvdb.h\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.2,
+    "keystrokes": "cat kvdb.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.2,
+    "keystrokes": "cat main.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.5,
+    "keystrokes": "sed -i 's/    free(db->entries);/    free(db->entries);\\n    free(db);/' kvdb.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.5,
+    "keystrokes": "sed -i 's/%64s/%63s/g; s/%256s/%255s/g' main.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.5,
+    "keystrokes": "sed -i '/if (kvdb_del(db, kbuf) != 0) {/a\\                    printf(\"NOTFOUND\\\\n\");' main.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.5,
+    "keystrokes": "sed -i '/if (kvdb_del(db, key) != 0) {/a\\                    printf(\"NOTFOUND\\\\n\");' main.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.5,
+    "keystrokes": "cat > Makefile << 'EOF'\nCC = gcc\nCFLAGS = -O2 -Wall\nLDFLAGS =\n\nTARGET = kvdb\nOBJS = main.o kvdb.o\n\nall: $(TARGET)\n\nkvdb_config.h: gen_config.sh\n\tchmod +x gen_config.sh\n\t./gen_config.sh\n\n$(TARGET): $(OBJS)\n\t$(CC) $(LDFLAGS) -o $@ $^\n\nmain.o: main.c kvdb.h kvdb_config.h\n\t$(CC) $(CFLAGS) -c -o $@ $<\n\nkvdb.o: kvdb.c kvdb.h kvdb_config.h\n\t$(CC) $(CFLAGS) -c -o $@ $<\n\nclean:\n\trm -f $(TARGET) $(OBJS) kvdb_config.h\n\n.PHONY: all clean\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.5,
+    "keystrokes": "make clean; make -j$(nproc)\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.5,
+    "keystrokes": "grep -n -A2 'kvdb_del(db' main.c | head -30; grep -n 'free(db)' kvdb.c\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 2.5,
+    "keystrokes": "sed -n '55,65p;115,125p' main.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 2.5,
+    "keystrokes": "printf 'CC = gcc\\nCFLAGS = -O2 -Wall\\nLDFLAGS =\\n\\nTARGET = kvdb\\nOBJS = main.o kvdb.o\\n\\nall: $(TARGET)\\n\\nkvdb_config.h: gen_config.sh\\n\\tchmod +x gen_config.sh\\n\\t./gen_config.sh\\n\\n$(TARGET): $(OBJS)\\n\\t$(CC) $(LDFLAGS) -o $@ $^\\n\\nmain.o: main.c kvdb.h kvdb_config.h\\n\\t$(CC) $(CFLAGS) -c -o $@ $<\\n\\nkvdb.o: kvdb.c kvdb.h kvdb_config.h\\n\\t$(CC) $(CFLAGS) -c -o $@ $<\\n\\nclean:\\n\\trm -f $(TARGET) $(OBJS) kvdb_config.h\\n\\n.PHONY: all clean\\n' > Makefile\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 2.5,
+    "keystrokes": "cat -A Makefile | head -20\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 2.8,
+    "keystrokes": "make clean && make -j$(nproc) && make clean && make\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 2.8,
+    "keystrokes": "printf 'PUT a 1\\nPUT b 2\\nGET a\\nGET missing\\nDEL a\\nGET a\\nDEL a\\nCOUNT\\nPUT c 3\\nDUMP\\nCOUNT\\nEXIT\\n' | ./kvdb --batch\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 2.8,
+    "keystrokes": "touch clean && make clean && ls\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 4.8,
+    "keystrokes": "make\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 4.8,
+    "keystrokes": "printf 'PUT a 1\\nPUT b 2\\nGET a\\nDEL a\\nDEL nope\\nCOUNT\\nDUMP\\nEXIT\\n' | valgrind --leak-check=full --error-exitcode=42 ./kvdb --batch 2>&1 | tail -15\n",
+    "duration": 5.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 10.8,
+    "keystrokes": "printf 'PUT aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv\\nCOUNT\\nEXIT\\n' | ./kvdb --batch\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 10.8,
+    "keystrokes": "printf 'PUT x 1\\nDEL x\\nDEL x\\nGET x\\nEXIT\\n' | ./kvdb\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 11.8,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 11.8,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

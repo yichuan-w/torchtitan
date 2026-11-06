@@ -1,0 +1,268 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "ls -la\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "mkdir -p /app/calc\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.2,
+    "keystrokes": "cat > /tmp/complete.c.b64 <<'EOF'\nI2luY2x1ZGUgPGN0eXBlLmg+CiNpbmNsdWRlIDxlcnJuby5oPgojaW5jbHVkZSA8c3RkaW8uaD4KI2luY2x1ZGUgPHN0ZGxpYi5oPgojaW5jbHVkZSA8c3RyaW5nLmg+Cgp0eXBlZGVmIGxvbmcgbG9uZyBJbnRlZ2VyOwoKdHlwZWRlZiBlbnVtIHsgRVhQUl9OVU0sIEVYUFJfVkFSLCBFWFBSX0xJU1QgfSBFeHByVHlwZTsKCnR5cGVkZWYgc3RydWN0IEV4cHIgRXhwcjsKc3RydWN0IEV4cHIgewogICAgRXhwclR5cGUgdHlwZTsKICAgIEludGVnZXIgbnVtOwogICAgY2hhciAqbmFtZTsKICAgIEV4cHIgKippdGVtczsKICAgIGludCBjb3VudDsKfTsKCnR5cGVkZWYgZW51bSB7IFZBTF9JTlQsIFZBTF9GVU5DIH0gVmFsdWVUeXBlOwoKdHlwZWRlZiBzdHJ1Y3QgRnVuY3Rpb24gRnVuY3Rpb247CnR5cGVkZWYgc3RydWN0IHsKICAgIFZhbHVlVHlwZSB0eXBlOwogICAgSW50ZWdlciBudW07CiAgICBGdW5jdGlvbiAqZnVuYzsKfSBWYWx1ZTsKCnR5cGVkZWYgc3RydWN0IEJpbmRpbmcgQmluZGluZzsKdHlwZWRlZiBzdHJ1Y3QgRW52IEVudjsKCnN0cnVjdCBCaW5kaW5nIHsKICAgIGNoYXIgKm5hbWU7CiAgICBWYWx1ZSB2YWx1ZTsKICAgIEJpbmRpbmcgKm5leHQ7Cn07CgpzdHJ1Y3QgRW52IHsKICAgIEJpbmRpbmcgKmhlYWQ7CiAgICBFbnYgKnBhcmVudDsKfTsKCnN0cnVjdCBGdW5jdGlvbiB7CiAgICBjaGFyICoqcGFyYW1zOwogICAgaW50IHBhcmFtX2NvdW50OwogICAgRXhwciAqKmJvZHk7CiAgICBpbnQgYm9keV9jb3VudDsKICAgIEVudiAqZW52Owp9OwoKc3RhdGljIHZvaWQgZmFpbCh2b2lkKSB7CiAgICBmcHJpbnRmKHN0ZGVyciwgIkVycm9yXG4iKTsKICAgIGV4aXQoMSk7Cn0KCnN0YXRpYyB2b2lkICp4bWFsbG9jKHNpemVfdCBuKSB7CiAgICB2b2lkICpwID0gbWFsbG9jKG4pOwogICAgaWYgKCFwKSB7CiAgICAgICAgZmFpbCgpOwogICAgfQogICAgcmV0dXJuIHA7Cn0KCnN0YXRpYyB2b2lkICp4cmVhbGxvYyh2b2lkICpwLCBzaXplX3QgbikgewogICAgdm9pZCAqcSA9IHJlYWxsb2MocCwgbik7CiAgICBpZiAoIXEpIHsKICAgICAgICBmYWlsKCk7CiAgICB9CiAgICByZXR1cm4gcTsKfQoKc3RhdGljIGNoYXIgKnhzdHJuZHVwKGNvbnN0IGNoYXIgKnMsIHNpemVfdCBuKSB7CiAgICBjaGFyICpwID0geG1hbGxvYyhuICsgMSk7CiAgICBtZW1jcHkocCwgcywgbik7CiAgICBwW25dID0gJ1wwJzsKICAgIHJldHVybiBwOwp9CgpzdGF0aWMgY2hhciAqeHN0cmR1cChjb25zdCBjaGFyICpzKSB7CiAgICByZXR1cm4geHN0cm5kdXAocywgc3RybGVuKHMpKTsKfQoKc3RhdGljIFZhbHVlIG1ha2VfaW50KEludGVnZXIgbikgewogICAgVmFsdWUgdjsKICAgIHYudHlwZSA9IFZBTF9JTlQ7CiAgICB2Lm51bSA9IG47CiAgICB2LmZ1bmMgPSBOVUxMOwogICAgcmV0dXJuIHY7Cn0KCnN0YXRpYyBWYWx1ZSBtYWtlX2Z1bmMoRnVuY3Rpb24gKmYpIHsKICAgIFZhbHVlIHY7CiAgICB2LnR5cGUgPSBWQUxfRlVOQzsKICAgIHYubnVtID0gMDsKICAgIHYuZnVuYyA9IGY7CiAgICByZXR1cm4gdjsKfQoKc3RhdGljIGNoYXIgKnJlYWRfbGluZShGSUxFICpmKSB7CiAgICBzaXplX3QgY2FwID0gMTI4OwogICAgc2l6ZV90IGxlbiA9IDA7CiAgICBjaGFyICpidWYgPSB4bWFsbG9jKGNhcCk7CiAgICBpbnQgYzsKCiAgICB3aGlsZSAoKGMgPSBmZ2V0YyhmKSkgIT0gRU9GICYmIGMgIT0gJ1xuJykgewogICAgICAgIGlmIChsZW4gKyAxID49IGNhcCkgewogICAgICAgICAgICBjYXAgKj0gMjsKICAgICAgICAgICAgYnVmID0geHJlYWxsb2MoYnVmLCBjYXApOwogICAgICAgIH0KICAgICAgICBidWZbbGVuKytdID0gKGNoYXIpYzsKICAgIH0KCiAgICBpZiAoYyA9PSBFT0YgJiYgbGVuID09IDApIHsKICAgICAgICBmcmVlKGJ1Zik7CiAgICAgICAgcmV0dXJuIE5VTEw7CiAgICB9CgogICAgaWYgKGxlbiA+IDAgJiYgYnVmW2xlbiAtIDFdID09ICdccicpIHsKICAgICAgICBsZW4tLTsKICAgIH0KICAgIGJ1ZltsZW5dID0gJ1wwJzsKICAgIHJldHVybiBidWY7Cn0KCnR5cGVkZWYgc3RydWN0IHsKICAgIGNvbnN0IGNoYXIgKnM7CiAgICBzaXplX3QgcG9zOwp9IFBhcnNlcjsKCnN0YXRpYyBpbnQgaXNfZGVsaW0oaW50IGMpIHsKICAgIHJldHVybiBjID09ICdcMCcgfHwgaXNzcGFjZSgodW5zaWduZWQgY2hhciljKSB8fCBjID09ICcoJyB8fCBjID09ICcpJzsKfQoKc3RhdGljIHZvaWQgc2tpcF93cyhQYXJzZXIgKnApIHsKICAgIHdoaWxlIChpc3NwYWNlKCh1bnNpZ25lZCBjaGFyKXAtPnNbcC0+cG9zXSkpIHsKICAgICAgICBwLT5wb3MrKzsKICAgIH0KfQoKc3RhdGljIEV4cHIgKm5ld19saXN0KHZvaWQpIHsKICAgIEV4cHIgKmUgPSB4bWFsbG9jKHNpemVvZihFeHByKSk7CiAgICBlLT50eXBlID0gRVhQUl9MSVNUOwogICAgZS0+bnVtID0gMDsKICAgIGUtPm5hbWUgPSBOVUxMOwogICAgZS0+aXRlbXMgPSBOVUxMOwogICAgZS0+Y291bnQgPSAwOwogICAgcmV0dXJuIGU7Cn0KCnN0YXRpYyB2b2lkIGxpc3RfYXBwZW5kKEV4cHIgKmxpc3QsIEV4cHIgKml0ZW0pIHsKICAgIHNpemVfdCBuID0gKHNpemVfdClsaXN0LT5jb3VudCArIDE7CiAgICBsaXN0LT5pdGVtcyA9IHhyZWFsbG9jKGxpc3QtPml0ZW1zLCBzaXplb2YoRXhwciAqKSAqIG4pOwogICAgbGlzdC0+aXRlbXNbbGlzdC0+Y291bnRdID0gaXRlbTsKICAgIGxpc3QtPmNvdW50Kys7Cn0KCnN0YXRpYyBFeHByICpwYXJzZV9leHByKFBhcnNlciAqcCk7CgpzdGF0aWMgRXhwciAqcGFyc2VfbGlzdChQYXJzZXIgKnApIHsKICAgIEV4cHIgKmxpc3QgPSBuZXdfbGlzdCgpOwoKICAgIHAtPnBvcysrOwogICAgZm9yICg7OykgewogICAgICAgIHNraXBfd3MocCk7CiAgICAgICAgaWYgKHAtPnNbcC0+cG9zXSA9PSAnKScpIHsKICAgICAgICAgICAgcC0+cG9zKys7CiAgICAgICAgICAgIHJldHVybiBsaXN0OwogICAgICAgIH0KICAgICAgICBpZiAocC0+c1twLT5wb3NdID09ICdcMCcpIHsKICAgICAgICAgICAgZmFpbCgpOwogICAgICAgIH0KICAgICAgICBsaXN0X2FwcGVuZChsaXN0LCBwYXJzZV9leHByKHApKTsKICAgIH0KfQoKc3RhdGljIEV4cHIgKnBhcnNlX2F0b20oUGFyc2VyICpwKSB7CiAgICBjb25zdCBjaGFyICpzID0gcC0+czsKICAgIHNpemVfdCBzdGFydCA9IHAtPnBvczsKICAgIHVuc2lnbmVkIGNoYXIgYyA9ICh1bnNpZ25lZCBjaGFyKXNbc3RhcnRdOwoKICAgIGlmIChpc2RpZ2l0KGMpIHx8IChjID09ICctJyAmJiBpc2RpZ2l0KCh1bnNpZ25lZCBjaGFyKXNbc3RhcnQgKyAxXSkpKSB7CiAgICAgICAgY2hhciAqZW5kOwogICAgICAgIGxvbmcgbG9uZyBuOwoKICAgICAgICBlcnJubyA9IDA7CiAgICAgICAgbiA9IHN0cnRvbGwocyArIHN0YXJ0LCAmZW5kLCAxMCk7CiAgICAgICAgaWYgKGVycm5vID09IEVSQU5HRSB8fCAhaXNfZGVsaW0oKHVuc2lnbmVkIGNoYXIpKmVuZCkpIHsKICAgICAgICAgICAgZmFpbCgpOwogICAgICAgIH0KCiAgICAgICAgcC0+cG9zID0gKHNpemVfdCkoZW5kIC0gcyk7CgogICAgICAgIEV4cHIgKmUgPSB4bWFsbG9jKHNpemVvZihFeHByKSk7CiAgICAgICAgZS0+dHlwZSA9IEVYUFJfTlVNOwogICAgICAgIGUtPm51bSA9IChJbnRlZ2VyKW47CiAgICAgICAgZS0+bmFtZSA9IE5VTEw7CiAgICAgICAgZS0+aXRlbXMgPSBOVUxMOwogICAgICAgIGUtPmNvdW50ID0gMDsKICAgICAgICByZXR1cm4gZTsKICAgIH0KCiAgICB3aGlsZSAoIWlzX2RlbGltKCh1bnNpZ25lZCBjaGFyKXNbcC0+cG9zXSkpIHsKICAgICAgICBwLT5wb3MrKzsKICAgIH0KICAgIGlmIChwLT5wb3MgPT0gc3RhcnQpIHsKICAgICAgICBmYWlsKCk7CiAgICB9CgogICAgRXhwciAqZSA9IHhtYWxsb2Moc2l6ZW9mKEV4cHIpKTsKICAgIGUtPnR5cGUgPSBFWFBSX1ZBUjsKICAgIGUtPm51bSA9IDA7CiAgICBlLT5uYW1lID0geHN0cm5kdXAocyArIHN0YXJ0LCBwLT5wb3MgLSBzdGFydCk7CiAgICBlLT5pdGVtcyA9IE5VTEw7CiAgICBlLT5jb3VudCA9IDA7CiAgICByZXR1cm4gZTsKfQoKc3RhdGljIEV4cHIgKnBhcnNlX2V4cHIoUGFyc2VyICpwKSB7CiAgICBza2lwX3dzKHApOwogICAgaWYgKHAtPnNbcC0+cG9zXSA9PSAnKCcpIHsKICAgICAgICByZXR1cm4gcGFyc2VfbGlzdChwKTsKICAgIH0KICAgIGlmIChwLT5zW3AtPnBvc10gPT0gJyknKSB7CiAgICAgICAgZmFpbCgpOwogICAgfQogICAgcmV0dXJuIHBhcnNlX2F0b20ocCk7Cn0KCnN0YXRpYyBFeHByICpwYXJzZV9saW5lKGNvbnN0IGNoYXIgKmxpbmUpIHsKICAgIFBhcnNlciBwOwogICAgRXhwciAqZTsKCiAgICBwLnMgPSBsaW5lOwogICAgcC5wb3MgPSAwOwoKICAgIHNraXBfd3MoJnApOwogICAgaWYgKHAuc1twLnBvc10gPT0gJ1wwJykgewogICAgICAgIGZhaWwoKTsKICAgIH0KCiAgICBlID0gcGFyc2VfZXhwcigmcCk7CiAgICBza2lwX3dzKCZwKTsKICAgIGlmIChwLnNbcC5wb3NdICE9ICdcMCcpIHsKICAgICAgICBmYWlsKCk7CiAgICB9CiAgICByZXR1cm4gZTsKfQoKc3RhdGljIEVudiAqZW52X25ldyhFbnYgKnBhcmVudCkgewogICAgRW52ICplbnYgPSB4bWFsbG9jKHNpemVvZihFbnYpKTsKICAgIGVudi0+aGVhZCA9IE5VTEw7CiAgICBlbnYtPnBhcmVudCA9IHBhcmVudDsKICAgIHJldHVybiBlbnY7Cn0KCnN0YXRpYyBCaW5kaW5nICplbnZfZmluZF9iaW5kaW5nKEVudiAqZW52LCBjb25zdCBjaGFyICpuYW1lKSB7CiAgICBFbnYgKmU7CiAgICBCaW5kaW5nICpiOwoKICAgIGZvciAoZSA9IGVudjsgZSAhPSBOVUxMOyBlID0gZS0+cGFyZW50KSB7CiAgICAgICAgZm9yIChiID0gZS0+aGVhZDsgYiAhPSBOVUxMOyBiID0gYi0+bmV4dCkgewogICAgICAgICAgICBpZiAoc3RyY21wKGItPm5hbWUsIG5hbWUpID09IDApIHsKICAgICAgICAgICAgICAgIHJldHVybiBiOwogICAgICAgICAgICB9CiAgICAgICAgfQogICAgfQogICAgcmV0dXJuIE5VTEw7Cn0KCnN0YXRpYyB2b2lkIGVudl9hZGRfYmluZGluZyhFbnYgKmVudiwgY29uc3QgY2hhciAqbmFtZSwgVmFsdWUgdmFsdWUpIHsKICAgIEJpbmRpbmcgKmIgPSB4bWFsbG9jKHNpemVvZihCaW5kaW5nKSk7CiAgICBiLT5uYW1lID0geHN0cmR1cChuYW1lKTsKICAgIGItPnZhbHVlID0gdmFsdWU7CiAgICBiLT5uZXh0ID0gZW52LT5oZWFkOwogICAgZW52LT5oZWFkID0gYjsKfQoKc3RhdGljIFZhbHVlIGVudl9sb29rdXAoRW52ICplbnYsIGNvbnN0IGNoYXIgKm5hbWUpIHsKICAgIEJpbmRpbmcgKmIgPSBlbnZfZmluZF9iaW5kaW5nKGVudiwgbmFtZSk7CiAgICBpZiAoIWIpIHsKICAgICAgICBmYWlsKCk7CiAgICB9CiAgICByZXR1cm4gYi0+dmFsdWU7Cn0KCnN0YXRpYyB2b2lkIGVudl9kZWZpbmUoRW52ICplbnYsIGNvbnN0IGNoYXIgKm5hbWUsIFZhbHVlIHZhbHVlKSB7CiAgICBCaW5kaW5nICpiID0gZW52X2ZpbmRfYmluZGluZyhlbnYsIG5hbWUpOwogICAgaWYgKGIpIHsKICAgICAgICBiLT52YWx1ZSA9IHZhbHVlOwogICAgfSBlbHNlIHsKICAgICAgICBlbnZfYWRkX2JpbmRpbmcoZW52LCBuYW1lLCB2YWx1ZSk7CiAgICB9Cn0KCnN0YXRpYyBWYWx1ZSBldmFsKEVudiAqZW52LCBFeHByICpleHByKTsKc3RhdGljIFZhbHVlIGV2YWxfYXBwbGljYXRpb24oRW52ICplbnYsIEV4cHIgKmV4cHIpOwpzdGF0aWMgSW50ZWdlciBldmFsX2ludGVnZXIoRW52ICplbnYsIEV4cHIgKmV4cHIpOwoKc3RhdGljIEludGVnZXIgZXZhbF9pbnRlZ2VyKEVudiAqZW52LCBFeHByICpleHByKSB7CiAgICBWYWx1ZSB2ID0gZXZhbChlbnYsIGV4cHIpOwogICAgaWYgKHYudHlwZSAhPSBWQUxfSU5UKSB7CiAgICAgICAgZmFpbCgpOwogICAgfQogICAgcmV0dXJuIHYubnVtOwp9CgpzdGF0aWMgaW50IGlzX3N5bWJvbChFeHByICpleHByLCBjb25zdCBjaGFyICpuYW1lKSB7CiAgICByZXR1cm4gZXhwci0+dHlwZSA9PSBFWFBSX1ZBUiAmJiBzdHJjbXAoZXhwci0+bmFtZSwgbmFtZSkgPT0gMDsKfQoKc3RhdGljIFZhbHVlIGV2YWxfYWRkKEV4cHIgKmxpc3QsIEVudiAqZW52KSB7CiAgICBJbnRlZ2VyIGFjYyA9IDA7CiAgICBpbnQgaTsKCiAgICBmb3IgKGkgPSAxOyBpIDwgbGlzdC0+Y291bnQ7IGkrKykgewogICAgICAgIGFjYyArPSBldmFsX2ludGVnZXIoZW52LCBsaXN0LT5pdGVtc1tpXSk7CiAgICB9CiAgICByZXR1cm4gbWFrZV9pbnQoYWNjKTsKfQoKc3RhdGljIFZhbHVlIGV2YWxfc3ViKEV4cHIgKmxpc3QsIEVudiAqZW52KSB7CiAgICBJbnRlZ2VyIGFjYzsKICAgIGludCBpOwoKICAgIGlmIChsaXN0LT5jb3VudCA8IDIpIHsKICAgICAgICBmYWlsKCk7CiAgICB9CgogICAgYWNjID0gZXZhbF9pbnRlZ2VyKGVudiwgbGlzdC0+aXRlbXNbMV0pOwogICAgaWYgKGxpc3QtPmNvdW50ID09IDIpIHsKICAgICAgICByZXR1cm4gbWFrZV9pbnQoLWFjYyk7CiAgICB9CgogICAgZm9yIChpID0gMjsgaSA8IGxpc3QtPmNvdW50OyBpKyspIHsKICAgICAgICBhY2MgLT0gZXZhbF9pbnRlZ2VyKGVudiwgbGlzdC0+aXRlbXNbaV0pOwogICAgfQogICAgcmV0dXJuIG1ha2VfaW50KGFjYyk7Cn0KCnN0YXRpYyBWYWx1ZSBldmFsX211bChFeHByICpsaXN0LCBFbnYgKmVudikgewogICAgSW50ZWdlciBhY2MgPSAxOwogICAgaW50IGk7CgogICAgZm9yIChpID0gMTsgaSA8IGxpc3QtPmNvdW50OyBpKyspIHsKICAgICAgICBhY2MgKj0gZXZhbF9pbnRlZ2VyKGVudiwgbGlzdC0+aXRlbXNbaV0pOwogICAgfQogICAgcmV0dXJuIG1ha2VfaW50KGFjYyk7Cn0KCnN0YXRpYyBWYWx1ZSBldmFsX2RpdihFeHByICpsaXN0LCBFbnYgKmVudikgewogICAgSW50ZWdlciBhY2M7CiAgICBpbnQgaTsKCiAgICBpZiAobGlzdC0+Y291bnQgPCAyKSB7CiAgICAgICAgZmFpbCgpOwogICAgfQoKICAgIGFjYyA9IGV2YWxfaW50ZWdlcihlbnYsIGxpc3QtPml0ZW1zWzFdKTsKICAgIGlmIChsaXN0LT5jb3VudCA9PSAyKSB7CiAgICAgICAgaWYgKGFjYyA9PSAwKSB7CiAgICAgICAgICAgIGZhaWwoKTsKICAgICAgICB9CiAgICAgICAgcmV0dXJuIG1ha2VfaW50KDEgLyBhY2MpOwogICAgfQoKICAgIGZvciAoaSA9IDI7IGkgPCBsaXN0LT5jb3VudDsgaSsrKSB7CiAgICAgICAgSW50ZWdlciBkID0gZXZhbF9pbnRlZ2VyKGVudiwgbGlzdC0+aXRlbXNbaV0pOwogICAgICAgIGlmIChkID09IDApIHsKICAgICAgICAgICAgZmFpbCgpOwogICAgICAgIH0KICAgICAgICBhY2MgLz0gZDsKICAgIH0KICAgIHJldHVybiBtYWtlX2ludChhY2MpOwp9CgpzdGF0aWMgVmFsdWUgZXZhbF9jbXAoRXhwciAqbGlzdCwgRW52ICplbnYsIGNvbnN0IGNoYXIgKm9wKSB7CiAgICBJbnRlZ2VyIGE7CiAgICBJbnRlZ2VyIGI7CiAgICBpbnQgcmVzdWx0ID0gMDsKCiAgICBpZiAobGlzdC0+Y291bnQgIT0gMykgewogICAgICAgIGZhaWwoKTsKICAgIH0KCiAgICBhID0gZXZhbF9pbnRlZ2VyKGVudiwgbGlzdC0+aXRlbXNbMV0pOwogICAgYiA9IGV2YWxfaW50ZWdlcihlbnYsIGxpc3QtPml0ZW1zWzJdKTsKCiAgICBpZiAoc3RyY21wKG9wLCAiPSIpID09IDApIHsKICAgICAgICByZXN1bHQgPSAoYSA9PSBiKTsKICAgIH0gZWxzZSBpZiAoc3RyY21wKG9wLCAiPCIpID09IDApIHsKICAgICAgICByZXN1bHQgPSAoYSA8IGIpOwogICAgfSBlbHNlIGlmIChzdHJjbXAob3AsICI+IikgPT0gMCkgewogICAgICAgIHJlc3VsdCA9IChhID4gYik7CiAgICB9IGVsc2UgewogICAgICAgIGZhaWwoKTsKICAgIH0KCiAgICByZXR1cm4gbWFrZV9pbnQocmVzdWx0ID8gMSA6IDApOwp9CgpzdGF0aWMgVmFsdWUgZXZhbF9pZihFeHByICpsaXN0LCBFbnYgKmVudikgewogICAgaWYgKGxpc3QtPmNvdW50ICE9IDQpIHsKICAgICAgICBmYWlsKCk7CiAgICB9CgogICAgaWYgKGV2YWxfaW50ZWdlcihlbnYsIGxpc3QtPml0ZW1zWzFdKSAhPSAwKSB7CiAgICAgICAgcmV0dXJuIGV2YWwoZW52LCBsaXN0LT5pdGVtc1syXSk7CiAgICB9CiAgICByZXR1cm4gZXZhbChlbnYsIGxpc3QtPml0ZW1zWzNdKTsKfQoKc3RhdGljIFZhbHVlIGV2YWxfY29uZChFeHByICpsaXN0LCBFbnYgKmVudikgewogICAgaW50IGk7CgogICAgZm9yIChpID0gMTsgaSA8IGxpc3QtPmNvdW50OyBpKyspIHsKICAgICAgICBFeHByICpjbGF1c2UgPSBsaXN0LT5pdGVtc1tpXTsKICAgICAgICBFeHByICp0ZXN0OwoKICAgICAgICBpZiAoY2xhdXNlLT50eXBlICE9IEVYUFJfTElTVCB8fCBjbGF1c2UtPmNvdW50ICE9IDIpIHsKICAgICAgICAgICAgZmFpbCgpOwogICAgICAgIH0KCiAgICAgICAgdGVzdCA9IGNsYXVzZS0+aXRlbXNbMF07CiAgICAgICAgaWYgKGlzX3N5bWJvbCh0ZXN0LCAiZWxzZSIpKSB7CiAgICAgICAgICAgIHJldHVybiBldmFsKGVudiwgY2xhdXNlLT5pdGVtc1sxXSk7CiAgICAgICAgfQogICAgICAgIGlmIChldmFsX2ludGVnZXIoZW52LCB0ZXN0KSAhPSAwKSB7CiAgICAgICAgICAgIHJldHVybiBldmFsKGVudiwgY2xhdXNlLT5pdGVtc1sxXSk7CiAgICAgICAgfQogICAgfQoKICAgIGZhaWwoKTsKICAgIHJldHVybiBtYWtlX2ludCgwKTsKfQoKc3RhdGljIFZhbHVlIGV2YWxfYmVnaW4oRXhwciAqbGlzdCwgRW52ICplbnYpIHsKICAgIFZhbHVlIHJlc3VsdDsKICAgIGludCBpOwoKICAgIGlmIChsaXN0LT5jb3VudCA8IDIpIHsKICAgICAgICBmYWlsKCk7CiAgICB9CgogICAgcmVzdWx0ID0gbWFrZV9pbnQoMCk7CiAgICBmb3IgKGkgPSAxOyBpIDwgbGlzdC0+Y291bnQ7IGkrKykgewogICAgICAgIHJlc3VsdCA9IGV2YWwoZW52LCBsaXN0LT5pdGVtc1tpXSk7CiAgICB9CiAgICByZXR1cm4gcmVzdWx0Owp9CgpzdGF0aWMgRnVuY3Rpb24gKm1ha2VfZnVuY3Rpb24oRW52ICplbnYsIEV4cHIgKnBhcmFtcywgaW50IHN0YXJ0LAogICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgRXhwciAqKmJvZHksIGludCBib2R5X2NvdW50KSB7CiAgICBGdW5jdGlvbiAqZjsKICAgIGludCBwY291bnQ7CiAgICBpbnQgaTsKCiAgICBpZiAocGFyYW1zLT50eXBlICE9IEVYUFJfTElTVCB8fCBib2R5X2NvdW50IDwgMSkgewogICAgICAgIGZhaWwoKTsKICAgIH0KCiAgICBwY291bnQgPSBwYXJhbXMtPmNvdW50IC0gc3RhcnQ7CiAgICBpZiAocGNvdW50IDwgMCkgewogICAgICAgIGZhaWwoKTsKICAgIH0KCiAgICBmID0geG1hbGxvYyhzaXplb2YoRnVuY3Rpb24pKTsKICAgIGYtPnBhcmFtX2NvdW50ID0gcGNvdW50OwogICAgZi0+cGFyYW1zID0gcGNvdW50ID8geG1hbGxvYyhzaXplb2YoY2hhciAqKSAqIChzaXplX3QpcGNvdW50KSA6IE5VTEw7CiAgICBmb3IgKGkgPSAwOyBpIDwgcGNvdW50OyBpKyspIHsKICAgICAgICBFeHByICpwYXJhbSA9IHBhcmFtcy0+aXRlbXNbc3RhcnQgKyBpXTsKICAgICAgICBpZiAocGFyYW0tPnR5cGUgIT0gRVhQUl9WQVIpIHsKICAgICAgICAgICAgZmFpbCgpOwogICAgICAgIH0KICAgICAgICBmLT5wYXJhbXNbaV0gPSBwYXJhbS0+bmFtZTsKICAgIH0KCiAgICBmLT5ib2R5ID0gYm9keTsKICAgIGYtPmJvZHlfY291bnQgPSBib2R5X2NvdW50OwogICAgZi0+ZW52ID0gZW52OwogICAgcmV0dXJuIGY7Cn0KCnN0YXRpYyBWYWx1ZSBldmFsX2RlZmluZShFbnYgKmVudiwgRXhwciAqbGlzdCkgewogICAgRXhwciAqdGFyZ2V0OwoKICAgIGlmIChsaXN0LT5jb3VudCA8IDMpIHsKICAgICAgICBmYWlsKCk7CiAgICB9CgogICAgdGFyZ2V0ID0gbGlzdC0+aXRlbXNbMV07CgogICAgaWYgKHRhcmdldC0+dHlwZSA9PSBFWFBSX1ZBUikgewogICAgICAgIFZhbHVlIHZhbHVlOwoKICAgICAgICBpZiAobGlzdC0+Y291bnQgIT0gMykgewogICAgICAgICAgICBmYWlsKCk7CiAgICAgICAgfQogICAgICAgIHZhbHVlID0gZXZhbChlbnYsIGxpc3QtPml0ZW1zWzJdKTsKICAgICAgICBlbnZfZGVmaW5lKGVudiwgdGFyZ2V0LT5uYW1lLCB2YWx1ZSk7CiAgICAgICAgcmV0dXJuIHZhbHVlOwogICAgfQoKICAgIGlmICh0YXJnZXQtPnR5cGUgIT0gRVhQUl9MSVNUIHx8IHRhcmdldC0+Y291bnQgPCAxIHx8CiAgICAgICAgdGFyZ2V0LT5pdGVtc1swXS0+dHlwZSAhPSBFWFBSX1ZBUikgewogICAgICAgIGZhaWwoKTsKICAgIH0KCiAgICBGdW5jdGlvbiAqZiA9IG1ha2VfZnVuY3Rpb24oZW52LCB0YXJnZXQsIDEsIGxpc3QtPml0ZW1zICsgMiwKICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBsaXN0LT5jb3VudCAtIDIpOwogICAgVmFsdWUgdmFsdWUgPSBtYWtlX2Z1bmMoZik7CiAgICBlbnZfZGVmaW5lKGVudiwgdGFyZ2V0LT5pdGVtc1swXS0+bmFtZSwgdmFsdWUpOwogICAgcmV0dXJuIHZhbHVlOwp9CgpzdGF0aWMgVmFsdWUgZXZhbF9sYW1iZGEoRW52ICplbnYsIEV4cHIgKmxpc3QpIHsKICAgIEV4cHIgKnBhcmFtczsKCiAgICBpZiAobGlzdC0+Y291bnQgPCAzKSB7CiAgICAgICAgZmFpbCgpOwogICAgfQoKICAgIHBhcmFtcyA9IGxpc3QtPml0ZW1zWzFdOwogICAgaWYgKHBhcmFtcy0+dHlwZSAhPSBFWFBSX0xJU1QpIHsKICAgICAgICBmYWlsKCk7CiAgICB9CgogICAgRnVuY3Rpb24gKmYgPSBtYWtlX2Z1bmN0aW9uKGVudiwgcGFyYW1zLCAwLCBsaXN0LT5pdGVtcyArIDIsCiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgbGlzdC0+Y291bnQgLSAyKTsKICAgIHJldHVybiBtYWtlX2Z1bmMoZik7Cn0KCnN0YXRpYyBWYWx1ZSBldmFsX2xldChFbnYgKmVudiwgRXhwciAqbGlzdCkgewogICAgRXhwciAqYmluZGluZ3M7CiAgICBWYWx1ZSAqdmFsczsKICAgIEVudiAqbG9jYWw7CiAgICBWYWx1ZSByZXN1bHQ7CiAgICBpbnQgbjsKICAgIGludCBpOwoKICAgIGlmIChsaXN0LT5jb3VudCA8IDMpIHsKICAgICAgICBmYWlsKCk7CiAgICB9CgogICAgYmluZGluZ3MgPSBsaXN0LT5pdGVtc1sxXTsKICAgIGlmIChiaW5kaW5ncy0+dHlwZSAhPSBFWFBSX0xJU1QpIHsKICAgICAgICBmYWlsKCk7CiAgICB9CgogICAgbiA9IGJpbmRpbmdzLT5jb3VudDsKICAgIHZhbHMgPSBuID8geG1hbGxvYyhzaXplb2YoVmFsdWUpICogKHNpemVfdCluKSA6IE5VTEw7CgogICAgZm9yIChpID0gMDsgaSA8IG47IGkrKykgewogICAgICAgIEV4cHIgKmJpbmRpbmcgPSBiaW5kaW5ncy0+aXRlbXNbaV07CgogICAgICAgIGlmIChiaW5kaW5nLT50eXBlICE9IEVYUFJfTElTVCB8fCBiaW5kaW5nLT5jb3VudCAhPSAyIHx8CiAgICAgICAgICAgIGJpbmRpbmctPml0ZW1zWzBdLT50eXBlICE9IEVYUFJfVkFSKSB7CiAgICAgICAgICAgIGZhaWwoKTsKICAgICAgICB9CiAgICAgICAgdmFsc1tpXSA9IGV2YWwoZW52LCBiaW5kaW5nLT5pdGVtc1sxXSk7CiAgICB9CgogICAgbG9jYWwgPSBlbnZfbmV3KGVudik7CiAgICBmb3IgKGkgPSAwOyBpIDwgbjsgaSsrKSB7CiAgICAgICAgRXhwciAqYmluZGluZyA9IGJpbmRpbmdzLT5pdGVtc1tpXTsKICAgICAgICBlbnZfYWRkX2JpbmRpbmcobG9jYWwsIGJpbmRpbmctPml0ZW1zWzBdLT5uYW1lLCB2YWxzW2ldKTsKICAgIH0KCiAgICByZXN1bHQgPSBtYWtlX2ludCgwKTsKICAgIGZvciAoaSA9IDI7IGkgPCBsaXN0LT5jb3VudDsgaSsrKSB7CiAgICAgICAgcmVzdWx0ID0gZXZhbChsb2NhbCwgbGlzdC0+aXRlbXNbaV0pOwogICAgfQoKICAgIGZyZWUodmFscyk7CiAgICByZXR1cm4gcmVzdWx0Owp9CgpzdGF0aWMgVmFsdWUgZXZhbF9hcHBsaWNhdGlvbihFbnYgKmVudiwgRXhwciAqZXhwcikgewogICAgVmFsdWUgZnY7CiAgICBWYWx1ZSAqYXJnczsKICAgIFZhbHVlIHJlc3VsdDsKICAgIEVudiAqY2FsbF9lbnY7CiAgICBpbnQgYXJnYzsKICAgIGludCBpOwoKICAgIGlmIChleHByLT5jb3VudCA8IDEpIHsKICAgICAgICBmYWlsKCk7CiAgICB9CgogICAgZnYgPSBldmFsKGVudiwgZXhwci0+aXRlbXNbMF0pOwogICAgaWYgKGZ2LnR5cGUgIT0gVkFMX0ZVTkMpIHsKICAgICAgICBmYWlsKCk7CiAgICB9CgogICAgYXJnYyA9IGV4cHItPmNvdW50IC0gMTsKICAgIGlmIChhcmdjICE9IGZ2LmZ1bmMtPnBhcmFtX2NvdW50KSB7CiAgICAgICAgZmFpbCgpOwogICAgfQoKICAgIGFyZ3MgPSBhcmdjID8geG1hbGxvYyhzaXplb2YoVmFsdWUpICogKHNpemVfdClhcmdjKSA6IE5VTEw7CiAgICBmb3IgKGkgPSAwOyBpIDwgYXJnYzsgaSsrKSB7CiAgICAgICAgYXJnc1tpXSA9IGV2YWwoZW52LCBleHByLT5pdGVtc1tpICsgMV0pOwogICAgfQoKICAgIGNhbGxfZW52ID0gZW52X25ldyhmdi5mdW5jLT5lbnYpOwogICAgZm9yIChpID0gMDsgaSA8IGFyZ2M7IGkrKykgewogICAgICAgIGVudl9hZGRfYmluZGluZyhjYWxsX2VudiwgZnYuZnVuYy0+cGFyYW1zW2ldLCBhcmdzW2ldKTsKICAgIH0KCiAgICByZXN1bHQgPSBtYWtlX2ludCgwKTsKICAgIGZvciAoaSA9IDA7IGkgPCBmdi5mdW5jLT5ib2R5X2NvdW50OyBpKyspIHsKICAgICAgICByZXN1bHQgPSBldmFsKGNhbGxfZW52LCBmdi5mdW5jLT5ib2R5W2ldKTsKICAgIH0KCiAgICBmcmVlKGFyZ3MpOwogICAgcmV0dXJuIHJlc3VsdDsKfQoKc3RhdGljIFZhbHVlIGV2YWwoRW52ICplbnYsIEV4cHIgKmV4cHIpIHsKICAgIEV4cHIgKmhlYWQ7CiAgICBjb25zdCBjaGFyICpuYW1lOwoKICAgIGlmIChleHByLT50eXBlID09IEVYUFJfTlVNKSB7CiAgICAgICAgcmV0dXJuIG1ha2VfaW50KGV4cHItPm51bSk7CiAgICB9CiAgICBpZiAoZXhwci0+dHlwZSA9PSBFWFBSX1ZBUikgewogICAgICAgIHJldHVybiBlbnZfbG9va3VwKGVudiwgZXhwci0+bmFtZSk7CiAgICB9CgogICAgaWYgKGV4cHItPmNvdW50IDwgMSkgewogICAgICAgIGZhaWwoKTsKICAgIH0KCiAgICBoZWFkID0gZXhwci0+aXRlbXNbMF07CiAgICBpZiAoaGVhZC0+dHlwZSA9PSBFWFBSX1ZBUikgewogICAgICAgIG5hbWUgPSBoZWFkLT5uYW1lOwogICAgICAgIGlmIChzdHJjbXAobmFtZSwgIisiKSA9PSAwKSB7CiAgICAgICAgICAgIHJldHVybiBldmFsX2FkZChleHByLCBlbnYpOwogICAgICAgIH0KICAgICAgICBpZiAoc3RyY21wKG5hbWUsICItIikgPT0gMCkgewogICAgICAgICAgICByZXR1cm4gZXZhbF9zdWIoZXhwciwgZW52KTsKICAgICAgICB9CiAgICAgICAgaWYgKHN0cmNtcChuYW1lLCAiKiIpID09IDApIHsKICAgICAgICAgICAgcmV0dXJuIGV2YWxfbXVsKGV4cHIsIGVudik7CiAgICAgICAgfQogICAgICAgIGlmIChzdHJjbXAobmFtZSwgIi8iKSA9PSAwKSB7CiAgICAgICAgICAgIHJldHVybiBldmFsX2RpdihleHByLCBlbnYpOwogICAgICAgIH0KICAgICAgICBpZiAoc3RyY21wKG5hbWUsICI9IikgPT0gMCB8fCBzdHJjbXAobmFtZSwgIjwiKSA9PSAwIHx8CiAgICAgICAgICAgIHN0cmNtcChuYW1lLCAiPiIpID09IDApIHsKICAgICAgICAgICAgcmV0dXJuIGV2YWxfY21wKGV4cHIsIGVudiwgbmFtZSk7CiAgICAgICAgfQogICAgICAgIGlmIChzdHJjbXAobmFtZSwgImlmIikgPT0gMCkgewogICAgICAgICAgICByZXR1cm4gZXZhbF9pZihleHByLCBlbnYpOwogICAgICAgIH0KICAgICAgICBpZiAoc3RyY21wKG5hbWUsICJjb25kIikgPT0gMCkgewogICAgICAgICAgICByZXR1cm4gZXZhbF9jb25kKGV4cHIsIGVudik7CiAgICAgICAgfQogICAgICAgIGlmIChzdHJjbXAobmFtZSwgImRlZmluZSIpID09IDApIHsKICAgICAgICAgICAgcmV0dXJuIGV2YWxfZGVmaW5lKGVudiwgZXhwcik7CiAgICAgICAgfQogICAgICAgIGlmIChzdHJjbXAobmFtZSwgImxhbWJkYSIpID09IDApIHsKICAgICAgICAgICAgcmV0dXJuIGV2YWxfbGFtYmRhKGVudiwgZXhwcik7CiAgICAgICAgfQogICAgICAgIGlmIChzdHJjbXAobmFtZSwgImxldCIpID09IDApIHsKICAgICAgICAgICAgcmV0dXJuIGV2YWxfbGV0KGVudiwgZXhwcik7CiAgICAgICAgfQogICAgICAgIGlmIChzdHJjbXAobmFtZSwgImJlZ2luIikgPT0gMCkgewogICAgICAgICAgICByZXR1cm4gZXZhbF9iZWdpbihleHByLCBlbnYpOwogICAgICAgIH0KICAgIH0KCiAgICByZXR1cm4gZXZhbF9hcHBsaWNhdGlvbihlbnYsIGV4cHIpOwp9CgppbnQgbWFpbih2b2lkKSB7CiAgICBFbnYgKmdsb2JhbCA9IGVudl9uZXcoTlVMTCk7CiAgICBjaGFyICpsaW5lOwogICAgY2hhciAqYnVmID0gTlVMTDsKICAgIHNpemVfdCBjYXAgPSAwOwogICAgc2l6ZV90IGxlbiA9IDA7CiAgICBpbnQgZGVwdGggPSAwOwoKICAgIHdoaWxlICgobGluZSA9IHJlYWRfbGluZShzdGRpbikpICE9IE5VTEwpIHsKICAgICAgICBzaXplX3QgbGluZV9sZW4gPSBzdHJsZW4obGluZSk7CiAgICAgICAgc2l6ZV90IG5lZWQgPSBsZW4gKyBsaW5lX2xlbiArIDI7CiAgICAgICAgc2l6ZV90IGk7CgogICAgICAgIGlmIChuZWVkID4gY2FwKSB7CiAgICAgICAgICAgIHdoaWxlIChjYXAgPCBuZWVkKSB7CiAgICAgICAgICAgICAgICBjYXAgPSBjYXAgPyBjYXAgKiAyIDogMTI4OwogICAgICAgICAgICB9CiAgICAgICAgICAgIGJ1ZiA9IHhyZWFsbG9jKGJ1ZiwgY2FwKTsKICAgICAgICB9CiAgICAgICAgaWYgKGxlbiA+IDApIHsKICAgICAgICAgICAgYnVmW2xlbisrXSA9ICcgJzsKICAgICAgICB9CiAgICAgICAgbWVtY3B5KGJ1ZiArIGxlbiwgbGluZSwgbGluZV9sZW4pOwogICAgICAgIGxlbiArPSBsaW5lX2xlbjsKICAgICAgICBidWZbbGVuXSA9ICdcMCc7CgogICAgICAgIGZvciAoaSA9IDA7IGkgPCBsaW5lX2xlbjsgaSsrKSB7CiAgICAgICAgICAgIGlmIChsaW5lW2ldID09ICcoJykgewogICAgICAgICAgICAgICAgZGVwdGgrKzsKICAgICAgICAgICAgfSBlbHNlIGlmIChsaW5lW2ldID09ICcpJykgewogICAgICAgICAgICAgICAgZGVwdGgtLTsKICAgICAgICAgICAgICAgIGlmIChkZXB0aCA8IDApIHsKICAgICAgICAgICAgICAgICAgICBmYWlsKCk7CiAgICAgICAgICAgICAgICB9CiAgICAgICAgICAgIH0KICAgICAgICB9CiAgICAgICAgZnJlZShsaW5lKTsKCiAgICAgICAgaWYgKGRlcHRoID09IDAgJiYgbGVuID4gMCkgewogICAgICAgICAgICBFeHByICpleHByID0gcGFyc2VfbGluZShidWYpOwogICAgICAgICAgICBWYWx1ZSB2YWx1ZSA9IGV2YWwoZ2xvYmFsLCBleHByKTsKICAgICAgICAgICAgcHJpbnRmKHZhbHVlLnR5cGUgPT0gVkFMX0ZVTkMgPyAiMFxuIiA6ICIlbGxkXG4iLCB2YWx1ZS5udW0pOwogICAgICAgICAgICBsZW4gPSAwOwogICAgICAgICAgICBidWZbMF0gPSAnXDAnOwogICAgICAgIH0KICAgIH0KCiAgICBpZiAoZGVwdGggIT0gMCB8fCBsZW4gIT0gMCkgewogICAgICAgIGZhaWwoKTsKICAgIH0KICAgIGZyZWUoYnVmKTsKICAgIHJldHVybiAwOwp9Cg==\nEOF\nbase64 -d /tmp/complete.c.b64 > /app/calc/calc.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.2,
+    "keystrokes": "cat /app/calc/Makefile\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 0.4,
+    "keystrokes": "sed -n '1,20p' /app/calc/Makefile\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 0.4,
+    "keystrokes": "sed -n '1,20p' /app/calc/calc.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 0.4,
+    "keystrokes": "cd /app/calc && make\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 1.6,
+    "keystrokes": "cd /app/calc && make clean && make\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 1.6,
+    "keystrokes": "cat -A /app/calc/Makefile\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 1.6,
+    "keystrokes": "cd /app/calc && make\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 2.8,
+    "keystrokes": "cd /app/calc && ./calc <<'EOF'\n(define (fact n) (if (= n 0) 1 (* n (fact (- n 1)))))\n(fact 5)\n(define (make-counter start)\n  (lambda ()\n    (define result start)\n    (define start (+ start 1))\n    result))\n(define c (make-counter 10))\n(c)\n(c)\n(cond ((< 3 1) 100) ((= 5 5) 200) (else 300))\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 2.8,
+    "keystrokes": "cd /app/calc && ./calc <<'EOF'\n(+)\n(*)\n(+ 1 2 3)\n(* 2 3 4)\n(- 5)\n(- 10 3 2)\n(/ 20 2)\n(/ 20 2 5)\n(let ((x 2) (y 3)) (+ x y) (* x y))\n(begin 1 2 3)\n((lambda (x y) (+ x y)) 4 5)\n(if 0 10 20)\n(if 5 10 20)\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 2.8,
+    "keystrokes": "cd /app/calc && ./calc <<'EOF' 2>/tmp/calc_err1; echo \"exit=$?\"; cat /tmp/calc_err1\n(/ 1 0)\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 2.8,
+    "keystrokes": "cd /app/calc && ./calc <<'EOF' 2>/tmp/calc_err2; echo \"exit=$?\"; cat /tmp/calc_err2\n(foo 1 2)\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 2.8,
+    "keystrokes": "cd /app/calc && ./calc <<'EOF' 2>/tmp/calc_err3; echo \"exit=$?\"; cat /tmp/calc_err3\n(+ 1 2\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 3.3,
+    "keystrokes": "cd /app/calc && ./calc <<'EOF'\n(define (f x) x)\n(f 5)\n(define (g x) (lambda () x))\n(define h (g 10))\n(h)\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 3.3,
+    "keystrokes": "cd /app/calc && ./calc <<'EOF'\n(define (f x) (define y x) y)\n(f 7)\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 3.3,
+    "keystrokes": "cd /app/calc && ./calc <<'EOF'\n(define (f x) (lambda () (define y x) y))\n(define h (f 10))\n(h)\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 3.3,
+    "keystrokes": "cd /app/calc && ./calc <<'EOF'\n(define (make-counter start)\n  (lambda ()\n    (define result start)\n    (define start (+ start 1))\n    result))\n(define c (make-counter 10))\n(c)\n(c)\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 3.7,
+    "keystrokes": "cd /app/calc && ./calc <<'EOF'\n(define (make-counter start) (lambda () (define result start) (define start (+ start 1)) result))\n(define c (make-counter 10))\n(c)\n(c)\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 3.8,
+    "keystrokes": "grep -n \"static char \\*read_line\\|static Expr \\*parse_line\\|int main\" /app/calc/calc.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 3.8,
+    "keystrokes": "sed -n '90,190p' /app/calc/calc.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 3.8,
+    "keystrokes": "tail -n 30 /app/calc/calc.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 4.1,
+    "keystrokes": "grep -n \"read_line\\|parse_line\\|int main\" /app/calc/calc.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 4.1,
+    "keystrokes": "nl -ba /app/calc/calc.c | sed -n '70,190p'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 4.1,
+    "keystrokes": "nl -ba /app/calc/calc.c | tail -n 40\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 4.4,
+    "keystrokes": "python3 - <<'PY'\nfrom pathlib import Path\n\npath = Path('/app/calc/calc.c')\ns = path.read_text()\n\nold = '''int main(void) {\n    Env *global = env_new(NULL);\n    char *line;\n\n    while ((line = read_line(stdin)) != NULL) {\n        Expr *expr = parse_line(line);\n        Value value = eval(global, expr);\n\n        if (value.type == VAL_FUNC) {\n            printf(\"0\\\\n\");\n        } else {\n            printf(\"%lld\\\\n\", value.num);\n        }\n\n        free(line);\n    }\n\n    return 0;\n}\n'''\n\nnew = '''int main(void) {\n    Env *global = env_new(NULL);\n    char *line;\n    char *buf = NULL;\n    size_t cap = 0;\n    size_t len = 0;\n    int depth = 0;\n\n    while ((line = read_line(stdin)) != NULL) {\n        size_t line_len = strlen(line);\n        size_t need = len + line_len + 2;\n        size_t i;\n\n        if (need > cap) {\n            while (cap < need) {\n                cap = cap ? cap * 2 : 128;\n            }\n            buf = xrealloc(buf, cap);\n        }\n\n        if (len > 0) {\n            buf[len++] = ' ';\n        }\n        memcpy(buf + len, line, line_len);\n        len += line_len;\n        buf[len] = '\\\\0';\n\n        for (i = 0; i < line_len; i++) {\n            if (line[i] == '(') {\n                depth++;\n            } else if (line[i] == ')') {\n                depth--;\n                if (depth < 0) {\n                    fail();\n                }\n            }\n        }\n\n        free(line);\n\n        if (depth == 0) {\n            Value value;\n            Expr *expr;\n\n            if (len == 0) {\n                continue;\n            }\n\n            expr = parse_line(buf);\n            value = eval(global, expr);\n\n            if (value.type == VAL_FUNC) {\n                printf(\"0\\\\n\");\n            } else {\n                printf(\"%lld\\\\n\", value.num);\n            }\n\n            len = 0;\n            buf[0] = '\\\\0';\n        }\n    }\n\n    if (depth != 0 || len != 0) {\n        fail();\n    }\n\n    free(buf);\n    return 0;\n}\n'''\n\nif old not in s:\n    raise SystemExit('old main not found')\npath.write_text(s.replace(old, new, 1))\nPY\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 4.4,
+    "keystrokes": "cd /app/calc && make clean && make\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 4.4,
+    "keystrokes": "cd /app/calc && ./calc <<'EOF'\n(define (fact n) (if (= n 0) 1 (* n (fact (- n 1)))))\n(fact 5)\n(define (make-counter start)\n  (lambda ()\n    (define result start)\n    (define start (+ start 1))\n    result))\n(define c (make-counter 10))\n(c)\n(c)\n(cond ((< 3 1) 100) ((= 5 5) 200) (else 300))\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 13,
+    "offset_sec": 5.6,
+    "keystrokes": "cd /app/calc && ./calc <<'EOF'\n(if 1 5 (/ 1 0))\n(if 0 (/ 1 0) 5)\n(cond (1 7) (else (/ 1 0)))\n(cond (0 (/ 1 0)) (else 9))\n(define x 0)\n(define (pair a b) (+ a b))\n(pair (define x 1) (define x (+ x 10)))\nx\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 13,
+    "offset_sec": 5.6,
+    "keystrokes": "cd /app/calc && ./calc <<'EOF'\n(define x 1)\n(define (f y) (+ x y))\n(define (g x) (f 10))\n(g 100)\n(define (make-adder x) (lambda (y) (+ x y)))\n(define add5 (make-adder 5))\n(add5 3)\n(define (h x) (lambda (y) (lambda (z) (+ x y z))))\n(((h 1) 2) 3)\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 13,
+    "offset_sec": 5.6,
+    "keystrokes": "cd /app/calc && ./calc <<'EOF'\n(- 5)\n(/ 4)\n(/ 5)\n(*)\n(+)\n(define id (lambda (x) x))\nid\n(id 42)\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 13,
+    "offset_sec": 5.6,
+    "keystrokes": "cd /app/calc && ./calc <<'EOF' 2>/tmp/e1; echo \"exit=$?\"; cat /tmp/e1\n(cond (0 1))\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 13,
+    "offset_sec": 5.6,
+    "keystrokes": "cd /app/calc && ./calc <<'EOF' 2>/tmp/e2; echo \"exit=$?\"; cat /tmp/e2\n(= 1 1 1)\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 13,
+    "offset_sec": 5.6,
+    "keystrokes": "cd /app/calc && ./calc <<'EOF' 2>/tmp/e3; echo \"exit=$?\"; cat /tmp/e3\n(lambda (x) x) 99\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 13,
+    "offset_sec": 5.6,
+    "keystrokes": "cd /app/calc && ./calc <<'EOF' 2>/tmp/e4; echo \"exit=$?\"; cat /tmp/e4\n((lambda (x) x))\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 6.3,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 15,
+    "offset_sec": 6.3,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

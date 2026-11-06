@@ -1,0 +1,219 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "pwd\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "ls -la\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "sed -n '1,240p' ringbuffer.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "sed -n '1,200p' setup.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.4,
+    "keystrokes": "sed -n '241,400p' ringbuffer.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.4,
+    "keystrokes": "python3 setup.py build_ext --inplace\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 0.6,
+    "keystrokes": "python3 - <<'PY'\nfrom pathlib import Path\n\np = Path('ringbuffer.c')\ns = p.read_text()\n\nold = '    self->buffer = (PyObject**)calloc(capacity, sizeof(PyObject*));'\nnew = '''    if (self->buffer != NULL) {\n        for (int i = 0; i != self->capacity; i++) {\n            Py_XDECREF(self->buffer[i]);\n        }\n        free(self->buffer);\n        self->buffer = NULL;\n        self->capacity = 0;\n        self->head = 0;\n        self->tail = 0;\n        self->count = 0;\n    }\n    self->buffer = (PyObject**)calloc(capacity, sizeof(PyObject*));'''\nassert s.count(old) == 1\ns = s.replace(old, new)\n\nold = '''    if (self->count == self->capacity) {\n        /* Buffer full: evict the oldest item to make room */\n        self->buffer[self->tail] = item;\n        self->tail = (self->tail + 1) % self->capacity;'''\nnew = '''    if (self->count == self->capacity) {\n        /* Buffer full: evict the oldest item to make room */\n        PyObject* old_item = self->buffer[self->tail];\n        self->buffer[self->tail] = item;\n        Py_XDECREF(old_item);\n        self->tail = (self->tail + 1) % self->capacity;'''\nassert s.count(old) == 1\ns = s.replace(old, new)\n\nold = '''    while ((item = PyIter_Next(iterator)) != NULL) {\n        Py_INCREF(item);\n        if (self->count == self->capacity) {\n            self->buffer[self->tail] = item;\n            self->tail = (self->tail + 1) % self->capacity;\n            self->head = (self->head + 1) % self->capacity;\n        } else {'''\nnew = '''    while ((item = PyIter_Next(iterator)) != NULL) {\n        if (self->count == self->capacity) {\n            PyObject* old_item = self->buffer[self->tail];\n            self->buffer[self->tail] = item;\n            Py_XDECREF(old_item);\n            self->tail = (self->tail + 1) % self->capacity;\n            self->head = (self->head + 1) % self->capacity;\n        } else {'''\nassert s.count(old) == 1\ns = s.replace(old, new)\n\nold = '''        new_buffer[i] = self->buffer[src_idx];\n        self->buffer[src_idx] = NULL;\n    }\n\n    free(self->buffer);'''\nnew = '''        new_buffer[i] = self->buffer[src_idx];\n        self->buffer[src_idx] = NULL;\n    }\n\n    for (int i = 0; i != self->capacity; i++) {\n        Py_XDECREF(self->buffer[i]);\n    }\n\n    free(self->buffer);'''\nassert s.count(old) == 1\ns = s.replace(old, new)\n\np.write_text(s)\nprint('patched ringbuffer.c')\nPY\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 0.6,
+    "keystrokes": "grep -n \"old_item\\|Py_XDECREF\\|for (int i = 0; i != self->capacity\" ringbuffer.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 0.6,
+    "keystrokes": "python3 -m pip --version\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 0.6,
+    "keystrokes": "python3 -c \"import setuptools; print(setuptools.__version__)\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 0.6,
+    "keystrokes": "python3-config --extension-suffix\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 1.5,
+    "keystrokes": "which -a python3\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 1.5,
+    "keystrokes": "ls -l /usr/bin/python3* /opt/verifier/bin/python3* 2>/dev/null\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 1.5,
+    "keystrokes": "/usr/bin/python3 -c \"import sys, setuptools; print(sys.version); print(setuptools.__version__)\" 2>&1 || true\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 1.5,
+    "keystrokes": "python3-config --includes\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 1.5,
+    "keystrokes": "python3-config --ldflags\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 1.5,
+    "keystrokes": "gcc --version | head -1\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 1.5,
+    "keystrokes": "sed -n '30,90p' ringbuffer.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 1.5,
+    "keystrokes": "sed -n '160,225p' ringbuffer.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 2.3,
+    "keystrokes": "python3 --version\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 2.3,
+    "keystrokes": "python3 -c \"import sys, sysconfig; print(sys.executable); print(sys.prefix); print(sys.version); print(sysconfig.get_path('include')); print(sysconfig.get_config_var('EXT_SUFFIX')); print(sysconfig.get_config_var('LDSHARED'))\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 2.3,
+    "keystrokes": "which -a python3-config\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 2.3,
+    "keystrokes": "ls -la /opt/verifier/include /opt/verifier/include/python* 2>/dev/null\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 2.3,
+    "keystrokes": "ls -la /usr/local/bin/python3* /usr/local/lib/python*/config-* 2>/dev/null | head -40\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 2.8,
+    "keystrokes": "INC=$(python3 -c \"import sysconfig; print(sysconfig.get_path('include'))\")\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 2.8,
+    "keystrokes": "SUF=$(python3 -c \"import sysconfig; print(sysconfig.get_config_var('EXT_SUFFIX'))\")\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 2.8,
+    "keystrokes": "gcc -shared -fPIC -O2 -Wall -Wextra -I\"$INC\" ringbuffer.c -o \"ringbuffer$SUF\"\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 2.8,
+    "keystrokes": "ls -la ringbuffer*.so\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 4.1,
+    "keystrokes": "python3 - <<'PY'\nimport gc\nimport weakref\nimport ringbuffer\n\nRingBuffer = ringbuffer.RingBuffer\n\nclass Obj:\n    pass\n\n\ndef collect():\n    gc.collect()\n    gc.collect()\n\n\n# Basic semantics\nrb = RingBuffer(2)\nassert rb.is_empty() is True\nassert rb.is_full() is False\nassert rb.size() == 0\nassert rb.capacity() == 2\n\na = Obj()\nb = Obj()\nrb.push(a)\nassert rb.size() == 1\nassert rb.peek() is a\nassert rb.to_list() == [a]\nrb.push(b)\nassert rb.is_full() is True\nassert rb.to_list() == [a, b]\nassert rb.pop() is a\nassert rb.to_list() == [b]\nrb.clear()\nassert rb.is_empty() is True\ndel a, b, rb\n\n# Full-buffer push evicts and releases oldest object\nrb = RingBuffer(2)\na, b, c = Obj(), Obj(), Obj()\nwa = weakref.ref(a)\nrb.push(a)\nrb.push(b)\nrb.push(c)  # evicts a\nassert rb.to_list() == [b, c]\ndel a\ncollect()\nassert wa() is None, \"push eviction leaked evicted object\"\ndel b, c, rb\n\n# extend evicts and releases old objects\nrb = RingBuffer(2)\na, b, c, d = Obj(), Obj(), Obj(), Obj()\nwa, wb = weakref.ref(a), weakref.ref(b)\nitems = [a, b, c, d]\nrb.extend(items)\nassert rb.to_list() == [c, d]\ndel a, b, items\ncollect()\nassert wa() is None, \"extend eviction leaked first evicted object\"\nassert wb() is None, \"extend eviction leaked second evicted object\"\ndel c, d, rb\n\n# resize shrinking drops oldest and releases them\nrb = RingBuffer(3)\na, b, c = Obj(), Obj(), Obj()\nwa = weakref.ref(a)\nrb.push(a)\nrb.push(b)\nrb.push(c)\nrb.resize(2)\nassert rb.to_list() == [b, c]\ndel a\ncollect()\nassert wa() is None, \"resize shrink leaked dropped object\"\ndel b, c, rb\n\n# re-init releases old backing storage\nrb = RingBuffer(2)\na, b = Obj(), Obj()\nwa, wb = weakref.ref(a), weakref.ref(b)\nrb.push(a)\nrb.push(b)\nrb.__init__(3)\nassert rb.is_empty() is True\nassert rb.capacity() == 3\ndel a, b\ncollect()\nassert wa() is None, \"re-init leaked old buffered object\"\nassert wb() is None, \"re-init leaked old buffered object\"\ndel rb\n\ncollect()\nprint(\"all ringbuffer leak and semantics checks passed\")\nPY\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 5.1,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 5.1,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

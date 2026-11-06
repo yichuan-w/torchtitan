@@ -1,0 +1,184 @@
+[
+  {
+    "step_id": 3,
+    "offset_sec": 0.0,
+    "keystrokes": "ls -la /app\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.0,
+    "keystrokes": "find /app/sysinfod -maxdepth 2 -type f -printf '%p\\n'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 0.2,
+    "keystrokes": "cat /app/sysinfod/Makefile\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 0.2,
+    "keystrokes": "sed -n '1,260p' /app/sysinfod/sysinfod.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 0.4,
+    "keystrokes": "make -C /app/sysinfod\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 0.4,
+    "keystrokes": "make -C /app/sysinfod install\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 0.4,
+    "keystrokes": "printf 'port=8080\\n' > /etc/sysinfod.conf\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 0.4,
+    "keystrokes": "cat /etc/sysinfod.conf\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 0.4,
+    "keystrokes": "ls -l /usr/local/bin/sysinfod\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 2.7,
+    "keystrokes": "sed -i '/static int debug_mode/d' /app/sysinfod/sysinfod.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 2.7,
+    "keystrokes": "make -C /app/sysinfod clean all install\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 2.7,
+    "keystrokes": "ls -l /usr/local/bin/sysinfod\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 2.7,
+    "keystrokes": "cat /etc/sysinfod.conf\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 4.0,
+    "keystrokes": "sed -i 's/^LDFLAGS.*/LDLIBS = -lcurl -lpthread/' /app/sysinfod/Makefile\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 4.0,
+    "keystrokes": "make -C /app/sysinfod clean all install\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 4.0,
+    "keystrokes": "ls -l /usr/local/bin/sysinfod\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 5.2,
+    "keystrokes": "rm -f /var/log/sysinfod.log\n",
+    "duration": 0.2,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 5.2,
+    "keystrokes": "setsid -f /usr/local/bin/sysinfod >/var/log/sysinfod.log 2>&1\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 5.2,
+    "keystrokes": "pgrep -a sysinfod\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 5.2,
+    "keystrokes": "ss -ltnp | grep ':8080'\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 5.2,
+    "keystrokes": "curl -sS http://localhost:8080/\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 5.2,
+    "keystrokes": "cat /var/log/sysinfod.log\n",
+    "duration": 0.2,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 13,
+    "offset_sec": 7.6,
+    "keystrokes": "ps -o pid,ppid,sid,tty,stat,cmd -p 7686\n",
+    "duration": 0.2,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 13,
+    "offset_sec": 7.6,
+    "keystrokes": "curl -sS -o /dev/null -w 'HTTP %{http_code}\\n' http://localhost:8080/\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 8.3,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 15,
+    "offset_sec": 8.3,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

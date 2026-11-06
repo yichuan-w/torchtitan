@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The verifier requires sqrt_mod to support powers of two even though instruction.md repeatedly limits the required domain to odd moduli; the shipped function docstring also misleadingly advertises even support.",
+    "evidence": "instruction.md states arbitrary odd modulus and any odd modulus, while tests/test_outputs.py::test_sqrt_mod_power_of_two grades n=2,4,8,16,32,64; attempt-03.jsonl turn 3 and attempt-06.jsonl turn 4 replay pass every stated odd-modulus check and fail only that even-modulus check.",
+    "change": "Remove the power-of-two verifier test and align the shipped sqrt_mod docstring with the odd-modulus contract; retain all odd-prime, odd-prime-power, odd-composite, zero, no-root, and ECC checks.",
+    "kind": "hidden_requirement"
+  }
+]

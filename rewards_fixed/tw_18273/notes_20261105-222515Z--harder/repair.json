@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The instruction says the heart_scale dataset is already at /libsvm/heart_scale, but the untouched image contains neither the directory nor the file.",
+    "evidence": "traces/attempt-01.jsonl turns 1-2 and traces/attempt-10.jsonl turns 1-2",
+    "change": "Build and pin upstream LIBSVM in the image so the promised dataset and tools are present at episode start.",
+    "kind": "broken_setup"
+  }
+]

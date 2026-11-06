@@ -1,0 +1,20 @@
+==================================================
+  Tabular ML Benchmark Log - Team Beta
+  Date: 2024-11-03
+  Operator: jchen@research
+  Metric: Mostly accuracy, some F1 scores
+==================================================
+
+Model: FTT | Dataset: MiniBoone | Acc: 0.857 | Rows: 130064 | Feats: 50
+Model: LGBM | Dataset: bank_mkt | Acc: 0.9098 | Rows: 45211 | Feats: 16
+Model: LGBM | Dataset: jannis | Acc: 0.8796 | Rows: 83733 | Feats: 54
+Model: MLP | Dataset: adult | Acc: 0.8881 | Rows: 48842 | Feats: 14
+Model: RF | Dataset: MiniBoone | Acc: 0.8198 | Rows: 130064 | Feats: 50
+Model: resnet | Dataset: jannis | F1: 0.7646 | Rows: 83733 | Feats: 54
+Model: resnet | Dataset: MiniBoone | F1: 0.8079 | Rows: 130064 | Feats: 50
+Model: saint | Dataset: MiniBoone | F1: 0.875 | Rows: 130064 | Feats: 50
+Model: XGB | Dataset: elec | Acc: 0.8343 | Rows: 45312 | Feats: 8
+Model: XGB | Dataset: gesture | Acc: 0.8439 | Rows: 9873 | Feats: 32
+Model: XGB | Dataset: Jungle | Acc: 0.8915 | Rows: 44819 | Feats: 6
+
+=== End of Log ===

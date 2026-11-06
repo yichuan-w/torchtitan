@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The verifier requires total_revenue to contain exactly two fractional digits, but the public instruction only requires a value rounded to two decimal places and does not state that insignificant trailing zeroes are mandatory.",
+    "evidence": "tests/test_outputs.py compares revenue strings such as 162.50 exactly, while attempt-01.jsonl turn 6 and all other attempts show numerically correct forms such as 162.5; fresh grading of attempts 01 and 08 reports only these formatting mismatches.",
+    "change": "State in instruction.md that total_revenue must use fixed-point notation with exactly two digits after the decimal point.",
+    "kind": "hidden_requirement"
+  }
+]

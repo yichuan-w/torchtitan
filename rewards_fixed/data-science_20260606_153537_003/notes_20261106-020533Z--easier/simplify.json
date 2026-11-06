@@ -1,0 +1,70 @@
+{
+  "retained_skill": "Reconcile heterogeneous benchmark files and inconsistent model and dataset names, apply the row and feature filters, and compare only models with enough qualifying datasets.",
+  "bottleneck": "All twelve attempts fail to reconcile the repeated model-dataset observations correctly: eleven initially average or count report rows, and attempt 01 groups repeats but its inconsistent normalization splits naming variants and then it overrides the result. The instruction leaves both normalization and repeated-report weighting implicit.",
+  "change": "Repair the instruction at the words layer with a vague direction to normalize model and dataset naming variations, plus the outcome requirement that each distinct dataset has equal weight regardless of how many sub-teams reported it. This makes the original signals\u2014visible naming variants and recurring model-dataset reports\u2014actionable while leaving the mappings, parsers, filtering, reconciliation, eligibility, and model selection to the student.",
+  "restore": "Remove the standalone normalization and equal-weight sentence to restore the original implicit data-reconciliation requirements.",
+  "prediction": "Attempts currently split obvious naming variants and/or append every qualifying report directly to a model score list, distorting eligibility and the mean. The direction should cause some attempts to normalize both keys and group recurring model-dataset reports before comparison; a replay of attempt 10 with only duplicate weighting repaired still returns catboost because dataset variants remain split, demonstrating that both halves are needed. Seeing new submissions still use raw report-row counts or preserve naming variants would refute the mechanism. Remaining encoding, parser, and mapping mistakes should prevent an all-solved group.",
+  "expected": "5 of 12",
+  "evidence": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turn": 12,
+      "observation": "First analysis script groups model-dataset repeats, but normalize_model lowercases input while consulting mixed-case aliases and later substring matching; it ultimately overrides its computed result at turn 24 with FT-Transformer. Replayed that submitted answer with `./sandbox exec 'printf %s FT-Transformer > /app/best_model.txt'` and `./sandbox grade`: existence and nonempty checks passed, while the correct-model content check failed."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turn": 12,
+      "observation": "First script appends every qualifying report accuracy directly to model_datasets and uses list length and raw-row mean, so repeated reports count as extra datasets. Replayed its submitted catboost answer with `./sandbox exec 'printf %s catboost > /app/best_model.txt'` and `./sandbox grade`: existence and nonempty checks passed, while the correct-model content check failed."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turn": 11,
+      "observation": "First script drops dataset identity from parsed records and groups only accuracy by model, making distinct-dataset counting or equal dataset weighting impossible; it submits catboost."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turn": 6,
+      "observation": "First script tracks a dataset set for eligibility but appends every repeated report accuracy to one model list for the mean rather than giving each dataset one contribution; it submits catboost."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turn": 11,
+      "observation": "First processing script aggregates qualifying report rows directly by model, leading to lightgbm rather than reconciling repeated model-dataset reports."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turn": 10,
+      "observation": "The analysis groups qualifying report accuracies by model and counts rows as datasets; it submits CatBoost."
+    },
+    {
+      "attempt": "attempt-07.jsonl",
+      "turn": 8,
+      "observation": "The processing script begins from a model-to-list-of-results structure and does not first reconcile repeated model-dataset reports; it submits catboost."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turn": 12,
+      "observation": "The first analysis counts and averages qualifying report rows by model, reporting only three eligible models and catboost as best."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turn": 8,
+      "observation": "The first script uses model-level report lists and raw report counts/means rather than one contribution per distinct dataset; it submits catboost."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turn": 14,
+      "observation": "The first script keeps a distinct dataset set for eligibility but computes mean_acc over every report accuracy, so duplicate reports remain overweighted; it submits catboost after repeated rewrites. After the rewrite, replayed its approach from a fresh `./sandbox reset`, changing only its final aggregation to give dataset keys equal weight; `./sandbox grade` still passed existence/nonempty but failed correct-model with catboost because dataset naming variants remained split. The added normalization direction targets that remaining obstacle. Replaying the same approach from another fresh reset with both target changes\u2014normalizing the dataset variants visible in the supplied records and equal-weighting each normalized dataset\u2014produced xgboost, and `./sandbox grade` passed all three checks. This shows no failed requirement remained for that replay."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turn": 13,
+      "observation": "The analysis stores only accuracy, rows, and features by model and discards dataset identity, preventing distinct-dataset aggregation; it submits catboost."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turn": 12,
+      "observation": "The first processing script omits dataset identity and calculates model means and eligibility from raw qualifying report rows; it submits catboost."
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The verifier required the configuration file to contain a prefix= setting even though the public goal only requires the processor's observable output, and the processor correctly supplies the required OUT: prefix when the configuration is empty.",
+    "evidence": "tests/test_outputs.py required prefix= while instruction.md requires only correct OUT: behavior; attempt-01.jsonl turn 7 and attempt-04.jsonl turn 14 demonstrated correct output from an empty configuration, and sandbox grading rejected each only at that assertion.",
+    "change": "Removed the prefix= content assertion while retaining the configuration-file, data-directory, exact processor-output, and empty-input checks.",
+    "kind": "hidden_requirement"
+  }
+]

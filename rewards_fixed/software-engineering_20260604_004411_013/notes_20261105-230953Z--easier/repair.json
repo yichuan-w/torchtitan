@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The Makefile clean target deletes the task's supplied src and include trees and the Makefile itself, rather than only generated build artifacts.",
+    "evidence": "environment/files/Makefile clean recipe conflicts with instruction.md's promise that the source and headers are supplied; all attempts trigger it (attempt-09.jsonl turn 13 through attempt-04.jsonl turn 46), and fresh replays of attempt-01 turn 18 and attempt-03 turn 16 remove the files and make all 22 checks fail.",
+    "change": "Make clean remove only object files and the lisp binary, preserving all supplied working files.",
+    "kind": "broken_setup"
+  }
+]

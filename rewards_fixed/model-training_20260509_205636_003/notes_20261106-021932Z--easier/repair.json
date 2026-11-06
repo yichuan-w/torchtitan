@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The public task allows migrated_model.pt to contain compatible NewModel weights, but the verifier silently requires those weights to be the file's top-level object and rejects the conventional checkpoint form {'model_state_dict': state_dict, ...}.",
+    "evidence": "instruction.md success criterion for /app/migrated_model.pt conflicts with tests/test_outputs.py direct top-level state_dict loads; attempt-02.jsonl turn 7 and attempt-12.jsonl turn 11 both produced working wrapped state dicts and failed only wrapper-sensitive checks.",
+    "change": "Normalize either a bare state_dict or a checkpoint dictionary containing model_state_dict before all migrated-model semantic checks.",
+    "kind": "hidden_requirement"
+  }
+]

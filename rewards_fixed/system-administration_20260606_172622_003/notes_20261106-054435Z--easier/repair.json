@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The rsyslogd executable path is attached to an AppArmor profile that does not allow reading certificates from /etc/rsyslog/certs, although the public task requires certificates there.",
+    "evidence": "instruction.md requirement 1 conflicts with environment profile /etc/apparmor.d/usr.sbin.rsyslogd; attempts 01 turn 14, 02 turn 29, 03 turn 17, 08 turn 8, 11 turn 19, and 12 turn 10 report certificate Permission denied despite mode changes.",
+    "change": "Run the same distro rsyslogd binary through /usr/local/sbin and symlink /usr/sbin/rsyslogd to that location so the path-attached profile no longer blocks the required certificate tree.",
+    "kind": "broken_setup"
+  }
+]

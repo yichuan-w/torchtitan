@@ -1,0 +1,144 @@
+{
+  "retained_skill": "Configure, build, and validate a fully statically linked tmux executable from source, including selecting compatible static dependencies and linker settings.",
+  "bottleneck": "Eleven attempts reached or pursued a static glibc build around 2.3-2.8 MB, then spent their remaining budget trying to force it below 1.2 MB; the three submitted attempts used UPX to meet that number and were rejected by an unstated no-compression check. Attempt 08 remained in the same repeated link/debug stage and exhausted context before producing the binary.",
+  "change": "Instruction-level constraint reduction: raise the stripped-binary limit from 1.2 MB to 2.4 MB so several correct uncompressed static builds can finish at the first successful stripped artifact while larger glibc builds still require optimization. Separately, repair the hidden requirement by explicitly requiring an ordinary uncompressed ELF and forbidding executable packers. The original signal remains the stripped file size plus tmux -V and ldd output; the student still chooses and executes the static build.",
+  "restore": "After a mixed group demonstrates reliable static-link decisions, restore the 1.2 MB limit while retaining the explicit no-packer requirement so later students must choose a smaller static toolchain rather than discover a hidden rejection.",
+  "prediction": "The change addresses the repeated action of rebuilding or packing an already static 2.3-2.8 MB binary. It enables students to stop after stripping and submit once ldd reports a static executable and the file is below 2.4 MB. This is refuted if attempts again reach a working uncompressed static binary below 2.4 MB but continue rebuilding, time out, or fail grading on a retained requirement.",
+  "expected": "7 of 12",
+  "evidence": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turn": 73,
+      "observation": "Reached a static binary, then turns 74-84 repeatedly rebuilt and stripped to reduce its size until the time limit."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turn": 97,
+      "observation": "Reached tmux 3.4 with ldd reporting no dynamic executable at 2,754,632 bytes; reconstructed that uncompressed state and graded it: only test_binary_size failed, while all other 10 checks passed."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turn": 61,
+      "observation": "Had a working static tmux around 2.3 MB, then retried LTO and size reduction until the context limit."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turn": 54,
+      "observation": "Reached a static tmux around 2.5 MB and continued optimization attempts until the time limit."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turn": 50,
+      "observation": "Built an uncompressed static tmux, then packed it to satisfy 1.2 MB. Reconstructed the packed approach and graded it: only test_no_compression failed; the other 10 checks passed."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turn": 22,
+      "observation": "Began repeated static-link and compatibility repairs, eventually reaching a static artifact but exhausted context while continuing the build/size work."
+    },
+    {
+      "attempt": "attempt-07.jsonl",
+      "turn": 42,
+      "observation": "Packed the stripped static binary to 1,069,432 bytes and submitted, matching the same hidden no-compression failure mode."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turn": 27,
+      "observation": "Spent turns 27-83 repeatedly relinking and restoring tmux source, then hit the context limit without a final artifact; it is the outlier not expected to be rescued by the size relaxation."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turn": 53,
+      "observation": "Packed a 2,488,352-byte static binary to 1,069,232 bytes and submitted, matching the hidden no-compression failure mode."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turn": 78,
+      "observation": "Reached a runnable static tmux and continued stripping/LTO rebuilding through turn 82 until the context limit."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turn": 73,
+      "observation": "Reached a static tmux, stripped and installed it around 2.49 MB, then attempted to install UPX before hitting the context limit."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turn": 66,
+      "observation": "Reached an uncompressed static tmux of 2,488,352 bytes, then spent turns 67-78 rebuilding dependencies and tmux for size until the time limit. Replayed that approach from a fresh reset with the revised cap: an ordinary stripped 2,255,312-byte static tmux reached tmux 3.4, ldd reported not a dynamic executable, and all 11 grader checks passed."
+    }
+  ],
+  "budget": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turns": [
+        73,
+        84
+      ],
+      "stage": "Post-link size reduction; the 2.4 MB cap removes the repeated rebuilds after the first stripped static artifact."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turns": [
+        93,
+        100
+      ],
+      "stage": "Post-link stripping and size-tool search; the 2.4 MB cap makes the first stripped static artifact final."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turns": [
+        57,
+        66
+      ],
+      "stage": "Post-link LTO and size rebuilds; the relaxed cap removes this entire retry stage."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turns": [
+        44,
+        55
+      ],
+      "stage": "Post-link optimization and packing search; the relaxed cap permits submission after ordinary stripping."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turns": [
+        22,
+        68
+      ],
+      "stage": "Repeated static-link rebuild stage; the relaxed cap removes any further size-specific rebuild once its static artifact is reached."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turns": [
+        27,
+        83
+      ],
+      "stage": "Repeated tmux relinking stage; the relaxed cap removes the additional size-optimization phase that otherwise follows a successful link, though this outlier may still fail earlier."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turns": [
+        78,
+        82
+      ],
+      "stage": "Post-link stripping and LTO rebuild; the first stripped static artifact now satisfies the size contract."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turns": [
+        73,
+        77
+      ],
+      "stage": "Post-link stripping and UPX installation; the relaxed cap removes the packing step entirely."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turns": [
+        66,
+        78
+      ],
+      "stage": "Post-link dependency and linker optimization rebuilds; the 2.4 MB cap accepts the artifact already reached at turn 66."
+    }
+  ]
+}

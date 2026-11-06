@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The verifier assumes each returned state row is exactly dt seconds after the prior row, a representation requirement absent from the instruction and not expressible by the required state-only return value.",
+    "evidence": "tests/test_outputs.py constructs times as arange(len(states))*DT while instruction.md only requires run_simulation with the same arguments; replayed attempt-04.jsonl turn 16 and attempt-11.jsonl turn 39 both fail the resulting post-coast classification despite reporting accurate maneuver outcomes and flat physical coasts.",
+    "change": "Locate the maneuver from the trajectory's angular-momentum transition and test conservation on trajectory samples before and after it, retaining all API, CLI, invariant, and final-orbit checks.",
+    "kind": "hidden_requirement"
+  }
+]

@@ -1,0 +1,14 @@
+CC(=O)OC1=CC=CC=C1C(=O)O aspirin
+CC(C)CC1=CC=C(C=C1)C(C)C(=O)O ibuprofen
+CC(=O)NC1=CC=C(C=C1)O paracetamol
+CN1C=NC2=C1C(=O)N(C(=O)N2C)C caffeine
+CN1C(=O)CN=C(C2=CC=CC=C2Cl)C3=CC=CC=C31 diazepam
+CNCCC(C1=CC=CC=C1)OC2=CC=C(C=C2)C(F)(F)F fluoxetine
+CC1=CN=C(C(=C1OC)C)CS(=O)C2=NC3=C(N2)C=C(C=C3)OC omeprazole
+CN(C)C(=N)NC(=N)N metformin
+CC(C)C1=C(C(=C(N1CC[C@@H](C[C@@H](CC(=O)O)O)O)C2=CC=C(C=C2)F)C3=CC=CC=C3)C(=O)NC4=CC=CC=C4 atorvastatin
+CN(C)CCC[C@]12CC[C@@]3(C1)C(=O)N(C4=C3C=CC=C4)C(=O)N2 sertraline_lactam
+C1CC1N(C2CC2)C(=O)C3=C(C=C4C(=O)C(=CN5C4=N3)C6=C(C=CC(=C6)F)F)C(=O)O ciprofloxacin
+CN1CC[C@]23[C@@H]4[C@H]5CC[C@]2([C@H]1CC6=C3C(=C(C=C6)O)O4)[C@H](C=C5)O morphine
+CC[C@@H]1[C@@H](C[C@@H]2[C@]3([C@H]1O2)C(=O)C4=C(C(=O)C=C[C@]35CCN6[C@H]5CC[C@@]7(C6)C(=O)C=C[C@]7(C)O)C)O withaferin_a
+CC(C)NCC(C1=CC(=CC(=C1)OC)OC)O propanolol_analog

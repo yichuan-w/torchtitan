@@ -1,0 +1,14 @@
+[
+  {
+    "defect": "The verifier requires literal FastCGI parameter names even though the public task requires working clone and push and does not mandate an nginx representation; functionally successful configurations are rejected.",
+    "evidence": "tests/test_outputs.py:224 conflicts with instruction.md:3 and instruction.md:12; attempt-01.jsonl turn 81 and attempt-12.jsonl turn 71 show successful push, while their verifier diagnostics fail only test_nginx_config_has_correct_fastcgi_params.",
+    "change": "Remove the static FastCGI parameter-name check and retain end-to-end authenticated clone and push checks.",
+    "kind": "hidden_requirement"
+  },
+  {
+    "defect": "The verifier requires repository write permission specifically for www-data, although the public task permits any working fcgiwrap execution identity and end-to-end push already proves write access.",
+    "evidence": "tests/test_outputs.py:238 conflicts with instruction.md:8 and instruction.md:12; attempt-08.jsonl turn 27 shows successful push, while its verifier diagnostics fail only test_repository_permissions.",
+    "change": "Remove the implementation-specific ownership check and retain the end-to-end push check.",
+    "kind": "hidden_requirement"
+  }
+]

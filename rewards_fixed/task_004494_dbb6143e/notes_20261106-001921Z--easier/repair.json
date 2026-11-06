@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The verifier expected lambda 0.005 even though the supplied specification image reports lambda 0.006.",
+    "evidence": "traces/attempt-01.jsonl turn 5 through traces/attempt-12.jsonl turn 4 (turn 7 for attempt 11) show OCR output of 0.006; tests/test.sh used 0.005.",
+    "change": "Align the verifier, setup source, Dockerfile setup description, and reference implementation with the supplied image's 0.006 parameter.",
+    "kind": "hidden_requirement"
+  }
+]

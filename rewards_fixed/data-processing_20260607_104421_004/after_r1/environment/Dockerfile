@@ -1,0 +1,8 @@
+FROM aweaiteam/calibforge:tb2-verifier-base-v1@sha256:0f61b2776c40231d5d868278ed6042295ddbc9d24b036cd72f0b88ebe9bd621a
+
+WORKDIR /app
+
+# Copy the data file and the buggy script
+COPY files/sales_export.csv /app/
+COPY files/normalize.py /app/
+

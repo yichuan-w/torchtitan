@@ -1,0 +1,73 @@
+[
+  {
+    "product_id": "PROD-001",
+    "stock": 145,
+    "warehouse": "WH-A",
+    "last_counted": "2024-04-01"
+  },
+  {
+    "prodId": "PROD-002",
+    "stock": 78,
+    "warehouse": "WH-A",
+    "last_counted": "04/01/2024"
+  },
+  {
+    "id": "PROD-003",
+    "stock": 210,
+    "warehouse": "WH-B",
+    "last_counted": "2024-03-28"
+  },
+  {
+    "product_id": "PROD-006",
+    "stock": 55,
+    "warehouse": "WH-A",
+    "last_counted": "2024-03-30"
+  },
+  {
+    "id": "PROD-008",
+    "stock": 320,
+    "warehouse": "WH-C",
+    "last_counted": "2024-04-02"
+  },
+  {
+    "product_id": "PROD-010",
+    "warehouse": "WH-B",
+    "last_counted": "2024-03-15"
+  },
+  {
+    "product_id": "PROD-014",
+    "stock": 500,
+    "warehouse": "WH-C",
+    "last_counted": "01.04.2024"
+  },
+  {
+    "prodId": "PROD-016",
+    "stock": 88,
+    "warehouse": "WH-A",
+    "last_counted": "04/02/2024"
+  },
+  {
+    "id": "PROD-019",
+    "stock": 45,
+    "warehouse": "WH-B",
+    "last_counted": "04.03.2024"
+  },
+  {
+    "product_id": "PROD-021",
+    "stock": 150,
+    "warehouse": "WH-A",
+    "last_counted": "2024-04-05"
+  },
+  {
+    "product_id": "PROD-017 ",
+    "stock": 32,
+    "warehouse": "WH-C",
+    "last_counted": "2024-04-01"
+  },
+  {
+    "item_number": "PROD-009",
+    "stock": 200,
+    "warehouse": "WH-B",
+    "last_counted": "2024-03-25"
+  }
+]

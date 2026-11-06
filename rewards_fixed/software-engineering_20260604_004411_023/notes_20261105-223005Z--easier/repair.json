@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The task never clearly says whether a zero-byte compressed input is invalid, while grading requires rejection; the header's phrase 'An empty input produces a single 0x00 byte' led students to accept zero bytes.",
+    "evidence": "instruction.md omits the case and environment/files/lz4_decompress.h describes the 0x00 representation ambiguously; replays of attempt-01.jsonl turn 25 and attempt-05.jsonl turn 6 each passed 12 of 13 checks and failed only zero-byte-input rejection.",
+    "change": "Clarify in instruction.md and the discoverable header/source comments that a compressed block must contain a token, zero-byte input is invalid, and 0x00 represents empty decompressed output.",
+    "kind": "hidden_requirement"
+  }
+]

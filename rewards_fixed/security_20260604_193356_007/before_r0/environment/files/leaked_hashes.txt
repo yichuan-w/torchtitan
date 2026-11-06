@@ -1,0 +1,4 @@
+admin:$1$ab$8BPMTYhEGg74RJd1GBgJ60
+root:$6$salt1234$9aIcY8uPhmzkpJ4DuS8IJdfgOWtnO.XGe.bLcQS2UyBf7oVfGZ./41BdqRhCoB0SaxkGLGrLA8Xe9POnA86JT1
+service:$1$cd$7k9JBYXjYAIvU1PQhv4au1
+dbadmin:$1$ef$OqhhAcOH7UmDiGfACSuDO.

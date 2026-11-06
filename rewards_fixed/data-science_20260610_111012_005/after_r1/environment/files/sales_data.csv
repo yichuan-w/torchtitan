@@ -1,0 +1,151 @@
+date,transaction_id,category,product,quantity,price,region
+2024-06-04,T0001,Electronics ,Tablet,2,$338.70,North
+2024-05-20,T0002,Books,Fiction Novel,1,$331.86,North
+2024-05-09,T0003, ,Hat,4,$334.56,North
+2024-03-04,T0004,Electronics  ,Tablet,3,$237.44,North
+2024-01-24,T0005,Books,Textbook,3,$907.57,West
+2024-06-20,T0006, ,Headphones,1,$830.30,East
+2024-03-03,T0007,Clothing,Shirt,6,$345.71,South
+2024-03-06,T0008,Electronics ,Tablet,4,$955.35,East
+2024-06-03,T0009,Sports,Yoga Mat,6,"$1,405.30",South
+2024-06-23,T0010, ,Pants,4,$572.29,South
+2024-04-09,T0011,Sports,Tennis Racket,1,"$1,208.54",North
+2024-04-21,T0012,Clothing,Jacket,2,$984.88,West
+2024-05-09,T0013,Electronics  ,Phone,2,"$1,118.76",West
+2024-01-25,T0014,Books,Cookbook,2,$766.74,North
+2024-01-13,T0015,Electronics ,Phone,6,$636.13,West
+2024-01-22,T0016,,Textbook,5,"$1,291.87",North
+2024-02-15,T0017, ,Planter,1,$443.78,North
+2024-06-10,T0018,Home & Garden,Rug,5,"$1,369.38",South
+2024-05-01,T0019,Electronics  ,Phone,5,"$1,430.48",East
+2024-03-08,T0020,,Laptop,3,"$1,318.69",North
+2024-01-25,T0021,Clothing,Shirt,1,"$1,099.20",South
+2024-05-14,T0022,Electronics  ,Monitor,2,$401.26,South
+2024-06-12,T0023, ,Jacket,4,"$1,492.75",West
+2024-03-01,T0024, ,Bike,2,$340.92,South
+2024-02-03,T0025,Clothing,Shirt,6,$948.50,North
+2024-04-07,T0026,Sports,Helmet,2,$421.32,South
+2024-01-22,T0027,,Shoes,4,$289.66,West
+2024-01-22,T0028,Sports,Weights,4,"$1,296.44",North
+2024-02-18,T0029,Electronics,Tablet,1,$376.74,West
+2024-01-15,T0030,Electronics  ,Phone,3,$696.63,North
+2024-02-06,T0031,Electronics,Laptop,1,"$1,389.92",West
+2024-02-13,T0032,,Tennis Racket,4,"$1,354.15",North
+2024-06-26,T0033,Books,Biography,3,$637.40,West
+2024-05-24,T0034,Electronics  ,Tablet,2,"$1,453.22",North
+2024-05-06,T0035,Sports,Bike,5,$717.80,North
+2024-06-28,T0036, ,Phone,1,$894.58,South
+2024-01-20,T0037,Books,Comic,2,$870.48,North
+2024-03-07,T0038,Books,Comic,5,$477.97,East
+2024-03-15,T0039,Clothing,Shoes,2,"$1,009.18",East
+2024-01-03,T0040,Electronics ,Headphones,5,"$1,497.69",South
+2024-02-12,T0041, ,Rug,3,"$1,321.89",East
+2024-06-17,T0042,Electronics  ,Monitor,6,$457.26,North
+2024-01-24,T0043, ,Lamp,2,$400.38,South
+2024-02-22,T0044,Home & Garden,Vase,2,"$1,077.83",East
+2024-04-27,T0045, ,Yoga Mat,1,$142.99,East
+2024-03-06,T0046,Electronics,Tablet,2,$957.48,West
+2024-06-05,T0047, ,Helmet,1,$172.25,North
+2024-01-10,T0048,Sports,Helmet,2,$647.53,East
+2024-01-12,T0049,Electronics,Phone,6,$378.05,West
+2024-01-06,T0050,Electronics  ,Phone,2,"$1,322.72",East
+2024-01-13,T0051,Books,Textbook,2,"$1,182.12",North
+2024-02-08,T0052,,Pants,4,$527.74,North
+2024-03-12,T0053,Clothing,Jacket,3,"$1,297.21",West
+2024-03-06,T0054, ,Lamp,1,"$1,316.17",East
+2024-03-14,T0055,Electronics,Monitor,4,$521.80,North
+2024-04-01,T0056,Books,Cookbook,3,$71.36,South
+2024-05-11,T0057,Sports,Bike,6,"$1,381.55",North
+2024-04-23,T0058,Home & Garden,Planter,6,$615.55,East
+2024-04-22,T0059, ,Pants,4,$999.07,South
+2024-02-14,T0060,Home & Garden,Vase,1,$459.29,East
+2024-04-26,T0061,,Weights,6,$324.48,South
+2024-03-03,T0062,Electronics ,Monitor,6,$951.25,South
+2024-02-16,T0063,Home & Garden,Rug,2,$41.52,North
+2024-04-16,T0064,,Helmet,2,"$1,078.93",West
+2024-02-06,T0065,Clothing,Shirt,1,"$1,168.74",West
+2024-04-22,T0066,Electronics,Phone,1,$687.41,East
+2024-05-15,T0067,,Comic,4,"$1,246.70",South
+2024-03-25,T0068,,Yoga Mat,2,"$1,260.60",West
+2024-02-09,T0069,Clothing,Shoes,1,"$1,071.75",East
+2024-04-23,T0070,Sports,Bike,2,$230.49,South
+2024-04-14,T0071,Clothing,Shoes,4,$499.67,North
+2024-01-28,T0072,Clothing,Shoes,5,"$1,419.36",West
+2024-04-18,T0073,,Tablet,3,"$1,131.45",South
+2024-04-11,T0074,,Jacket,4,$731.03,West
+2024-04-19,T0075,Electronics  ,Phone,5,$803.51,North
+2024-03-13,T0076,Electronics ,Phone,4,$276.68,East
+2024-04-09,T0077,Clothing,Jacket,3,"$1,143.04",West
+2024-01-12,T0078,Home & Garden,Cushion,1,"$1,124.79",South
+2024-01-20,T0079,Electronics ,Laptop,2,$303.04,South
+2024-02-15,T0080,Clothing,Shoes,6,$176.01,East
+2024-06-04,T0081,Sports,Helmet,5,"$1,445.78",South
+2024-05-22,T0082,Home & Garden,Vase,1,"$1,393.69",West
+2024-06-08,T0083,Books,Fiction Novel,5,"$1,037.47",North
+2024-03-18,T0084,Home & Garden,Lamp,5,"$1,175.04",West
+2024-04-27,T0085,Sports,Helmet,6,$515.14,West
+2024-04-23,T0086,Electronics ,Tablet,6,"$1,337.90",South
+2024-05-25,T0087,Books,Comic,6,$408.77,West
+2024-02-27,T0088,,Helmet,3,$486.85,North
+2024-06-13,T0089,Home & Garden,Rug,4,$856.93,East
+2024-03-26,T0090,Electronics,Tablet,2,$733.89,East
+2024-05-01,T0091,Sports,Helmet,6,"$1,320.76",South
+2024-02-23,T0092,Electronics ,Headphones,4,$834.99,West
+2024-04-23,T0093,,Bike,1,$444.88,South
+2024-03-14,T0094,Home & Garden,Planter,4,$832.44,East
+2024-01-24,T0095,Sports,Yoga Mat,3,$380.85,South
+2024-02-24,T0096,Sports,Helmet,6,$281.80,West
+2024-01-27,T0097,Home & Garden,Vase,5,$428.08,South
+2024-06-18,T0098,Home & Garden,Planter,2,$456.89,South
+2024-02-21,T0099,Home & Garden,Lamp,5,$441.74,West
+2024-04-11,T0100,Electronics ,Monitor,3,$706.75,South
+2024-04-16,T0101,Electronics,Headphones,1,"$1,234.06",North
+2024-01-08,T0102,Electronics,Phone,5,"$1,423.94",North
+2024-02-25,T0103, ,Helmet,5,"$1,187.16",West
+2024-03-19,T0104,,Yoga Mat,5,"$1,485.10",North
+2024-02-08,T0105,Electronics ,Phone,3,$992.34,South
+2024-06-20,T0106, ,Phone,1,$615.73,West
+2024-06-28,T0107,Home & Garden,Rug,3,"$1,061.90",West
+2024-02-14,T0108,Electronics ,Tablet,6,$886.74,North
+2024-01-02,T0109, ,Pants,3,"$1,240.81",South
+2024-04-23,T0110,Home & Garden,Vase,3,$661.53,East
+2024-01-20,T0111,Books,Comic,5,$743.22,North
+2024-02-22,T0112,Books,Comic,3,$43.67,North
+2024-06-15,T0113,Home & Garden,Lamp,2,$708.40,East
+2024-01-16,T0114,Electronics  ,Headphones,6,"$1,222.30",East
+2024-02-11,T0115,Books,Textbook,6,$161.38,West
+2024-01-11,T0116,,Cushion,5,$59.86,East
+2024-01-22,T0117,Sports,Weights,5,"$1,238.27",West
+2024-04-21,T0118,Books,Cookbook,5,$545.86,West
+2024-03-15,T0119,Electronics,Tablet,5,$200.86,West
+2024-03-18,T0120,Electronics ,Monitor,2,"$1,066.13",North
+2024-01-15,T0121, ,Bike,2,"$1,488.42",North
+2024-04-27,T0122,Electronics  ,Tablet,5,"$1,059.59",West
+2024-02-20,T0123,,Shoes,5,$221.24,South
+2024-05-09,T0124,Electronics ,Headphones,3,"$1,401.70",North
+2024-04-28,T0125,Home & Garden,Vase,5,"$1,498.36",South
+2024-05-13,T0126,,Biography,3,$502.00,West
+2024-04-02,T0127,Sports,Tennis Racket,5,$577.54,East
+2024-06-05,T0128,,Weights,6,"$1,189.63",West
+2024-01-28,T0129,Electronics,Monitor,5,$501.33,West
+2024-04-28,T0130,Electronics ,Headphones,1,"$1,085.05",South
+2024-04-21,T0131,Electronics ,Tablet,3,$936.77,North
+2024-04-28,T0132,Sports,Weights,3,$942.06,North
+2024-04-04,T0133,Electronics ,Tablet,2,"$1,121.42",North
+2024-01-10,T0134,,Jacket,1,$73.76,East
+2024-05-22,T0135,Sports,Tennis Racket,2,$799.09,South
+2024-05-22,T0136,Electronics  ,Laptop,5,"$1,306.91",South
+2024-03-15,T0137,,Cookbook,2,$694.42,East
+2024-01-15,T0138,Electronics,Tablet,6,$822.16,East
+2024-02-13,T0139,Home & Garden,Planter,4,"$1,268.73",West
+2024-03-23,T0140,Electronics ,Headphones,5,$541.64,East
+2024-06-25,T0141,Electronics,Tablet,1,$851.06,North
+2024-02-21,T0142,,Rug,5,"$1,203.89",South
+2024-03-26,T0143,Home & Garden,Lamp,6,$971.28,West
+2024-03-11,T0144,Electronics,Tablet,6,$201.46,West
+2024-03-17,T0145,Electronics  ,Phone,5,"$1,315.31",East
+2024-03-26,T0146,Electronics  ,Headphones,3,"$1,121.11",North
+2024-06-22,T0147,,Phone,2,"$1,290.91",West
+2024-05-04,T0148, ,Lamp,4,$25.81,West
+2024-03-04,T0149,Sports,Helmet,4,"$1,234.51",South
+2024-05-08,T0150,,Monitor,5,$495.37,North

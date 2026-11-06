@@ -1,0 +1,25 @@
+version = "1.0"
+
+[metadata]
+author_name = "authoring-agent"
+author_email = "unknown"
+difficulty = "hard"
+category = "model-training"
+tags = [ "data-processing", "data-science", "debugging",]
+expert_time_estimate_min = 30
+junior_time_estimate_min = 90
+
+[verifier]
+timeout_sec = 600.0
+
+[agent]
+timeout_sec = 3600.0
+
+[environment]
+build_timeout_sec = 300.0
+# docker_image = "alexgshaw/train-lightgbm:20260618"
+docker_image = "aweaiteam/calibforge:tb2_contrast_dpsk_failed_icm_model_training_20260618_093107_004_20260622_114140_10760_173851"
+cpus = 1
+memory = "4G"
+storage = "10G"
+

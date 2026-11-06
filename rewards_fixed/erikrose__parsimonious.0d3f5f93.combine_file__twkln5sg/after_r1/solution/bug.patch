@@ -1,0 +1,25 @@
+diff --git a/parsimonious/nodes.py b/parsimonious/nodes.py
+index 7839097..21e987a 100644
+--- a/parsimonious/nodes.py
++++ b/parsimonious/nodes.py
+@@ -236,8 +236,9 @@ class NodeVisitor(object, metaclass=RuleDecoratorMeta):
+         for now.
+ 
+         """
+-        raise NotImplementedError('No visitor method was defined for this expression: %s' %
+-                                  node.expr.as_rule())
++        if visited_children:  # Incorrectly handling when there are visited children
++            return visited_children[0]
++        return 'No visitor method'
+ 
+     # Convenience methods:
+ 
+@@ -259,7 +260,7 @@ class NodeVisitor(object, metaclass=RuleDecoratorMeta):
+         ``SomeVisitor().visit(some_grammar.match('some_string'))``.
+ 
+         """
+-        return self._parse_or_match(text, pos, 'match')
++        return self._parse_or_match(text, pos + 1, 'match')
+ 
+     # Internal convenience methods to help you write your own visitors:
+ 

@@ -1,0 +1,93 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "ls -la /app/data/ && head -5 /app/data/pageviews.csv && head -5 /app/data/conversions.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "wc -l /app/data/*.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "which duckdb || python3 -c \"import duckdb; print(duckdb.__version__)\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.3,
+    "keystrokes": "cat /app/data/pageviews.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.3,
+    "keystrokes": "cat /app/data/conversions.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.5,
+    "keystrokes": "mkdir -p /app/output && cat > /app/pipeline.sql << 'EOF'\nCREATE OR REPLACE TABLE pageviews AS\nSELECT\n  user_id,\n  CAST(event_time AS TIMESTAMP) AS event_time,\n  COALESCE(NULLIF(TRIM(utm_source), ''), 'unknown') AS utm_source,\n  COALESCE(NULLIF(TRIM(utm_medium), ''), 'unknown') AS utm_medium,\n  COALESCE(NULLIF(TRIM(utm_campaign), ''), 'unknown') AS utm_campaign\nFROM read_csv_auto('/app/data/pageviews.csv', header=true);\n\nCREATE OR REPLACE TABLE sessions AS\nWITH flagged AS (\n  SELECT *,\n    CASE\n      WHEN event_time - lag(event_time) OVER (PARTITION BY user_id ORDER BY event_time) > INTERVAL '30 minutes'\n      THEN 1 ELSE 0\n    END AS new_session_flag\n  FROM pageviews\n),\nnumbered AS (\n  SELECT *,\n    SUM(new_session_flag) OVER (PARTITION BY user_id ORDER BY event_time ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS session_seq\n  FROM flagged\n)\nSELECT\n  user_id,\n  session_seq + 1 AS session_number,\n  MIN(event_time) AS session_start,\n  ARG_MIN(utm_source, event_time) AS utm_source,\n  ARG_MIN(utm_medium, event_time) AS utm_medium,\n  ARG_MIN(utm_campaign, event_time) AS utm_campaign\nFROM numbered\nGROUP BY user_id, session_seq;\n\nCREATE OR REPLACE TABLE conversions AS\nSELECT\n  user_id,\n  CAST(converted_at AS TIMESTAMP) AS converted_at,\n  CAST(revenue AS DOUBLE) AS revenue,\n  ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY converted_at) AS conversion_number\nFROM read_csv_auto('/app/data/conversions.csv', header=true);\n\nCREATE OR REPLACE TABLE attribution AS\nWITH joined AS (\n  SELECT\n    s.user_id,\n    c.conversion_number,\n    s.session_number,\n    s.session_start,\n    s.utm_source, s.utm_medium, s.utm_campaign,\n    c.converted_at,\n    c.revenue\n  FROM sessions s\n  JOIN conversions c\n    ON s.user_id = c.user_id\n   AND s.session_start <= c.converted_at\n   AND s.session_start >= c.converted_at - INTERVAL '30 days'\n),\npaths AS (\n  SELECT\n    *,\n    COUNT(*) OVER (PARTITION BY user_id, conversion_number) AS total_sessions,\n    ROW_NUMBER() OVER (PARTITION BY user_id, conversion_number ORDER BY session_start, session_number) AS session_position\n  FROM joined\n),\nscored AS (\n  SELECT\n    *,\n    CASE WHEN session_position = 1 THEN 1.0 ELSE 0.0 END AS first_touch_points,\n    CASE WHEN session_position = total_sessions THEN 1.0 ELSE 0.0 END AS last_touch_points,\n    CASE\n      WHEN total_sessions = 1 THEN 1.0\n      WHEN total_sessions = 2 THEN 0.5\n      WHEN session_position = 1 OR session_position = total_sessions THEN 0.4\n      ELSE 0.2 / (total_sessions - 2)\n    END AS positional_points,\n    1.0 / total_sessions AS linear_points,\n    POW(2.0, -((epoch(converted_at) - epoch(session_start)) / 86400.0) / 7.0) AS decay_weight\n  FROM paths\n),\nnormalized AS (\n  SELECT *,\n    decay_weight / SUM(decay_weight) OVER (PARTITION BY user_id, conversion_number) AS time_decay_points\n  FROM scored\n),\nrounded AS (\n  SELECT\n    user_id,\n    user_id || '_' || conversion_number AS conversion_id,\n    user_id || '_s' || session_number AS session_id,\n    session_start,\n    utm_source, utm_medium, utm_campaign,\n    total_sessions,\n    session_position,\n    ROUND(first_touch_points, 4) AS first_touch_points,\n    ROUND(last_touch_points, 4) AS last_touch_points,\n    ROUND(positional_points, 4) AS positional_points,\n    ROUND(linear_points, 4) AS linear_points,\n    ROUND(time_decay_points, 4) AS time_decay_points,\n    ROUND(revenue, 4) AS revenue\n  FROM normalized\n)\nSELECT\n  *,\n  ROUND(first_touch_points * revenue, 4) AS first_touch_revenue,\n  ROUND(last_touch_points * revenue, 4) AS last_touch_revenue,\n  ROUND(positional_points * revenue, 4) AS positional_revenue,\n  ROUND(linear_points * revenue, 4) AS linear_revenue,\n  ROUND(time_decay_points * revenue, 4) AS time_decay_revenue\nFROM rounded;\n\nCOPY (\n  SELECT user_id, conversion_id, session_id, session_start, utm_source, utm_medium, utm_campaign,\n    total_sessions, session_position,\n    first_touch_points, last_touch_points, positional_points, linear_points, time_decay_points,\n    revenue, first_touch_revenue, last_touch_revenue, positional_revenue, linear_revenue, time_decay_revenue\n  FROM attribution\n  ORDER BY user_id, conversion_id, session_position\n) TO '/app/output/attribution.csv' (HEADER, DELIMITER ',');\n\nCOPY (\n  SELECT\n    utm_source, utm_medium, utm_campaign,\n    COUNT(*) AS total_sessions,\n    COUNT(DISTINCT conversion_id) AS total_conversions_attributed,\n    ROUND(SUM(first_touch_revenue), 4) AS first_touch_revenue,\n    ROUND(SUM(last_touch_revenue), 4) AS last_touch_revenue,\n    ROUND(SUM(positional_revenue), 4) AS positional_revenue,\n    ROUND(SUM(linear_revenue), 4) AS linear_revenue,\n    ROUND(SUM(time_decay_revenue), 4) AS time_decay_revenue,\n    ROUND(SUM(first_touch_revenue) / COUNT(*), 4) AS first_touch_roas,\n    ROUND(SUM(last_touch_revenue) / COUNT(*), 4) AS last_touch_roas,\n    ROUND(SUM(positional_revenue) / COUNT(*), 4) AS positional_roas,\n    ROUND(SUM(linear_revenue) / COUNT(*), 4) AS linear_roas,\n    ROUND(SUM(time_decay_revenue) / COUNT(*), 4) AS time_decay_roas\n  FROM attribution\n  GROUP BY utm_source, utm_medium, utm_campaign\n  ORDER BY time_decay_revenue DESC, utm_source, utm_medium, utm_campaign\n) TO '/app/output/channel_summary.csv' (HEADER, DELIMITER ',');\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.5,
+    "keystrokes": "duckdb < /app/pipeline.sql\n",
+    "duration": 5.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.5,
+    "keystrokes": "echo \"=== attribution ===\"; cat /app/output/attribution.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.5,
+    "keystrokes": "echo \"=== channel_summary ===\"; cat /app/output/channel_summary.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 5.8,
+    "keystrokes": "head -10 /app/output/attribution.csv && wc -l /app/output/*.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 5.9,
+    "keystrokes": "ls -la /app/output/\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 6.0,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 6.0,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

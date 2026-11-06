@@ -1,0 +1,20 @@
+[
+  {
+    "defect": "The grader requires revenue to exclude every non-completed order, but the public instruction never defines order eligibility and the buggy analysis.py itself aggregates every status.",
+    "evidence": "instruction.md says only 'correct output'; environment/files/analysis.py:40-58 has no status condition; attempts 01-12 all omitted it and attempt-04 replay failed correctness despite passing all other checks.",
+    "change": "State that only completed sales contribute revenue.",
+    "kind": "hidden_requirement"
+  },
+  {
+    "defect": "The grader values revenue from orders.csv unit_price, while the buggy script uses products.csv list_price and the public instruction does not identify the intended price semantics.",
+    "evidence": "instruction.md does not define revenue; environment/files/analysis.py:55 uses list_price; attempts 01, 02, 03, 06, 07, and 09 reasonably retained that field and failed correctness.",
+    "change": "State that completed sales are valued at their transaction price.",
+    "kind": "hidden_requirement"
+  },
+  {
+    "defect": "The grader enforces a 3x speedup although 'make it fast' gives no measurable acceptance threshold.",
+    "evidence": "instruction.md says only 'make it fast'; tests/test_outputs.py requires speedup >= 3.0.",
+    "change": "State the required minimum 3x speedup relative to analysis.py.",
+    "kind": "hidden_requirement"
+  }
+]

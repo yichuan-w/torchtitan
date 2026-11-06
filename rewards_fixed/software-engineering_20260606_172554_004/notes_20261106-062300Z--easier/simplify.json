@@ -1,0 +1,70 @@
+{
+  "retained_skill": "Diagnose and repair the calculator's cell-reference and expression-evaluation bugs in the existing C architecture.",
+  "bottleneck": "The public instruction never defines empty CSV cells, although grading requires them to retain their column and evaluate as zero; ten attempts therefore treated the three supplied sample files as complete coverage and submitted after repairing only the visible reference/precedence faults.",
+  "change": "Instruction-level repair: explicitly add empty cells to the accepted CSV cell types and state their zero value. This is a vague contract clarification, not a solution step; it makes the original malformed-row signal (a shifted value or false cycle on consecutive commas) relevant while leaving the parser diagnosis and implementation to the student.",
+  "restore": "Remove the standalone empty-cell sentence to restore the original task; no source, fixture, solution, or verifier behavior is otherwise changed.",
+  "prediction": "Attempts currently stop after the three supplied files pass without testing consecutive commas; stating that empty cells must preserve position and evaluate as zero should cause some to exercise such an input, observe the original shifted-cell or false-cycle signal, and continue into CSV parsing. This is refuted if the next 12 attempts still submit after only the column-index and precedence fixes, or if all 12 repair empty-cell parsing.",
+  "expected": "5 of 12",
+  "evidence": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turn": 28,
+      "observation": "The attempt declared all three supplied files passing and submitted after two fixes. Replayed its targeted column-index and precedence edits with `./sandbox reset`, `./sandbox exec`, and `./sandbox grade`; all five empty-cell checks failed, including consecutive, multiple, and leading empty cells."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turn": 67,
+      "observation": "The attempt treated the three supplied files as comprehensive and spent its remaining run on unrelated expression edges; it never repaired positional empty-cell parsing and hit the time limit."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turn": 31,
+      "observation": "The attempt first declared all three supplied files passing and then tested arithmetic, SUM, and cycles rather than consecutive-comma CSV rows."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turn": 25,
+      "observation": "The attempt declared the three supplied files passing after the common two fixes and did not pursue empty-cell parsing."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turn": 18,
+      "observation": "The attempt reached passing supplied examples after reference and precedence work, then pursued evaluator details rather than the unstated empty-cell contract."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turn": 27,
+      "observation": "The attempt got the supplied examples working and spent later turns probing column bounds and formula behavior, without repairing consecutive delimiters."
+    },
+    {
+      "attempt": "attempt-07.jsonl",
+      "turn": 29,
+      "observation": "The attempt moved beyond the supplied examples into evaluation recursion and unary operators, but did not preserve empty CSV fields."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turn": 20,
+      "observation": "The attempt repaired the common visible faults, then pursued out-of-range references and evaluation state rather than the hidden empty-cell behavior."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turn": 24,
+      "observation": "The attempt got the supplied examples past their initial faults but exhausted time in dependency/self-reference experiments before addressing positional empty fields."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turn": 54,
+      "observation": "The attempt reported the main tests passing and then investigated SUM casing and initialization; it never replaced delimiter parsing that drops empty fields."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turn": 88,
+      "observation": "This was the sole attempt to identify the decisive issue: it observed that `strtok` skips consecutive delimiters and replaced it with positional parsing. Its approach is the basis for the predicted partial recovery. After the instruction repair, replayed its turns 90-91 and 103 on a fresh reset after the common fixes: the empty-row probe printed `1,0,3` and `0,4,0`, and grading passed all 26 checks."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turn": 40,
+      "observation": "The attempt declared all three files passing despite noticing at turn 20 that a leading empty column was skipped. Replayed its global precedence substitution plus column fix; grading failed the five empty-cell checks and `test_sub_after_div`."
+    }
+  ]
+}

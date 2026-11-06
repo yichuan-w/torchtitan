@@ -1,0 +1,51 @@
+[
+  {
+    "model_name": "random_forest",
+    "dataset_name": "credit_g",
+    "acc": 0.8601,
+    "n_rows": 1000,
+    "n_features": 20
+  },
+  {
+    "model_name": "resnet",
+    "dataset_name": "jannis",
+    "acc": 0.7646,
+    "n_rows": 83733,
+    "n_features": 54
+  },
+  {
+    "model_name": "resnet",
+    "dataset_name": "mini_boone",
+    "acc": 0.8079,
+    "n_rows": 130064,
+    "n_features": 50
+  },
+  {
+    "model_name": "saint",
+    "dataset_name": "gesture",
+    "acc": 0.7955,
+    "n_rows": 9873,
+    "n_features": 32
+  },
+  {
+    "model_name": "saint",
+    "dataset_name": "mini_boone",
+    "acc": 0.875,
+    "n_rows": 130064,
+    "n_features": 50
+  },
+  {
+    "model_name": "xgboost",
+    "dataset_name": "gesture",
+    "acc": 0.8439,
+    "n_rows": 9873,
+    "n_features": 32
+  },
+  {
+    "model_name": "xgboost",
+    "dataset_name": "jungle",
+    "acc": 0.8915,
+    "n_rows": 44819,
+    "n_features": 6
+  }
+]

@@ -1,0 +1,128 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "ls -la /app\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "xxd -l 128 /app/data.db\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "xxd -l 128 /app/reference.db\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "sqlite3 /app/reference.db \".schema\"\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.8,
+    "keystrokes": "cp /app/data.db /app/data.db.bak\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.8,
+    "keystrokes": "printf 'SQLite format 3\\000' | dd of=/app/data.db bs=1 seek=0 conv=notrunc\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.8,
+    "keystrokes": "printf '\\x10\\x00' | dd of=/app/data.db bs=1 seek=16 conv=notrunc\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.8,
+    "keystrokes": "printf '\\x01\\x01' | dd of=/app/data.db bs=1 seek=18 conv=notrunc\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.8,
+    "keystrokes": "xxd -l 100 /app/data.db\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.8,
+    "keystrokes": "sqlite3 /app/data.db \"PRAGMA integrity_check;\"\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 2.3,
+    "keystrokes": "sqlite3 /app/data.db .dump > /app/recovered.sql\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 2.3,
+    "keystrokes": "head -30 /app/recovered.sql\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 2.3,
+    "keystrokes": "grep -c \"INSERT INTO\" /app/recovered.sql\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 2.3,
+    "keystrokes": "rm -f /tmp/test.db && sqlite3 /tmp/test.db < /app/recovered.sql && echo IMPORT_OK\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 2.3,
+    "keystrokes": "sqlite3 /tmp/test.db \"SELECT (SELECT COUNT(*) FROM users), (SELECT COUNT(*) FROM orders), (SELECT COUNT(*) FROM products);\"\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 5.0,
+    "keystrokes": "ls -la /app/recovered.sql\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 5.1,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 5.1,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

@@ -1,0 +1,58 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "head -5 /app/data/sensor_readings.csv; wc -l /app/data/sensor_readings.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "python3 -c \"import pandas, pytz; print(pandas.__version__)\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.2,
+    "keystrokes": "mkdir -p /app/output\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.2,
+    "keystrokes": "cat > /app/aggregate.py << 'EOF'\nfrom zoneinfo import ZoneInfo\nimport pandas as pd\n\ndf = pd.read_csv('/app/data/sensor_readings.csv', parse_dates=['timestamp'])\ndf = df.drop_duplicates(subset=['timestamp', 'sensor_id'], keep='first')\n\nwith open('/usr/share/zoneinfo/Africa/Cairo', 'rb') as source:\n    cairo_tz = ZoneInfo.from_file(source, key='Africa/Cairo')\ncairo = df['timestamp'].dt.tz_localize(cairo_tz, nonexistent='shift_forward', ambiguous='NaT')\ndf = df.assign(ts_utc=cairo.dt.tz_convert('UTC'))\ndf = df.dropna(subset=['ts_utc'])\ndf['hour_start'] = df['ts_utc'].dt.floor('h')\n\nagg = df.groupby(['sensor_id', 'hour_start'])['temperature'].agg(\n    mean_temp='mean', min_temp='min', max_temp='max').reset_index()\nagg = agg.sort_values(['sensor_id', 'hour_start'])\nagg['mean_temp'] = agg['mean_temp'].round(2)\nagg['hour_start'] = agg['hour_start'].dt.strftime('%Y-%m-%d %H:%M:%S%z')\nagg['hour_start'] = agg['hour_start'].str[:-2] + ':' + agg['hour_start'].str[-2:]\nagg = agg[['sensor_id', 'hour_start', 'mean_temp', 'min_temp', 'max_temp']]\nagg.to_csv('/app/output/hourly_aggregates.csv', index=False)\nprint(agg.head(10))\nprint(len(agg))\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.2,
+    "keystrokes": "python3 /app/aggregate.py\n",
+    "duration": 5.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 5.4,
+    "keystrokes": "head -3 /app/output/hourly_aggregates.csv; grep -c \"\" /app/output/hourly_aggregates.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 5.5,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 5.5,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

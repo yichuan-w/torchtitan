@@ -1,0 +1,152 @@
+{
+  "retained_skill": "Derive and crack a leet-speak mutation of a supplied wordlist entry rather than relying only on verbatim dictionary matches.",
+  "bottleneck": "All 12 attempts cracked the two verbatim passwords and then entered a long, unguided search over two distinct mutated passwords. Ten exhausted the time budget in that search; the two submitted attempts recovered the dbadmin leet mutation but failed only because the harder service mutation was still missing.",
+  "change": "Structural help in the original hash-file signal: remove the service hash, leaving three hashes and one mutated password. This removes the separate capitalization-plus-leet-plus-suffix search while retaining the decision to generate and validate a leet mutation for dbadmin; the student still reacts to John's remaining-hash result as in the original task.",
+  "restore": "Restore the service hash and its output requirement after the student reliably solves the three-hash version; that reintroduces the second mutation pattern without changing the retained leet-variant skill.",
+  "prediction": "The change addresses continued candidate expansion after John reports two easy cracks. Attempts that recover dbadmin can now stop and submit instead of searching for service; this is refuted if replay of either submitted approach still fails a retained output check, or if the next group continues searching after all three hashes are cracked.",
+  "expected": "3 of 12",
+  "evidence": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turn": 7,
+      "observation": "John reported two hashes cracked and two left; the attempt then searched through turn 70 and hit the time budget without creating the deliverable."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turn": 68,
+      "observation": "The attempt wrote admin, root, and the correctly recovered dbadmin mutation. Rebuilt this submitted state with `./sandbox reset`, wrote those three lines, and ran `./sandbox grade`: file, admin, root, and dbadmin checks passed; only the service-password check failed. After the rewrite, replayed the same three-line deliverable from a fresh `./sandbox reset`; `./sandbox grade` passed all retained checks, so the removed service search was the only remaining failure."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turn": 8,
+      "observation": "John reported two hashes cracked and two left; mutation searches continued through turn 69 until the time budget."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turn": 6,
+      "observation": "John reported two hashes cracked and two left; the attempt tested incomplete password variants through turn 82 and timed out."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turn": 8,
+      "observation": "John reported two hashes cracked and two left; the attempt explored custom leet candidates through turn 89 and timed out."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turn": 6,
+      "observation": "John reported two hashes cracked and two left; the attempt continued mutation generation through turn 71 and timed out."
+    },
+    {
+      "attempt": "attempt-07.jsonl",
+      "turn": 70,
+      "observation": "The attempt wrote admin, root, and the correctly recovered dbadmin mutation. Rebuilt this submitted state after a fresh `./sandbox reset` and ran `./sandbox grade`: file, admin, root, and dbadmin checks passed; only the service-password check failed. After the rewrite, the same submitted three-line state passes all retained checks."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turn": 7,
+      "observation": "John reported two hashes cracked and two left; the attempt remained in candidate-generation and verification through turn 96 and timed out."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turn": 7,
+      "observation": "John reported two hashes cracked and two left; the attempt tried many mutation sets through turn 98 and timed out."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turn": 8,
+      "observation": "John reported two hashes cracked and two left; the attempt continued custom candidate testing through turn 78 and timed out."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turn": 8,
+      "observation": "John reported two hashes cracked and two left; the attempt repeatedly tried tools and wordlists through turn 102 and timed out."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turn": 8,
+      "observation": "John reported two hashes cracked and two left; the attempt continued broad candidate scripts through turn 88 and timed out."
+    }
+  ],
+  "budget": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turns": [
+        7,
+        70
+      ],
+      "stage": "Searching two remaining mutations; removing service eliminates one target and its capitalization, substitution, and suffix branch."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turns": [
+        8,
+        69
+      ],
+      "stage": "Searching two remaining mutations; removing service eliminates one target and its capitalization, substitution, and suffix branch."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turns": [
+        6,
+        82
+      ],
+      "stage": "Searching two remaining mutations; removing service eliminates one target and its capitalization, substitution, and suffix branch."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turns": [
+        8,
+        89
+      ],
+      "stage": "Searching two remaining mutations; removing service eliminates one target and its capitalization, substitution, and suffix branch."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turns": [
+        6,
+        71
+      ],
+      "stage": "Searching two remaining mutations; removing service eliminates one target and its capitalization, substitution, and suffix branch."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turns": [
+        7,
+        96
+      ],
+      "stage": "Searching two remaining mutations; removing service eliminates one target and its capitalization, substitution, and suffix branch."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turns": [
+        7,
+        98
+      ],
+      "stage": "Searching two remaining mutations; removing service eliminates one target and its capitalization, substitution, and suffix branch."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turns": [
+        8,
+        78
+      ],
+      "stage": "Searching two remaining mutations; removing service eliminates one target and its capitalization, substitution, and suffix branch."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turns": [
+        8,
+        102
+      ],
+      "stage": "Searching two remaining mutations; removing service eliminates one target and its capitalization, substitution, and suffix branch."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turns": [
+        8,
+        88
+      ],
+      "stage": "Searching two remaining mutations; removing service eliminates one target and its capitalization, substitution, and suffix branch."
+    }
+  ]
+}

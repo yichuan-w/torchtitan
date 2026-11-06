@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The grader requires wrapping only overlong source lines while preserving other line boundaries, but the original issue text only asks for wrapping in a multi-paragraph description and reasonably permits paragraph reflow.",
+    "evidence": "instruction.md describes a paragraph-break wrapping failure without stating line-boundary preservation; tests/test.patch expects the original short second paragraph and existing internal line boundaries to remain unchanged. attempt-01.jsonl turn 17 and attempt-12.jsonl turn 9 both choose reasonable whole-paragraph reflow, and fresh replays of those approaches fail only the issue check because their first paragraph wraps at a different word.",
+    "change": "State that existing line boundaries within each paragraph remain intact, only overlong lines are split, and paragraph breaks remain intact.",
+    "kind": "hidden_requirement"
+  }
+]

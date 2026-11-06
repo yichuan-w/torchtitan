@@ -1,0 +1,48 @@
+CC(C)CC1=CC=C(C=C1)C(C)C(=O)O
+  RDKit          3D
+
+  0  0  0  0  0  0  0  0999 V2000
+M  END
+$$$$
+CC(=O)OC1=CC=CC=C1C(=O)O
+  RDKit          3D
+
+  0  0  0  0  0  0  0  0999 V2000
+M  END
+$$$$
+CN1C=NC2=C1C(=O)N(C(=O)N2C)C
+  RDKit          3D
+
+  0  0  0  0  0  0  0  0999 V2000
+M  END
+$$$$
+CC(=O)NC1=CC=C(C=C1)O
+  RDKit          3D
+
+  0  0  0  0  0  0  0  0999 V2000
+M  END
+$$$$
+CC1=CC=C(C=C1)S(=O)(=O)NC(=O)NC2=NC=C(C=N2)Cl
+  RDKit          3D
+
+  0  0  0  0  0  0  0  0999 V2000
+M  END
+$$$$
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC(=O)O
+  RDKit          3D
+
+  0  0  0  0  0  0  0  0999 V2000
+M  END
+$$$$
+CCN(CC)CC(=O)NC1=C(C)C=CC=C1C
+  RDKit          3D
+
+  0  0  0  0  0  0  0  0999 V2000
+M  END
+$$$$
+CN(C)CCCN1C2=CC=CC=C2CCC3=C1C=C(C=C3)Cl
+  RDKit          3D
+
+  0  0  0  0  0  0  0  0999 V2000
+M  END
+$$$$

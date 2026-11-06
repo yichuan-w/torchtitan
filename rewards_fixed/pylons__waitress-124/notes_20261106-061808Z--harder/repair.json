@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The previous hardening reference treated a status with an empty reason phrase as invalid even though the governing HTTP grammar allows it.",
+    "evidence": "traces/history/20261105-195444Z--harder.notes.md records the failed oracle; its solution used `not reason` while its own valid-status scratch case included `200 `.",
+    "change": "The revised reference validates the three-digit code and reason-phrase character range without requiring the reason phrase to be nonempty.",
+    "kind": "other"
+  }
+]

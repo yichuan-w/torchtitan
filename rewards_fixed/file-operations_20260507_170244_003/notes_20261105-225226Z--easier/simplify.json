@@ -1,0 +1,75 @@
+{
+  "retained_skill": "Inspect the damaged decompressed tar stream, identify intact embedded file data despite corrupt headers, and carve each recoverable payload with correct boundaries so the SQLite database and CSV remain semantically intact.",
+  "bottleneck": "A hidden exact-filename requirement rejected every attempt after it had performed the retained recovery work: the instruction identifies only 'the recovered CSV', while the checker required data/reports/transactions.csv; all 12 attempts reasonably saved the carved CSV as data/reports/sales.csv.",
+  "change": "Repair in the public-contract/checker place: explicitly preserve freedom to use a descriptive CSV filename under data/reports, and grade the intact CSV semantics at either transactions.csv or sales.csv. This removes only the unstated naming obstacle and supplies no carving decision, offsets, boundaries, or final data.",
+  "restore": "A later hardening can require the original CSV name only if that name is made discoverable from the archive or stated in the instruction; the binary inspection and payload-boundary recovery remain fully with the student now.",
+  "prediction": "Attempts currently write a complete 101-line CSV to sales.csv and then submit; accepting that public-contract-compatible path lets attempts that also avoid fabricating the truncated config proceed from final validation to a passing submission. This is refuted if a replay with intact sales.csv, valid database and PNG, and no config still fails any retained check.",
+  "expected": "3 of 12",
+  "evidence": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turn": 24,
+      "observation": "First commits the intact CSV as /app/recovered/data/reports/sales.csv; replayed state failed transactions.csv missing and fabricated config.json, while database, PNG, directories, and CSV content otherwise passed. Negative control replaced both candidate CSV outputs with header-only data and grading rejected it at the CSV line-count content check."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turn": 30,
+      "observation": "First writes the carved CSV as sales.csv; turns 41-44 trim it to 101 lines, remove config.json, and validate both database tables, so filename is its remaining observed failure."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turn": 23,
+      "observation": "First writes the CSV as sales.csv and later validates it, but also leaves config.json, so the naming repair alone does not make this attempt pass."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turn": 11,
+      "observation": "Begins carving the CSV under the sales.csv name; final checks target sales.csv rather than the unstated transactions.csv path."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turn": 18,
+      "observation": "Writes sales.csv, trims it to 101 lines at turn 19, removes config artifacts at turn 22, and validates 100 data rows at turn 23; the hidden filename is its remaining observed obstacle."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turn": 30,
+      "observation": "Writes and validates sales.csv but later leaves a carved config.json, so it still fails the retained no-fabrication requirement after the naming repair."
+    },
+    {
+      "attempt": "attempt-07.jsonl",
+      "turn": 30,
+      "observation": "Creates sales.csv and validates its row count, but copies partial config.json at turns 32-33, leaving an independent retained failure."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turn": 22,
+      "observation": "Creates sales.csv and validates the payload, but creates config.json at turn 23, leaving an independent retained failure."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turn": 32,
+      "observation": "Writes the carved CSV as sales.csv and later fabricates config.json, so naming is the first contract mismatch and config remains another failure."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turn": 18,
+      "observation": "Writes the intact CSV to sales.csv and subsequently creates config.json, so the repair preserves a reason for this attempt to fail."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turn": 30,
+      "observation": "Writes and verifies sales.csv but creates config.json at turn 33, leaving an independent retained failure."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turn": 11,
+      "observation": "Begins CSV recovery under sales.csv; reconstructed final state had valid PNG/database/CSV and no config, and grading showed only transactions.csv missing (5 of 6 checks passed)."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turn": 29,
+      "observation": "Post-edit replay from a fresh reset followed the attempt approach through sales.csv, sales.db, and banner.png with no config, then applied its observed 101-line cleanup; ./sandbox grade returned reward 1.0 with all six retained checks passing, so no prior failure remains for this replay. A correct sales.csv remained accepted after the solver-writable backup input was changed, confirming no unintended input-immutability requirement."
+    }
+  ]
+}

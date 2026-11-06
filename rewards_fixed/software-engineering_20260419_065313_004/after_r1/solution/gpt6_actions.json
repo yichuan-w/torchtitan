@@ -1,0 +1,93 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "cat /app/vm.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.1,
+    "keystrokes": "cat > /app/gen.py << 'EOF'\ncode = bytearray()\nlabels = {}\nfixups = []\n\ndef emit(*b):\n    code.extend(b)\n\ndef label(name):\n    labels[name] = len(code)\n\ndef jump(op, name):\n    emit(op, 0, 0)\n    fixups.append((len(code)-2, name))\n\ndef push(v):\n    emit(0x01, v & 0xFF, (v >> 8) & 0xFF)\n\ndef push65537():\n    push(1); push(16); emit(0x1A); push(1); emit(0x10)  # (1<<16)+1\n\ndef load(i): emit(0x02, i)\ndef store(i): emit(0x03, i)\n\n# vars: 2=r_old, 3=r, 4=s_old, 5=s, 6=q, 7=tmp\npush65537(); store(2)\nload(0); store(3)\npush(0); store(4)\npush(1); store(5)\n\nlabel('loop')\nload(3); jump(0x31, 'end')          # if r==0 goto end\nload(2); load(3); emit(0x13); store(6)        # q = r_old / r\nload(2); load(6); load(3); emit(0x12); emit(0x11); store(7)  # tmp = r_old - q*r\nload(3); store(2)                   # r_old = r\nload(7); store(3)                   # r = tmp\nload(4); load(6); load(5); emit(0x12); emit(0x11); store(7)  # tmp = s_old - q*s\nload(5); store(4)                   # s_old = s\nload(7); store(5)                   # s = tmp\njump(0x30, 'loop')\n\nlabel('end')\nload(4); push65537(); emit(0x14)    # s_old % 65537\nemit(0x04)                          # dup\npush(0); emit(0x22)                 # x < 0 ?\njump(0x31, 'store')                 # if not negative, store\npush65537(); emit(0x10)             # add 65537\nlabel('store')\nstore(1); emit(0x00)\n\nfor pos, name in fixups:\n    addr = labels[name]\n    code[pos] = addr & 0xFF\n    code[pos+1] = (addr >> 8) & 0xFF\n\nopen('/app/prog.bin','wb').write(bytes(code))\nprint('size:', len(code))\nEOF\npython3 /app/gen.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.1,
+    "keystrokes": "gcc -O2 -o /app/vm /app/vm.c && echo built\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.1,
+    "keystrokes": "for n in 1 2 65536 0 3 1000 32768; do echo -n \"$n -> \"; /app/vm /app/prog.bin $n; done\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.1,
+    "keystrokes": "python3 -c \"\nimport subprocess, random\nfor n in [1,2,65535,65536,0] + [random.randint(1,65536) for _ in range(50)]:\n    out = int(subprocess.run(['/app/vm','/app/prog.bin',str(n)],capture_output=True,text=True).stdout)\n    exp = 0 if n==0 else pow(n,-1,65537)\n    assert out==exp, (n,out,exp)\nprint('all ok')\n\"\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 2.7,
+    "keystrokes": "which python perl xxd od\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 2.7,
+    "keystrokes": "cat > /app/gen.c << 'EOF'\n#include <stdio.h>\n#include <string.h>\nunsigned char code[4096]; int len=0;\nint lbl[16]; int fix[16][2]; int nfix=0;\nenum { L_LOOP, L_END, L_STORE };\nvoid emit(int b){ code[len++]=b&0xFF; }\nvoid push(int v){ emit(0x01); emit(v&0xFF); emit((v>>8)&0xFF); }\nvoid push65537(){ push(1); push(16); emit(0x1A); push(1); emit(0x10); }\nvoid load(int i){ emit(0x02); emit(i); }\nvoid store(int i){ emit(0x03); emit(i); }\nvoid label(int l){ lbl[l]=len; }\nvoid jump(int op,int l){ emit(op); fix[nfix][0]=len; fix[nfix][1]=l; nfix++; emit(0); emit(0); }\nint main(){\n    push65537(); store(2);\n    load(0); store(3);\n    push(0); store(4);\n    push(1); store(5);\n    label(L_LOOP);\n    load(3); jump(0x31, L_END);\n    load(2); load(3); emit(0x13); store(6);\n    load(2); load(6); load(3); emit(0x12); emit(0x11); store(7);\n    load(3); store(2);\n    load(7); store(3);\n    load(4); load(6); load(5); emit(0x12); emit(0x11); store(7);\n    load(5); store(4);\n    load(7); store(5);\n    jump(0x30, L_LOOP);\n    label(L_END);\n    load(4); push65537(); emit(0x14);\n    emit(0x04);\n    push(0); emit(0x22);\n    jump(0x31, L_STORE);\n    push65537(); emit(0x10);\n    label(L_STORE);\n    store(1); emit(0x00);\n    for(int i=0;i<nfix;i++){ int a=lbl[fix[i][1]]; code[fix[i][0]]=a&0xFF; code[fix[i][0]+1]=(a>>8)&0xFF; }\n    FILE *f=fopen(\"/app/prog.bin\",\"wb\");\n    fwrite(code,1,len,f); fclose(f);\n    printf(\"size: %d\\n\", len);\n    return 0;\n}\nEOF\ngcc -O2 -o /app/gen /app/gen.c && /app/gen\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 2.7,
+    "keystrokes": "for n in 1 2 65536 0 3 1000 32768; do echo -n \"$n -> \"; /app/vm /app/prog.bin $n; done\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 2.7,
+    "keystrokes": "ok=1; for n in 1 2 3 4 5 100 999 12345 65535 65536 7 255 256 4097 32769; do x=$(/app/vm /app/prog.bin $n); r=$(( (n * x) % 65537 )); if [ $r -ne 1 ]; then echo \"FAIL $n -> $x\"; ok=0; fi; done; x=$(/app/vm /app/prog.bin 0); [ \"$x\" = \"0\" ] || { echo \"FAIL 0 -> $x\"; ok=0; }; [ $ok -eq 1 ] && echo ALL_OK\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 4.4,
+    "keystrokes": "perl -e 'srand(42); for(1..300){ print int(rand(65536))+1, \"\\n\" }' > /tmp/tests.txt; ok=1; while read n; do x=$(/app/vm /app/prog.bin $n); r=$(( (n*x) % 65537 )); if [ $r -ne 1 ] || [ $x -lt 1 ] || [ $x -gt 65536 ]; then echo \"FAIL $n -> $x\"; ok=0; fi; done < /tmp/tests.txt; [ $ok -eq 1 ] && echo RANDOM_ALL_OK\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 4.4,
+    "keystrokes": "ls -l /app/prog.bin\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 5.5,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 5.5,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

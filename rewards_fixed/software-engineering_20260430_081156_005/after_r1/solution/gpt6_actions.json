@@ -1,0 +1,93 @@
+[
+  {
+    "step_id": 3,
+    "offset_sec": 0.0,
+    "keystrokes": "ls -la /app\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.0,
+    "keystrokes": "cat /app/README.txt\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.0,
+    "keystrokes": "wc -c /app/data/transactions.dat\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.0,
+    "keystrokes": "xxd -g 1 -l 512 /app/data/transactions.dat\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 0.4,
+    "keystrokes": "od -An -v -tx1 -w41 /app/data/transactions.dat | head -5\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 0.4,
+    "keystrokes": "python3 - <<'PY'\nfrom pathlib import Path\nb = Path('/app/data/transactions.dat').read_bytes()\nprint('file length:', len(b), 'records:', len(b)//41)\nfor i in range(0, len(b), 41):\n    r = b[i:i+41]\n    print('record', i//41, 'raw:', r.hex())\n    fields = [(0,1,'system'),(1,8,'account'),(9,1,'type'),(10,5,'amount'),(15,25,'description'),(40,1,'status')]\n    for off, n, name in fields:\n        raw = r[off:off+n]\n        print(f'  {name:11s}: raw={raw!r} cp037={raw.decode(\"cp037\")!r}')\nPY\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 0.6,
+    "keystrokes": "python3 - <<'PY'\nfrom pathlib import Path\nb = Path('/app/data/transactions.dat').read_bytes()\ndescs = [b[i+15:i+40] for i in range(0, len(b), 41)]\nfor codec in ['cp037','cp500','cp1140','cp1047','cp875','cp1026']:\n    print('\\n===', codec, '===')\n    try:\n        for d in descs:\n            print(d.decode(codec).rstrip())\n    except Exception as e:\n        print('ERROR', e)\nPY\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 1.6,
+    "keystrokes": "cat > /app/convert.py <<'PY'\nfrom pathlib import Path\nimport csv\n\nINPUT_FILE = Path('/app/data/transactions.dat')\nOUTPUT_FILE = Path('/app/output/transactions.csv')\nRECORD_SIZE = 41\nTEXT_ENCODING = 'cp500'\n\nTYPE_MAP = {'C': 'CREDIT', 'D': 'DEBIT'}\nSTATUS_MAP = {'A': 'ACTIVE', 'P': 'PENDING', 'E': 'ERROR'}\n\n\ndef decode_text(raw, system_id):\n    return raw.decode('cp037' if system_id == 1 else TEXT_ENCODING)\n\n\ndef unpack_comp3(raw):\n    nibbles = []\n    for byte in raw:\n        nibbles.append(byte >> 4)\n        nibbles.append(byte & 0x0F)\n    digits = nibbles[:-1]\n    sign = nibbles[-1]\n    if any(d > 9 for d in digits):\n        raise ValueError('invalid COMP-3 digit nibble in ' + raw.hex())\n    value = 0\n    for digit in digits:\n        value = value * 10 + digit\n    if sign == 0x0D:\n        value = -value\n    elif sign not in (0x0C, 0x0F):\n        raise ValueError('invalid COMP-3 sign nibble in ' + raw.hex())\n    return value\n\n\ndef format_cents(cents):\n    sign = '-' if cents < 0 else ''\n    dollars, remainder = divmod(abs(cents), 100)\n    return sign + str(dollars) + '.' + str(remainder).zfill(2)\n\n\ndef main():\n    data = INPUT_FILE.read_bytes()\n    if len(data) % RECORD_SIZE != 0:\n        raise ValueError('input size is not a multiple of the record size')\n    OUTPUT_FILE.parent.mkdir(parents=True, exist_ok=True)\n    with OUTPUT_FILE.open('w', newline='', encoding='utf-8') as f:\n        writer = csv.writer(f)\n        writer.writerow(['account_id', 'trans_type', 'amount', 'description', 'status'])\n        for offset in range(0, len(data), RECORD_SIZE):\n            record = data[offset:offset + RECORD_SIZE]\n            system_id = record[0]\n            account_id = decode_text(record[1:9], system_id)\n            trans_type = TYPE_MAP[decode_text(record[9:10], system_id)]\n            amount = format_cents(unpack_comp3(record[10:15]))\n            description = decode_text(record[15:40], system_id).rstrip()\n            status = STATUS_MAP[decode_text(record[40:41], system_id)]\n            writer.writerow([account_id, trans_type, amount, description, status])\n\n\nif __name__ == '__main__':\n    main()\nPY\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 1.6,
+    "keystrokes": "python3 /app/convert.py\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 1.6,
+    "keystrokes": "cat /app/output/transactions.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 2.8,
+    "keystrokes": "ls -l /app/convert.py /app/output/transactions.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 2.9,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 2.9,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

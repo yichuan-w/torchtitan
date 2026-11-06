@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The verifier requires byte-for-byte SHA256 identity even though the public task requires valid PNGs that render the original image content; legal lossless reconstructions with identical pixels are rejected.",
+    "evidence": "instruction.md requires validity and original rendered image content, while tests/test_outputs.py:76-86 rejects any different lossless PNG encoding before checking PNG semantics; attempt-10.jsonl turn 32 reconstructed all 20 files with valid CRCs and original decompressed image data but grading replay failed only the checksum-content check.",
+    "change": "State that lossless PNG encoding may differ and replace exact-file hashes with checks for PNG validity, dimensions, and decoded RGB pixel content derived from the original fixture.",
+    "kind": "hidden_requirement"
+  }
+]

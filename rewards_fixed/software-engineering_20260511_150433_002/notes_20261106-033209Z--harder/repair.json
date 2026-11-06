@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The instruction promises GCC 14, but the Ubuntu 24.04 seed image only installed build-essential and supplied GCC 13.3 as gcc.",
+    "evidence": "traces/attempt-09.jsonl turn 4 reports gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0 while following the requested workflow.",
+    "change": "Install gcc-14 and configure the shipped Makefile to invoke gcc-14 for the library build.",
+    "kind": "broken_setup"
+  }
+]

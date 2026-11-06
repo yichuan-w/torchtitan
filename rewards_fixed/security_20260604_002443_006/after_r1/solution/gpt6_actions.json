@@ -1,0 +1,30 @@
+[
+  {
+    "step_id": 1,
+    "offset_sec": 0.0,
+    "keystrokes": "python3 - <<'PY'\nfrom PIL import Image\nimage = Image.open('/app/image.png').convert('RGB')\nbits = []\nfor y in range(image.height):\n    for x in range(image.width):\n        if (x + y) % 2 == 0:\n            bits.extend(channel & 1 for channel in image.getpixel((x, y)))\npayload = bytes(int(''.join(map(str, bits[i:i + 8])), 2) for i in range(0, len(bits), 8))\nsecret = payload.split(b'\\0', 1)[0].decode('ascii')\nopen('/app/recovered_secret.txt', 'w').write(secret + '\\n')\nprint(secret)\nPY\n",
+    "duration": 2.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 2.0,
+    "keystrokes": "cat /app/recovered_secret.txt\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 2.5,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 2.5,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

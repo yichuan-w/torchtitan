@@ -1,0 +1,152 @@
+{
+  "retained_skill": "Designing and implementing a self-contained Huffman compressor/decompressor in dependency-free C, including tree construction, bit packing, format metadata, and exact round trips.",
+  "bottleneck": "The 4000-byte source-code golf constraint makes the student compress code before it is correct. All 12 scored attempts repeatedly replace whole implementations after syntax, tree, or bitstream failures; 10 exhaust the time budget and the other 2 leave the sandbox stuck or failed. Four attempts explicitly abandon their first readable implementation because it is 4178-6362 bytes, and the others converge on similarly terse, fragile rewrites.",
+  "change": "Remove the source byte limit from the instruction and its corresponding verifier check. This is structural help around the retained algorithmic skill: it removes the minification and full-rewrite stage rather than adding directions to read. The student still must implement Huffman tree construction, a self-contained compressed representation, bit encoding/decoding, edge cases, and the CLI. The original signal retained is a failed compile or round-trip comparison, but the student can now repair the readable implementation that produced it instead of replacing it to satisfy code golf.",
+  "restore": "Restore the final source-size sentence and the source-size verifier assertion to return to the original task; no Huffman behavior or interface requirement needs restoration.",
+  "prediction": "The change addresses the repeated action of discarding a readable 4-6 KB implementation and starting another compressed rewrite. Without the byte cap, the next action can be local repair of the compiler or round-trip failure, which should let about five attempts finish. This is refuted if attempts still spend most of their turns replacing complete implementations, or if they retain readable implementations but still cannot obtain a passing round trip before timeout.",
+  "expected": "5 of 12",
+  "evidence": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turn": 3,
+      "observation": "The first source is 4874 bytes and is immediately discarded for exceeding 4000; the attempt then writes more than twenty replacements and times out. Pre-change replay restored the turn-72 final source and ran ./sandbox grade: existence, size, compilation, empty round-trip, single-character ratio, and empty handling passed; alice, alphabet, random text, single-character round-trip, DNA, alphabet/DNA ratios, and determinism failed because compression was killed or timed out. Post-change replay began from ./sandbox reset, restored the same turn-72 source, and ran ./sandbox grade: source existence, compilation, empty round-trip, single-character compression ratio, and empty handling now pass; seven retained round-trip/ratio checks still fail, while the removed size and hidden determinism obstacles are no longer encountered."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turn": 24,
+      "observation": "The attempt celebrates a 1925-byte implementation, then continues rebuilding after round-trip failure until timeout. Pre-change replay restored its last full source write and ran ./sandbox grade: only source existence/size passed; compilation and all eleven behavioral checks failed."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turn": 4,
+      "observation": "A readable rewrite compiles, but after a foreground output command blocks at turn 7 the attempt repeatedly rewrites/debugs until sandbox_failed rather than reaching a valid round trip."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turn": 2,
+      "observation": "The initial 4178-byte implementation is explicitly discarded because it exceeds 4000; many compact replacements segfault, hang, or omit decompression before timeout."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turn": 7,
+      "observation": "Compression runs, but decompression is wrong; the attempt repeatedly replaces the implementation with terse variants and eventually sandbox_failed without submission."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turn": 6,
+      "observation": "A compact implementation has macro/type compilation conflicts; repeated rewrites and a stuck terminal consume the remaining attempt and end sandbox_failed."
+    },
+    {
+      "attempt": "attempt-07.jsonl",
+      "turn": 3,
+      "observation": "A 2122-byte build compiles but decompression is recognized as incorrect; repeated complete rewrites, including oversized 4044-4516 byte versions, consume the budget."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turn": 6,
+      "observation": "The 3250-byte first implementation reaches compile diagnostics, then many compact rewrites produce hangs and a 1 GB output; cleanup and further rewrites consume the time budget."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turn": 2,
+      "observation": "The initial implementation has undefined variables and is replaced repeatedly; later compact versions compile but do not round-trip before timeout."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turn": 3,
+      "observation": "The first compact source has struct and tree-reader bugs; dozens of whole-file replacements and segfault repairs consume the time budget."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turn": 4,
+      "observation": "The 4208-byte first readable implementation is explicitly discarded for exceeding 4000. The student later notes at turn 31 that compact code is creating too many bugs, but continues terse rewrites until timeout."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turn": 3,
+      "observation": "The initial 6362-byte implementation is rejected both for compile errors and the byte cap; repeated smaller rewrites alternate among compile failures, hangs, segfaults, and mismatches until timeout."
+    }
+  ],
+  "budget": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turns": [
+        3,
+        75
+      ],
+      "stage": "Repeatedly minifies and replaces the whole implementation after the first 4874-byte source; removing the cap eliminates this code-golf rewrite stage."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turns": [
+        14,
+        36
+      ],
+      "stage": "Repeatedly starts cleaner but still highly compact implementations after failures; removing the cap lets it retain and locally debug readable code."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turns": [
+        2,
+        45
+      ],
+      "stage": "Discards a 4178-byte implementation and cycles through compact rewrites; removing the cap removes that forced restart and later minification."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turns": [
+        8,
+        51
+      ],
+      "stage": "Cycles through terse whole-file rewrites while debugging decompression; removing the cap permits localized repairs instead of code-golf replacements."
+    },
+    {
+      "attempt": "attempt-07.jsonl",
+      "turns": [
+        3,
+        43
+      ],
+      "stage": "Replaces implementations and later rejects multiple 4044-4516-byte variants; removing the cap removes those size-driven rewrites."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turns": [
+        6,
+        59
+      ],
+      "stage": "Repeatedly rewrites compact implementations after compile and runtime failures; removing the cap allows one readable implementation to be repaired."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turns": [
+        2,
+        59
+      ],
+      "stage": "Repeatedly rewrites terse implementations after variable, tree, and bitstream failures; removing the cap eliminates the pressure causing whole-file replacement."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turns": [
+        3,
+        66
+      ],
+      "stage": "Produces dozens of compact full replacements while debugging tree and decoding faults; removing the cap turns this into local debugging work."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turns": [
+        4,
+        73
+      ],
+      "stage": "Discards a 4208-byte source and repeatedly compresses subsequent implementations despite recognizing compactness as the source of bugs; removing the cap eliminates that stage."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turns": [
+        3,
+        70
+      ],
+      "stage": "Discards the 6362-byte first implementation and repeatedly rewrites smaller versions; removing the cap preserves the readable base for local fixes."
+    }
+  ]
+}

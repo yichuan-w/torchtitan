@@ -1,0 +1,24 @@
+version = "1.0"
+
+[metadata]
+author_name = "authoring-agent"
+difficulty = "hard"
+category = "scientific-computing"
+tags = [ "cheminformatics", "drug-discovery", "rdkit", "molecular-standardization", "data-curation",]
+expert_time_estimate_min = 45.0
+junior_time_estimate_min = 150.0
+
+[verifier]
+timeout_sec = 600.0
+
+[agent]
+timeout_sec = 1800.0
+
+[environment]
+build_timeout_sec = 300.0
+# docker_image = "tb2env/scientific-computing-cheminformatics:20260616"
+docker_image = "aweaiteam/calibforge:scientific-computing_20260616_102700_003_20260620_203601_460555"
+cpus = 2
+memory = "4G"
+storage = "10G"
+

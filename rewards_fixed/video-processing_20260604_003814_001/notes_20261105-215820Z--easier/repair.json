@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The instruction says cv2, numpy, and toml are available, but the default python3 resolves to /opt/verifier/bin/python3 and cannot import cv2; the Dockerfile installs the packages only for /usr/bin/python3.",
+    "evidence": "environment/Dockerfile installs with system pip while a fresh sandbox reports /opt/verifier/bin/python3 for command -v python3 and ModuleNotFoundError: No module named 'cv2'; attempts 01-12 all encounter this mismatch while trying to run their script, beginning at turns 3-8.",
+    "change": "Put /usr/bin first on PATH so the default python3 command uses the system interpreter where the Dockerfile already installs the three advertised libraries.",
+    "kind": "broken_setup"
+  }
+]

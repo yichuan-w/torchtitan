@@ -1,0 +1,93 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "cat /app/dedupe.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "head -20 /app/data/transactions.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "wc -l /app/data/transactions.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.3,
+    "keystrokes": "cat > /app/dedupe.py << 'EOF'\n\"\"\"Transaction deduplication pipeline.\"\"\"\nimport csv\nfrom datetime import datetime\nfrom pathlib import Path\n\ndef deduplicate_transactions(input_path: str, output_path: str) -> None:\n    \"\"\"Keep the most recent source transaction per customer.\"\"\"\n    with open(input_path, newline=\"\") as input_file:\n        rows = list(csv.DictReader(input_file))\n\n    latest = {}\n    for row in rows:\n        customer_id = row[\"customer_id\"]\n        instant = datetime.fromisoformat(row[\"timestamp\"].replace(\"Z\", \"+00:00\"))\n        if customer_id not in latest or instant > latest[customer_id][0]:\n            latest[customer_id] = (instant, row)\n\n    result = [item[1] for item in sorted(latest.values(), key=lambda item: item[0], reverse=True)]\n    Path(output_path).parent.mkdir(parents=True, exist_ok=True)\n    with open(output_path, \"w\", newline=\"\") as output_file:\n        writer = csv.DictWriter(output_file, fieldnames=rows[0].keys())\n        writer.writeheader()\n        writer.writerows(result)\n    print(f\"Deduplicated {len(result)} records to {output_path}\")\n\nif __name__ == \"__main__\":\n    deduplicate_transactions(\n        \"/app/data/transactions.csv\",\n        \"/app/output/deduped.csv\"\n    )\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.3,
+    "keystrokes": "python /app/dedupe.py\n",
+    "duration": 5.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.3,
+    "keystrokes": "cat /app/output/deduped.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 5.5,
+    "keystrokes": "python -m py_compile /app/dedupe.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 5.5,
+    "keystrokes": "cat /app/dedupe.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 5.5,
+    "keystrokes": "python /app/dedupe.py\n",
+    "duration": 5.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 5.5,
+    "keystrokes": "cat /app/output/deduped.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 10.8,
+    "keystrokes": "",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 10.9,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 10.9,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

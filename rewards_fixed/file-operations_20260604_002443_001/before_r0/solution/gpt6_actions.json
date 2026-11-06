@@ -1,0 +1,100 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "cat /app/README.txt\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "ls -la /app; xxd /app/data.bin | head -50\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.2,
+    "keystrokes": "mkdir -p /app/recovered\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.2,
+    "keystrokes": "cat > /tmp/recover.py << 'EOF'\nimport struct, os\n\ncols = [0x20,0x40,0x80,0x01,0x02,0x04,0x08,0x9e]\ndef M(b):\n    r = 0\n    for i in range(8):\n        if b >> i & 1:\n            r ^= cols[i]\n    return r\n\nfwd = [M(b) ^ 0xAA for b in range(256)]\ninv = [0]*256\nfor b in range(256):\n    inv[fwd[b]] = b\nassert len(set(fwd)) == 256\n\nraw = open('/app/data.bin','rb').read()\ndec = bytes(inv[b] for b in raw)\nprint('magic:', dec[:4])\nassert dec[:4] == b'ARC\\x01', 'bad magic'\n\ncount, index_off, reserved = struct.unpack_from('<III', dec, 4)\nprint('count:', count, 'index_off:', index_off, 'reserved:', reserved)\n\nentries = []\nfor i in range(count):\n    e = dec[index_off + i*40 : index_off + (i+1)*40]\n    name = e[:32].split(b'\\x00')[0].decode()\n    off, length = struct.unpack_from('<II', e, 32)\n    entries.append((name, off, length))\n    print(name, off, length)\n\nfor name, off, length in entries:\n    data = dec[off:off+length]\n    with open(os.path.join('/app/recovered', name), 'wb') as f:\n        f.write(data)\nprint('done')\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.2,
+    "keystrokes": "python3 /tmp/recover.py\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 1.4,
+    "keystrokes": "ls -la /app/recovered; head -c 300 /app/recovered/config.json; echo; head -5 /app/recovered/data.csv; head -3 /app/recovered/notes.txt /app/recovered/pipeline.log /app/recovered/readme.txt\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 1.5,
+    "keystrokes": "cat > /tmp/dump.py << 'EOF'\ncols = [0x20,0x40,0x80,0x01,0x02,0x04,0x08,0x9e]\ndef M(b):\n    r = 0\n    for i in range(8):\n        if b >> i & 1:\n            r ^= cols[i]\n    return r\nfwd = [M(b) ^ 0xAA for b in range(256)]\ninv = [0]*256\nfor b in range(256):\n    inv[fwd[b]] = b\nraw = open('/app/data.bin','rb').read()\ndec = bytes(inv[b] for b in raw)\nopen('/tmp/decoded.bin','wb').write(dec)\nEOF\npython3 /tmp/dump.py && cat -A /tmp/decoded.bin | sed -n '1,200p' | head -0; xxd /tmp/decoded.bin | sed -n '13,80p'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 1.6,
+    "keystrokes": "cat > /tmp/extract.py << 'EOF'\ndec = open('/tmp/decoded.bin','rb').read()\nbase = 216\nbounds = {\n 'config.json': 121,\n 'data.csv': 188,\n 'notes.txt': 209,\n 'pipeline.log': 206,\n 'readme.txt': 195,\n}\noff = base\nfor name, ln in bounds.items():\n    data = dec[off:off+ln]\n    open('/app/recovered/'+name,'wb').write(data)\n    off += ln\nprint('end offset:', off, 'file size:', len(dec))\nEOF\npython3 /tmp/extract.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 1.6,
+    "keystrokes": "for f in config.json data.csv notes.txt pipeline.log readme.txt; do echo \"===== $f =====\"; cat /app/recovered/$f; done\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 1.8,
+    "keystrokes": "sed -i \"s/'notes.txt': 209/'notes.txt': 210/; s/'pipeline.log': 206/'pipeline.log': 205/\" /tmp/extract.py && python3 /tmp/extract.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 1.8,
+    "keystrokes": "for f in notes.txt pipeline.log; do echo \"===== $f =====\"; cat -A /app/recovered/$f | tail -3; done; ls -la /app/recovered; python3 -c \"import json; json.load(open('/app/recovered/config.json')); print('json ok')\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 2.0,
+    "keystrokes": "\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 2.1,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 2.1,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

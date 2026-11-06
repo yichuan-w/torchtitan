@@ -1,0 +1,70 @@
+{
+  "retained_skill": "Use recursive SQL to traverse the reverse dependency graph, prevent cycles, and select a shortest transitive exposure path for each CVE and affected package.",
+  "bottleneck": "The two sections describe different column lists while also requiring UNION ALL, but the verifier expects one eight-column superset schema. Eleven submitted or graded states reached this representation decision; nine otherwise-correct states failed only because package_name was absent from the shared output header.",
+  "change": "Repair the public output contract in the instruction by stating the shared eight-column schema and directing each section to put its values in its own named columns while leaving the other section's columns NULL. This is instruction-level clarification of the required deliverable; it does not supply the recursive traversal, cycle handling, shortest-path logic, multi-CVE aggregation, or any computed answer. The original signal retained is DuckDB's requirement that UNION ALL branches share a shape, now paired with an unambiguous requested schema.",
+  "restore": "Remove the shared-schema clarification and return to the original separate per-section column lists once the student reliably preserves named fields across heterogeneous UNION ALL branches.",
+  "prediction": "The change addresses the recurring action of placing multi_hit values into exposure columns or omitting package_name/cve_count from the union header. It enables students to align both SELECT branches to the requested superset before submitting; this is refuted if most new attempts still finish with successful exposure computation but no package_name/cve_count columns, or if all 12 solve despite the remaining recursive shortest-path work.",
+  "expected": "8 of 12",
+  "evidence": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turn": 29,
+      "observation": "Replayed the final SQL with ./sandbox exec and ./sandbox grade; exposure correctness, execution, columns, and cycle checks passed, while multi_hit failed with KeyError package_name. After the instruction change, replaying the same approach through its target decision and aligning its two UNION branches to the now-stated shared schema made all six checks pass; no recursive logic changed."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turn": 37,
+      "observation": "Final output renamed depth to mgr_depth and represented multi_hit through exposure-shaped columns; grading reported missing depth and package_name."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turn": 35,
+      "observation": "After repeated UNION shape rewrites, the submitted query emitted no parsed sections; grading failed section, exposure, and multi_hit checks."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turn": 40,
+      "observation": "Final state passed all exposure and cycle checks but failed because the shared header omitted package_name."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turn": 51,
+      "observation": "The attempt hit its time budget while inspecting and reworking multi_hit output; shadow grading passed every retained graph check and failed only with missing package_name."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turn": 55,
+      "observation": "Submitted state passed exposure and cycle behavior but failed the multi_hit field lookup because package_name was not a shared output column."
+    },
+    {
+      "attempt": "attempt-07.jsonl",
+      "turn": 66,
+      "observation": "Replayed the final SQL with ./sandbox exec and ./sandbox grade; it also missed four direct exposure rows, and independently failed multi_hit with KeyError package_name."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turn": 20,
+      "observation": "Final state passed all graph and exposure checks; its sole verifier failure was the missing package_name output field."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turn": 25,
+      "observation": "Final state passed all graph and exposure checks; its sole verifier failure was the missing package_name output field."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turn": 19,
+      "observation": "Final state passed all graph and exposure checks; its sole verifier failure was the missing package_name output field."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turn": 20,
+      "observation": "After resolving parser and UNION ordering errors, the final state passed exposure and cycle checks but omitted package_name from the common header."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turn": 18,
+      "observation": "The final query visibly placed multi_hit data into exposure-shaped positions; grading passed exposure and cycle checks but failed on missing package_name."
+    }
+  ]
+}

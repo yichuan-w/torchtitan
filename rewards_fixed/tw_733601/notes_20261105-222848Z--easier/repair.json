@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The verifier requires the literal output 'Proceeding with wordlist', but John explicit --wordlist runs in this image do not emit that phrase even though they perform the required mode.",
+    "evidence": "tests/test_state.py:45 conflicts with instruction.md's wordlist-mode requirement; sandbox reproduction of explicit --wordlist on both formats printed loading/progress output without the phrase, and reconstructed attempt-03 and attempt-06 artifacts each failed only this check.",
+    "change": "Replace the implementation-dependent literal check with checks of the promised cracking and final show results.",
+    "kind": "hidden_requirement"
+  }
+]

@@ -1,0 +1,70 @@
+{
+  "retained_skill": "Inspecting and correctly parsing the malformed legacy pipe-delimited export, including mixed line endings, quoted multiline fields, escapes, blank lines, and trailing delimiters, then deriving the requested report aggregates.",
+  "bottleneck": "The public contract leaves order-value JSON types and treatment of a blank CustomerName unstated. Ten of twelve scored attempts emitted a numeric OrderID or TotalAmount and five omitted the blank-named customer; the verifier rejected both reasonable interpretations after otherwise substantial parsing work.",
+  "change": "Instruction words only: explicitly state that every value in each order object is a JSON string and that customer aggregation includes the blank CustomerName. This repairs hidden output semantics without supplying any malformed-file parsing decision; the original signal remains the raw export's unusual bytes and records.",
+  "restore": "Remove the two standalone clarification sentences about order value types and blank CustomerName inclusion to restore the original ambiguous contract.",
+  "prediction": "The clarification addresses the failing actions of converting OrderID/TotalAmount to JSON numbers and filtering the empty customer key. It enables the next action of preserving parsed order fields as strings and aggregating every parsed CustomerName; this is refuted if attempts still produce numeric order values or only 12 customer aggregates after reading the revised contract.",
+  "expected": "6 of 12",
+  "evidence": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turn": 0,
+      "observation": "Header diagnostics report 16 failures rooted in integer OrderID: all-values-strings, whitespace/blank-line type errors, and record lookups for every string ID. Fresh replay used reset, every recorded keystroke through turn 15, then sandbox grade; the same 16 checks failed. The approach otherwise passed summary and aggregation checks."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turn": 0,
+      "observation": "Header diagnostics report the same 16 string-ID cascade after the attempt repeatedly repaired malformed-record parsing through turn 30."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turn": 12,
+      "observation": "The implementation aggregates only when customer_name is truthy. Header diagnostics fail only customers_correct_count and customers_total_spend_sum_matches. Fresh replay used reset, every recorded keystroke through turn 24, then sandbox grade; exactly those two checks failed. After the instruction repair, a fresh reset replayed the same approach, removed only its explicit truthiness filter to follow the new blank-name rule, reran /app/parse_csv.py, and sandbox grade passed all 43 checks."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turn": 0,
+      "observation": "Header diagnostics report the same 16 failures caused by numeric OrderID despite successful report totals and sorting."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turn": 0,
+      "observation": "Header diagnostics report numeric order-value failures plus customers_correct_count and customers_total_spend_sum_matches, showing both ambiguous choices."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turn": 0,
+      "observation": "Header diagnostics report the same 16 numeric OrderID/type-cascade failures."
+    },
+    {
+      "attempt": "attempt-07.jsonl",
+      "turn": 0,
+      "observation": "Header diagnostics report the same 16 numeric OrderID/type-cascade failures."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turn": 0,
+      "observation": "Header diagnostics report only all-values-strings, whitespace trimming, and empty-fields checks because an order field was represented as a float; malformed parsing otherwise passed."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turn": 0,
+      "observation": "Header diagnostics report customers_correct_count and customers_total_spend_sum_matches from omitting the blank name, plus an independent monthly_revenue_values error that this repair intentionally leaves."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turn": 0,
+      "observation": "Header diagnostics report the 16 numeric OrderID/type-cascade failures and the two blank-customer aggregation failures."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turn": 0,
+      "observation": "Header diagnostics report the same 16 numeric OrderID/type-cascade failures."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turn": 0,
+      "observation": "Header diagnostics report the 16 numeric OrderID/type-cascade failures and the two blank-customer aggregation failures."
+    }
+  ]
+}

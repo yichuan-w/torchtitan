@@ -1,0 +1,198 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "cat /app/ws_server.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "python3 --version; pip --version\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.2,
+    "keystrokes": "cat > /app/ws_server.py << 'EOF'\n\"\"\"\nWebSocket (RFC 6455) echo server.\n\nThis module provides a WebSocketServer that accepts connections,\nperforms the WebSocket handshake, and echoes received messages back\nto the client.\n\nUsage:\n    server = WebSocketServer(host='127.0.0.1', port=8765)\n    server.start()\n    # ... use it ...\n    server.stop()\n\"\"\"\n\nimport socket\nimport hashlib\nimport base64\nimport struct\nimport threading\nimport time\n\n\n# RFC 6455 Section 4.2.2: The |Sec-WebSocket-Accept| header field\n# is computed by concatenating the client's |Sec-WebSocket-Key|\n# with this GUID, computing the SHA-1 hash, and base64-encoding.\nWS_MAGIC_GUID = \"258EAFA5-E914-47DA-95CA-C5AB0DC85B12\"\n\n\nclass WebSocketServer:\n    \"\"\"A WebSocket echo server implementation.\"\"\"\n\n    def __init__(self, host=\"127.0.0.1\", port=8765):\n        self.host = host\n        self.port = port\n        self._server_socket = None\n        self._running = False\n        self._thread = None\n\n    def start(self):\n        \"\"\"Start the WebSocket server in a background thread.\"\"\"\n        self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)\n        self._server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)\n        self._server_socket.bind((self.host, self.port))\n        self._server_socket.listen(5)\n        self._server_socket.settimeout(1.0)\n        self._running = True\n        self._thread = threading.Thread(target=self._run, daemon=True)\n        self._thread.start()\n        time.sleep(0.1)\n\n    def stop(self):\n        \"\"\"Stop the WebSocket server.\"\"\"\n        self._running = False\n        if self._thread:\n            self._thread.join(timeout=5)\n        if self._server_socket:\n            self._server_socket.close()\n            self._server_socket = None\n\n    def _run(self):\n        \"\"\"Main server loop.\"\"\"\n        while self._running:\n            try:\n                client, addr = self._server_socket.accept()\n                threading.Thread(\n                    target=self._handle_client, args=(client,), daemon=True\n                ).start()\n            except socket.timeout:\n                continue\n            except OSError:\n                break\n\n    def _handle_client(self, client_socket):\n        \"\"\"Handle a single client connection.\"\"\"\n        try:\n            self._do_handshake(client_socket)\n            self._handle_frames(client_socket)\n        except Exception:\n            pass\n        finally:\n            try:\n                client_socket.close()\n            except OSError:\n                pass\n\n    # ------------------------------------------------------------------\n    # Handshake (RFC 6455 Section 4)\n    # ------------------------------------------------------------------\n\n    def _do_handshake(self, client_socket):\n        \"\"\"Perform the WebSocket opening handshake.\"\"\"\n        request = b\"\"\n        while b\"\\r\\n\\r\\n\" not in request:\n            chunk = client_socket.recv(4096)\n            if not chunk:\n                raise ConnectionError(\"Client disconnected during handshake\")\n            request += chunk\n\n        headers = self._parse_http_headers(request)\n        client_key = headers.get(\"sec-websocket-key\", \"\").strip()\n\n        if not client_key:\n            raise ValueError(\"Missing Sec-WebSocket-Key header\")\n\n        accept_key = self._compute_accept_key(client_key)\n\n        response = (\n            \"HTTP/1.1 101 Switching Protocols\\r\\n\"\n            \"Upgrade: websocket\\r\\n\"\n            \"Connection: Upgrade\\r\\n\"\n            f\"Sec-WebSocket-Accept: {accept_key}\\r\\n\"\n            \"\\r\\n\"\n        )\n        client_socket.sendall(response.encode(\"ascii\"))\n\n    def _compute_accept_key(self, client_key):\n        \"\"\"\n        Compute the Sec-WebSocket-Accept value.\n\n        RFC 6455 Section 4.2.2:\n        1. Concatenate client_key + WS_MAGIC_GUID\n        2. SHA-1 hash\n        3. Base64 encode (standard Base64, NOT urlsafe)\n        \"\"\"\n        combined = client_key + WS_MAGIC_GUID\n        sha1_hash = hashlib.sha1(combined.encode(\"ascii\")).digest()\n        return base64.b64encode(sha1_hash).decode(\"ascii\")\n\n    def _parse_http_headers(self, raw_request):\n        \"\"\"Parse raw HTTP request into a dict of lowercase headers.\"\"\"\n        headers = {}\n        lines = raw_request.decode(\"ascii\", errors=\"replace\").split(\"\\r\\n\")\n        for line in lines[1:]:\n            if \":\" in line:\n                key, value = line.split(\":\", 1)\n                headers[key.strip().lower()] = value.strip()\n        return headers\n\n    # ------------------------------------------------------------------\n    # Frame handling (RFC 6455 Section 5)\n    # ------------------------------------------------------------------\n\n    def _handle_frames(self, client_socket):\n        \"\"\"Read and handle WebSocket frames from the client.\"\"\"\n        while True:\n            frame = self._read_frame(client_socket)\n            if frame is None:\n                break\n\n            opcode = frame[\"opcode\"]\n            payload = frame[\"payload\"]\n\n            if opcode == 0x8:  # Close frame\n                self._send_close(client_socket, payload)\n                break\n            elif opcode == 0x9:  # Ping -> must reply with a Pong\n                self._send_pong(client_socket, payload)\n            elif opcode == 0xA:  # Pong\n                # Silently ignore pong frames (correct behavior)\n                pass\n            elif opcode in (0x1, 0x2):  # Text or Binary\n                self._send_frame(client_socket, opcode, payload)\n            else:\n                break\n\n    def _read_frame(self, client_socket):\n        \"\"\"\n        Read a single WebSocket frame from the socket.\n\n        Returns a dict with 'opcode' and 'payload', or None on error/close.\n        \"\"\"\n        header = self._recv_exact(client_socket, 2)\n        if header is None:\n            return None\n\n        byte0, byte1 = header[0], header[1]\n        opcode = byte0 & 0x0F\n        masked = (byte1 >> 7) & 1\n        payload_len = byte1 & 0x7F\n\n        if payload_len == 126:\n            ext_data = self._recv_exact(client_socket, 2)\n            if ext_data is None:\n                return None\n            payload_len = struct.unpack(\"!H\", ext_data)[0]\n        elif payload_len == 127:\n            # 64-bit extended payload length: 8 bytes, network byte order\n            ext_data = self._recv_exact(client_socket, 8)\n            if ext_data is None:\n                return None\n            payload_len = struct.unpack(\"!Q\", ext_data)[0]\n\n        mask_key = None\n        if masked:\n            mask_key = self._recv_exact(client_socket, 4)\n            if mask_key is None:\n                return None\n\n        payload = self._recv_exact(client_socket, payload_len)\n        if payload is None:\n            return None\n\n        if mask_key:\n            payload = self._unmask(payload, mask_key)\n\n        return {\"opcode\": opcode, \"payload\": payload}\n\n    def _unmask(self, payload, mask_key):\n        \"\"\"Unmask payload using the 4-byte mask key (RFC 6455 Section 5.3).\"\"\"\n        return bytes(b ^ mask_key[i % 4] for i, b in enumerate(payload))\n\n    def _send_frame(self, client_socket, opcode, payload):\n        \"\"\"Send a WebSocket frame (server frames must NOT be masked).\"\"\"\n        frame = bytearray()\n        frame.append(0x80 | opcode)  # FIN + opcode\n\n        length = len(payload)\n        if length < 126:\n            frame.append(length)\n        elif length < 65536:\n            frame.append(126)\n            frame.extend(struct.pack(\"!H\", length))\n        else:\n            frame.append(127)\n            frame.extend(struct.pack(\"!Q\", length))\n\n        frame.extend(payload)\n        client_socket.sendall(bytes(frame))\n\n    def _send_close(self, client_socket, payload):\n        \"\"\"Send a close frame echoing the client's close code.\"\"\"\n        code = 1000\n        reason = b\"\"\n        if len(payload) >= 2:\n            code = struct.unpack(\"!H\", payload[:2])[0]\n            reason = payload[2:]\n        close_payload = struct.pack(\"!H\", code) + reason\n        self._send_frame(client_socket, 0x8, close_payload)\n\n    def _send_pong(self, client_socket, payload):\n        \"\"\"Send a pong frame in response to a ping.\"\"\"\n        self._send_frame(client_socket, 0xA, payload)\n\n    def _recv_exact(self, sock, n):\n        \"\"\"Receive exactly n bytes from the socket, or None on error.\"\"\"\n        data = b\"\"\n        while len(data) < n:\n            try:\n                chunk = sock.recv(n - len(data))\n            except (ConnectionError, OSError):\n                return None\n            if not chunk:\n                return None\n            data += chunk\n        return data\n\n\ndef create_server(host=\"127.0.0.1\", port=8765):\n    \"\"\"Create and return a WebSocketServer instance.\"\"\"\n    return WebSocketServer(host=host, port=port)\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.2,
+    "keystrokes": "cd /app && python3 -c \"from ws_server import WebSocketServer; print('import OK')\"\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.8,
+    "keystrokes": "cat > /tmp/test_ws.py << 'EOF'\nimport base64, hashlib, os, socket, struct, sys\nsys.path.insert(0, '/app')\nfrom ws_server import WebSocketServer, WS_MAGIC_GUID\n\ndef recv_exact(sock, n):\n    data = b''\n    while len(data) < n:\n        chunk = sock.recv(n - len(data))\n        if not chunk:\n            raise ConnectionError('closed')\n        data += chunk\n    return data\n\ndef send_frame(sock, opcode, payload, mask=True):\n    hdr = bytearray([0x80 | opcode])\n    n = len(payload)\n    mbit = 0x80 if mask else 0\n    if n < 126:\n        hdr.append(mbit | n)\n    elif n < 65536:\n        hdr.append(mbit | 126); hdr.extend(struct.pack('!H', n))\n    else:\n        hdr.append(mbit | 127); hdr.extend(struct.pack('!Q', n))\n    if mask:\n        key = os.urandom(4)\n        hdr.extend(key)\n        payload = bytes(b ^ key[i % 4] for i, b in enumerate(payload))\n    sock.sendall(bytes(hdr) + payload)\n\ndef read_frame(sock):\n    b0, b1 = recv_exact(sock, 2)\n    opcode = b0 & 0x0F\n    n = b1 & 0x7F\n    if n == 126:\n        n = struct.unpack('!H', recv_exact(sock, 2))[0]\n    elif n == 127:\n        n = struct.unpack('!Q', recv_exact(sock, 8))[0]\n    assert not (b1 & 0x80), 'server frame must not be masked'\n    return opcode, recv_exact(sock, n)\n\nserver = WebSocketServer('127.0.0.1', 8765)\nserver.start()\ntry:\n    s = socket.create_connection(('127.0.0.1', 8765))\n    key = 'dGhlIHNhbXBsZSBub25jZQ'\n    req = ('GET / HTTP/1.1\\r\\nHost: 127.0.0.1:8765\\r\\nUpgrade: websocket\\r\\n'\n           'Connection: Upgrade\\r\\nSec-WebSocket-Key: ' + key + '\\r\\n'\n           'Sec-WebSocket-Version: 13\\r\\n\\r\\n')\n    s.sendall(req.encode())\n    resp = b''\n    while b'\\r\\n\\r\\n' not in resp:\n        resp += s.recv(4096)\n    expected = base64.b64encode(hashlib.sha1((key + WS_MAGIC_GUID).encode()).digest()).decode()\n    assert expected == 's3pPLMBiTxaQ9kYGzzhZRbK+xOo='\n    assert f'Sec-WebSocket-Accept: {expected}'.encode() in resp, resp\n    assert b'101' in resp\n    print('handshake OK')\n\n    send_frame(s, 0x1, b'hello world')\n    op, pl = read_frame(s)\n    assert op == 0x1 and pl == b'hello world', (op, pl)\n    print('text echo OK')\n\n    send_frame(s, 0x2, bytes(range(256)))\n    op, pl = read_frame(s)\n    assert op == 0x2 and pl == bytes(range(256))\n    print('binary echo OK')\n\n    send_frame(s, 0x9, b'pingdata')\n    op, pl = read_frame(s)\n    assert op == 0xA and pl == b'pingdata', (hex(op), pl)\n    print('ping/pong OK')\n\n    medium = os.urandom(1000)  # 16-bit extended length\n    send_frame(s, 0x2, medium)\n    op, pl = read_frame(s)\n    assert op == 0x2 and pl == medium\n    print('16-bit length echo OK')\n\n    big = os.urandom(100000)  # requires 64-bit extended length\n    send_frame(s, 0x2, big)\n    op, pl = read_frame(s)\n    assert op == 0x2 and pl == big\n    print('64-bit length echo OK')\n\n    bigtext = 'x' * 70000\n    send_frame(s, 0x1, bigtext.encode())\n    op, pl = read_frame(s)\n    assert op == 0x1 and pl == bigtext.encode()\n    print('large text echo OK')\n\n    send_frame(s, 0x8, struct.pack('!H', 1000))\n    op, pl = read_frame(s)\n    assert op == 0x8 and struct.unpack('!H', pl[:2])[0] == 1000, (hex(op), pl)\n    print('close handshake OK')\n    s.close()\nfinally:\n    server.stop()\nprint('ALL TESTS PASSED')\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.8,
+    "keystrokes": "python3 /tmp/test_ws.py\n",
+    "duration": 10.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 10.9,
+    "keystrokes": "grep -n \"WS_MAGIC_GUID\" /app/ws_server.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 10.9,
+    "keystrokes": "python3 -c \"import sys; sys.path.insert(0,'/app'); import ws_server; print(repr(ws_server.WS_MAGIC_GUID))\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 10.9,
+    "keystrokes": "python3 -c \"import base64,hashlib; print(base64.b64encode(hashlib.sha1(b'dGhlIHNhbXBsZSBub25jZQ258EAFA5-E914-47DA-95CA-C5AB0DC85B12').digest()).decode())\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 11.2,
+    "keystrokes": "ls -la /app\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 11.2,
+    "keystrokes": "python3 -c \"import hashlib; print(hashlib.sha1(b'abc').hexdigest()); print(hashlib.__file__)\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 11.2,
+    "keystrokes": "cd /tmp && python3 -c \"import base64,hashlib; print(hashlib.sha1(b'abc').hexdigest()); print(base64.b64encode(hashlib.sha1(b'dGhlIHNhbXBsZSBub25jZQ258EAFA5-E914-47DA-95CA-C5AB0DC85B12').digest()).decode())\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 11.5,
+    "keystrokes": "sed -i 's/258EAFA5-E914-47DA-95CA-C5AB0DC85B12/258EAFA5-E914-47DA-95CA-C5AB0DC85B11/' /app/ws_server.py && grep -n \"WS_MAGIC_GUID =\" /app/ws_server.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 11.5,
+    "keystrokes": "python3 -c \"import base64,hashlib; print(base64.b64encode(hashlib.sha1(b'dGhlIHNhbXBsZSBub25jZQ258EAFA5-E914-47DA-95CA-C5AB0DC85B11').digest()).decode())\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 11.5,
+    "keystrokes": "python3 /tmp/test_ws.py\n",
+    "duration": 10.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 21.7,
+    "keystrokes": "python3 -c \"\nimport hashlib\nprint(hashlib.sha1(b'abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq').hexdigest())\nprint('expected 84983e441c3bd26ebaae4aa1f95129e5e54670f1')\nprint(hashlib.sha1(b'a'*55).hexdigest())\nprint('expected c1c8bbdc22796e28c0e15163d20899b65621d65a')\nprint(hashlib.sha1(b'a'*64).hexdigest())\nprint('expected 0098ba824b5c16427b93c6a5cfe7f3a0ac3ad06e')\n\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 21.8,
+    "keystrokes": "python3 -c \"\nimport hashlib, base64\nh = hashlib.sha1(b'dGhlIHNhbXBsZSBub25jZQ258EAFA5-E914-47DA-95CA-C5AB0DC85B11').hexdigest()\nprint(h)\nprint('expected b37a4f2cc0624f1690f64606cf385945b2be4c')\nprint(base64.b64encode(b'hello'))\nprint('expected aGVsbG8=')\nprint(base64.__file__)\n\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 21.8,
+    "keystrokes": "python3 -c \"import sys; print(sys.path)\"; ls /opt/uv/python/cpython-3.13.9-linux-x86_64-gnu/lib/python3.13/sitecustomize.py 2>/dev/null; python3 -c \"import site; print(site.getsitepackages())\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 22.0,
+    "keystrokes": "cat > /tmp/sha1_check.py << 'PYEOF'\nimport hashlib\n\nkey = 'dGhlIHNhbXBsZSBub25jZQ'\nguid = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11'\nmsg = (key + guid).encode('ascii')\nprint('repr:', msg)\nprint('len:', len(msg))\nprint('one-shot:', hashlib.sha1(msg).hexdigest())\nh = hashlib.sha1()\nh.update(msg[:10]); h.update(msg[10:])\nprint('chunked :', h.hexdigest())\n\n# Pure-python SHA-1 reference\ndef sha1_pure(data):\n    ml = len(data) * 8\n    data += b'\\x80'\n    while len(data) % 64 != 56:\n        data += b'\\x00'\n    data += ml.to_bytes(8, 'big')\n    h0, h1, h2, h3, h4 = 0x67452301, 0xEFCDAB89, 0x98BADCFE, 0x10325476, 0xC3D2E1F0\n    for off in range(0, len(data), 64):\n        chunk = data[off:off+64]\n        w = list(bytes.fromhex(chunk.hex())[i:i+4] for i in range(0, 64, 4))\n        w = [int.from_bytes(x, 'big') for x in w]\n        for i in range(16, 80):\n            v = w[i-3] ^ w[i-8] ^ w[i-14] ^ w[i-16]\n            w.append(((v << 1) | (v >> 31)) & 0xFFFFFFFF)\n        a, b, c, d, e = h0, h1, h2, h3, h4\n        for i in range(80):\n            if i < 20:\n                f = (b & c) | (~b & d); k = 0x5A827999\n            elif i < 40:\n                f = b ^ c ^ d; k = 0x6ED9EBA1\n            elif i < 60:\n                f = (b & c) | (b & d) | (c & d); k = 0x8F1BBCDC\n            else:\n                f = b ^ c ^ d; k = 0xCA62C1D6\n            tmp = (((a << 5) | (a >> 27)) & 0xFFFFFFFF) + f + e + k + w[i]\n            tmp &= 0xFFFFFFFF\n            e, d, c, b, a = d, c, ((b << 30) | (b >> 2)) & 0xFFFFFFFF, a, tmp\n        h0 = (h0 + a) & 0xFFFFFFFF\n        h1 = (h1 + b) & 0xFFFFFFFF\n        h2 = (h2 + c) & 0xFFFFFFFF\n        h3 = (h3 + d) & 0xFFFFFFFF\n        h4 = (h4 + e) & 0xFFFFFFFF\n    return b''.join(x.to_bytes(4, 'big') for x in (h0, h1, h2, h3, h4))\n\nd = sha1_pure(msg)\nprint('pure    :', d.hex())\nimport base64\nprint('pure b64:', base64.b64encode(d).decode())\nprint('expected  : b37a4f2cc0624f1690f64606cf385945b2be4c / s3pPLMBiTxaQ9kYGzzhZRbK+xOo=')\nPYEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 22.0,
+    "keystrokes": "python3 /tmp/sha1_check.py\n",
+    "duration": 3.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 25.1,
+    "keystrokes": "python3 -c \"\nimport hashlib, base64\nh = hashlib.sha1(b'dGhlIHNhbXBsZSBub25jZQ==258EAFA5-E914-47DA-95CA-C5AB0DC85B11').digest()\nprint(h.hex())\nprint(base64.b64encode(h).decode())\nprint('expected b37a4f2cc0624f1690f64606cf385945b2be4c / s3pPLMBiTxaQ9kYGzzhZRbK+xOo=')\n\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 25.1,
+    "keystrokes": "sed -i \"s/key = 'dGhlIHNhbXBsZSBub25jZQ'/key = 'dGhlIHNhbXBsZSBub25jZQ=='/\" /tmp/test_ws.py && grep -n \"key = \" /tmp/test_ws.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 25.1,
+    "keystrokes": "cd /app && python3 /tmp/test_ws.py\n",
+    "duration": 10.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 35.3,
+    "keystrokes": "python3 -m ensurepip --upgrade 2>&1 | tail -2; python3 -m pip --version\n",
+    "duration": 30.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 35.3,
+    "keystrokes": "cd /app && python3 -c \"from ws_server import WebSocketServer; print('import OK')\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 35.3,
+    "keystrokes": "python3 /tmp/test_ws.py\n",
+    "duration": 10.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 13,
+    "offset_sec": 75.4,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 75.4,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

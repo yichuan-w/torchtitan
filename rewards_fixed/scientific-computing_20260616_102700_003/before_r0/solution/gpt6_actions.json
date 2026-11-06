@@ -1,0 +1,247 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "ls -la /app/library/ && cat /app/library/manifest.txt\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "python3 -c \"import rdkit; print(rdkit.__version__)\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.2,
+    "keystrokes": "cat /app/library/batch1_kinase.smi; echo ---; cat /app/library/batch3_fragments.smi; echo ---; cat /app/library/batch6_supplier.smi\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.2,
+    "keystrokes": "head -50 /app/library/batch2_fda.sdf\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.2,
+    "keystrokes": "pip install rdkit 2>&1 | tail -5\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.5,
+    "keystrokes": "python3 -m pip --version; which pip3 conda mamba; python3 --version\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 0.6,
+    "keystrokes": "ls /usr/bin/python* /usr/local/bin/python* 2>/dev/null; which apt apt-get; python3 -m ensurepip --version 2>&1 | head -2\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 0.7,
+    "keystrokes": "python3 -m ensurepip 2>&1 | tail -2\n",
+    "duration": 10.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 0.7,
+    "keystrokes": "python3 -m pip install rdkit 2>&1 | tail -3\n",
+    "duration": 60.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 70.7,
+    "keystrokes": "head -20 /app/library/batch4_natural.sdf; echo ====; head -20 /app/library/batch5_hts.sdf; echo ====; tail -30 /app/library/batch2_fda.sdf\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 70.7,
+    "keystrokes": "cat > /app/clean.py << 'EOF'\nimport os\nfrom rdkit import Chem, RDLogger\nfrom rdkit.Chem import AllChem, Descriptors, Crippen, Lipinski, rdMolDescriptors\nfrom rdkit.Chem.MolStandardize import rdMolStandardize\n\nRDLogger.DisableLog('rdApp.*')\n\nLIB = '/app/library'\n\nfiles = []\nwith open(os.path.join(LIB, 'manifest.txt')) as f:\n    for line in f:\n        line = line.strip()\n        if line and not line.startswith('#'):\n            files.append(line)\n\ndef resolve(fname):\n    p = os.path.join(LIB, fname)\n    if os.path.exists(p):\n        return p\n    stem = os.path.splitext(fname)[0]\n    for e in ('.sdf', '.mol', '.smi'):\n        q = os.path.join(LIB, stem + e)\n        if os.path.exists(q):\n            return q\n    return None\n\ndef iter_mols(path):\n    ext = os.path.splitext(path)[1].lower()\n    if ext == '.smi':\n        with open(path) as f:\n            for line in f:\n                line = line.strip()\n                if not line:\n                    continue\n                parts = line.split()\n                smi = parts[0]\n                name = parts[1] if len(parts) > 1 else ''\n                try:\n                    m = Chem.MolFromSmiles(smi)\n                except Exception:\n                    m = None\n                yield m, name\n    elif ext == '.mol':\n        try:\n            m = Chem.MolFromMolFile(path)\n        except Exception:\n            m = None\n        yield m, os.path.splitext(os.path.basename(path))[0]\n    else:\n        for m in Chem.SDMolSupplier(path):\n            name = ''\n            if m is not None and m.HasProp('_Name'):\n                name = m.GetProp('_Name')\n            yield m, name\n\nuncharger = rdMolStandardize.Uncharger()\nte = rdMolStandardize.TautomerEnumerator()\n\ndef standardize(m):\n    try:\n        m = rdMolStandardize.FragmentParent(m)\n        if m is None or m.GetNumAtoms() == 0:\n            return None\n        m = uncharger.uncharge(m)\n        m = te.Canonicalize(m)\n        Chem.SanitizeMol(m)\n        return m\n    except Exception:\n        return None\n\ndef embed3d(m):\n    try:\n        mh = Chem.AddHs(m)\n        params = AllChem.ETKDGv3()\n        params.randomSeed = 42\n        if AllChem.EmbedMolecule(mh, params) != 0:\n            params.useRandomCoords = True\n            if AllChem.EmbedMolecule(mh, params) != 0:\n                return None\n        try:\n            AllChem.MMFFOptimizeMolecule(mh, maxIters=500)\n        except Exception:\n            pass\n        return Chem.RemoveHs(mh)\n    except Exception:\n        return None\n\nseen = set()\nout = Chem.SDWriter('/app/cleaned_library.sdf')\nc = dict(total=0, parse_fail=0, std_fail=0, dup=0, lip_fail=0, embed_fail=0, kept=0)\n\nfor fname in files:\n    path = resolve(fname)\n    if path is None:\n        print('MISSING FILE:', fname)\n        continue\n    print('Processing:', os.path.basename(path))\n    for m, name in iter_mols(path):\n        c['total'] += 1\n        if m is None:\n            c['parse_fail'] += 1\n            continue\n        ms = standardize(m)\n        if ms is None:\n            c['std_fail'] += 1\n            continue\n        key = Chem.MolToSmiles(ms)\n        if key in seen:\n            c['dup'] += 1\n            continue\n        mw = Descriptors.MolWt(ms)\n        logp = Crippen.MolLogP(ms)\n        hbd = Lipinski.NumHDonors(ms)\n        hba = Lipinski.NumHAcceptors(ms)\n        tpsa = rdMolDescriptors.CalcTPSA(ms)\n        rot = Lipinski.NumRotatableBonds(ms)\n        if not (mw <= 500 and logp <= 5 and hbd <= 5 and hba <= 10):\n            c['lip_fail'] += 1\n            continue\n        m3 = embed3d(ms)\n        if m3 is None:\n            c['embed_fail'] += 1\n            continue\n        seen.add(key)\n        m3.SetProp('_Name', name if name else key)\n        m3.SetProp('MW', f'{mw:.2f}')\n        m3.SetProp('LogP', f'{logp:.2f}')\n        m3.SetProp('HBD', str(hbd))\n        m3.SetProp('HBA', str(hba))\n        m3.SetProp('TPSA', f'{tpsa:.2f}')\n        m3.SetProp('RotBonds', str(rot))\n        out.write(m3)\n        c['kept'] += 1\n        print('  KEPT', name, '|', key)\n\nout.close()\nprint('SUMMARY:', c)\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 70.7,
+    "keystrokes": "python3 /app/clean.py\n",
+    "duration": 45.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 115.9,
+    "keystrokes": "cat > /app/clean.py << 'EOF'\nimport os\nfrom rdkit import Chem, RDLogger\nfrom rdkit.Chem import AllChem, Descriptors, Crippen, Lipinski, rdMolDescriptors\nfrom rdkit.Chem.MolStandardize import rdMolStandardize\n\nRDLogger.DisableLog('rdApp.*')\n\nLIB = '/app/library'\n\nfiles = []\nwith open(os.path.join(LIB, 'manifest.txt')) as f:\n    for line in f:\n        line = line.strip()\n        if line and not line.startswith('#'):\n            files.append(line)\n\ndef resolve(fname):\n    p = os.path.join(LIB, fname)\n    if os.path.exists(p):\n        return p\n    stem = os.path.splitext(fname)[0]\n    for e in ('.sdf', '.mol', '.smi'):\n        q = os.path.join(LIB, stem + e)\n        if os.path.exists(q):\n            return q\n    return None\n\ndef smi2mol(s):\n    try:\n        return Chem.MolFromSmiles(s)\n    except Exception:\n        return None\n\ndef iter_mols(path):\n    ext = os.path.splitext(path)[1].lower()\n    if ext == '.smi':\n        with open(path) as f:\n            for line in f:\n                line = line.strip()\n                if not line:\n                    continue\n                parts = line.split()\n                yield smi2mol(parts[0]), (parts[1] if len(parts) > 1 else '')\n    else:\n        with open(path) as f:\n            content = f.read()\n        for rec in content.split('$$$$'):\n            rec = rec.strip('\\n')\n            if not rec.strip():\n                continue\n            title = rec.splitlines()[0].strip()\n            m = smi2mol(title) if title else None\n            if m is None:\n                try:\n                    m = Chem.MolFromMolBlock(rec)\n                except Exception:\n                    m = None\n            yield m, title\n\nuncharger = rdMolStandardize.Uncharger()\nte = rdMolStandardize.TautomerEnumerator()\n\ndef standardize(m):\n    try:\n        m = rdMolStandardize.FragmentParent(m)\n        if m is None or m.GetNumAtoms() == 0:\n            return None\n        m = uncharger.uncharge(m)\n        m = te.Canonicalize(m)\n        Chem.SanitizeMol(m)\n        return m\n    except Exception:\n        return None\n\ndef embed3d(m):\n    try:\n        mh = Chem.AddHs(m)\n        params = AllChem.ETKDGv3()\n        params.randomSeed = 42\n        if AllChem.EmbedMolecule(mh, params) != 0:\n            params.useRandomCoords = True\n            if AllChem.EmbedMolecule(mh, params) != 0:\n                return None\n        try:\n            AllChem.MMFFOptimizeMolecule(mh, maxIters=500)\n        except Exception:\n            pass\n        return Chem.RemoveHs(mh)\n    except Exception:\n        return None\n\nseen = set()\nout = Chem.SDWriter('/app/cleaned_library.sdf')\nc = dict(total=0, parse_fail=0, std_fail=0, dup=0, lip_fail=0, embed_fail=0, kept=0)\n\nfor fname in files:\n    path = resolve(fname)\n    if path is None:\n        print('MISSING FILE:', fname)\n        continue\n    print('Processing:', os.path.basename(path))\n    for m, name in iter_mols(path):\n        c['total'] += 1\n        label = name[:40]\n        if m is None:\n            c['parse_fail'] += 1\n            print('  SKIP(parse)', label)\n            continue\n        ms = standardize(m)\n        if ms is None:\n            c['std_fail'] += 1\n            print('  SKIP(std)', label)\n            continue\n        key = Chem.MolToSmiles(ms)\n        if key in seen:\n            c['dup'] += 1\n            print('  SKIP(dup)', label)\n            continue\n        mw = Descriptors.MolWt(ms)\n        logp = Crippen.MolLogP(ms)\n        hbd = Lipinski.NumHDonors(ms)\n        hba = Lipinski.NumHAcceptors(ms)\n        tpsa = rdMolDescriptors.CalcTPSA(ms)\n        rot = Lipinski.NumRotatableBonds(ms)\n        if not (mw <= 500 and logp <= 5 and hbd <= 5 and hba <= 10):\n            c['lip_fail'] += 1\n            print(f'  SKIP(lip) {label} MW={mw:.1f} LogP={logp:.2f} HBD={hbd} HBA={hba}')\n            continue\n        m3 = embed3d(ms)\n        if m3 is None:\n            c['embed_fail'] += 1\n            print('  SKIP(embed)', label)\n            continue\n        seen.add(key)\n        m3.SetProp('_Name', name if name else key)\n        m3.SetProp('MW', f'{mw:.2f}')\n        m3.SetProp('LogP', f'{logp:.2f}')\n        m3.SetProp('HBD', str(hbd))\n        m3.SetProp('HBA', str(hba))\n        m3.SetProp('TPSA', f'{tpsa:.2f}')\n        m3.SetProp('RotBonds', str(rot))\n        out.write(m3)\n        c['kept'] += 1\n        print('  KEPT', label, '|', key)\n\nout.close()\nprint('SUMMARY:', c)\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 115.9,
+    "keystrokes": "python3 /app/clean.py\n",
+    "duration": 45.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 161.0,
+    "keystrokes": "python3 /app/clean.py > /app/clean.log 2>&1; head -40 /app/clean.log\n",
+    "duration": 45.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 161.0,
+    "keystrokes": "grep SKIP /app/clean.log\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 206.1,
+    "keystrokes": "awk '{print NR, length($0), substr($0,1,30), \"...\", substr($0,length($0)-40)}' /app/library/batch6_supplier.smi\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 206.1,
+    "keystrokes": "sed -n '9p;10p' /app/library/batch6_supplier.smi | cat -A | cut -c1-120\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 206.1,
+    "keystrokes": "python3 -c \"\nfrom rdkit import Chem\nfrom rdkit.Chem import AllChem\nm = Chem.MolFromSmiles('CN(C)CCC[C@]12CC[C@@]3(C1)C(=O)N(C4=C3C=CC=C4)C(=O)N2')\nprint('parsed:', m is not None)\nmh = Chem.AddHs(m)\np = AllChem.ETKDGv3(); p.randomSeed=42\nprint('etkdg:', AllChem.EmbedMolecule(mh, p))\np.useRandomCoords=True\nprint('rand:', AllChem.EmbedMolecule(mh, p))\nfor seed in [1,7,13,99,1234]:\n    p.randomSeed=seed\n    r = AllChem.EmbedMolecule(mh, p)\n    print('seed',seed,r)\n    if r==0: break\nm2 = Chem.Mol(m); Chem.RemoveStereochemistry(m2)\nmh2 = Chem.AddHs(m2)\np.randomSeed=42\nprint('nostereo:', AllChem.EmbedMolecule(mh2, p))\n\"\n",
+    "duration": 5.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 13,
+    "offset_sec": 211.3,
+    "keystrokes": "\n",
+    "duration": 30.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 241.3,
+    "keystrokes": "\n",
+    "duration": 30.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 15,
+    "offset_sec": 271.3,
+    "keystrokes": "python3 -c \"\nfrom rdkit import Chem\nfrom rdkit.Chem import AllChem\nm = Chem.MolFromSmiles('CN(C)CCC[C@]12CC[C@@]3(C1)C(=O)N(C4=C3C=CC=C4)C(=O)N2')\nmh = Chem.AddHs(m)\np = AllChem.ETKDGv3(); p.randomSeed=42; p.ignoreSmoothingFailures=True\nprint('smooth_ign:', AllChem.EmbedMolecule(mh, p))\np.useBasicKnowledge=False; p.useExpTorsionAnglePrefs=False; p.useRandomCoords=True\nprint('bare:', AllChem.EmbedMolecule(mh, p))\n\" 2>&1\n",
+    "duration": 30.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 15,
+    "offset_sec": 271.3,
+    "keystrokes": "python3 -c \"\nfrom rdkit import Chem\nline = open('/app/library/batch6_supplier.smi').read().splitlines()[8]\nsmi = line.split()[0]\nprint('len', len(smi), 'nC', smi.count('C'))\nm = Chem.MolFromSmiles(smi)\nprint('parsed:', m)\nfrom rdkit import RDLogger\nRDLogger.EnableLog('rdApp.error')\nm = Chem.MolFromSmiles(smi)\n\"\n",
+    "duration": 10.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 17,
+    "offset_sec": 311.3,
+    "keystrokes": "cat > /tmp/test_embed.py << 'EOF'\nfrom rdkit import Chem\nfrom rdkit.Chem import AllChem\nimport random, math\n\nm = Chem.MolFromSmiles('CN(C)CCC[C@]12CC[C@@]3(C1)C(=O)N(C4=C3C=CC=C4)C(=O)N2')\nmh = Chem.AddHs(m)\n\np = AllChem.ETKDGv3()\np.randomSeed = 42\np.useRandomCoords = True\np.boxSizeMult = 20.0\nprint('bigbox:', AllChem.EmbedMolecule(mh, p))\n\nmh2 = Chem.AddHs(m)\nconf = Chem.Conformer(mh2.GetNumAtoms())\nrandom.seed(42)\nfor i in range(mh2.GetNumAtoms()):\n    conf.SetAtomPosition(i, (random.uniform(-3,3), random.uniform(-3,3), random.uniform(-3,3)))\nmh2.RemoveAllConformers()\nmh2.AddConformer(conf)\ntry:\n    r = AllChem.MMFFOptimizeMolecule(mh2, maxIters=5000)\n    print('mmff done:', r)\nexcept Exception as e:\n    print('mmff exc:', e)\npos = mh2.GetConformer().GetPositions()\nmind = 1e9\nfor i in range(len(pos)):\n    for j in range(i+1, len(pos)):\n        d = math.dist(pos[i], pos[j])\n        if d < mind: mind = d\nprint('min interatomic dist:', round(mind,3))\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 17,
+    "offset_sec": 311.3,
+    "keystrokes": "python3 /tmp/test_embed.py 2>&1\n",
+    "duration": 30.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 18,
+    "offset_sec": 341.4,
+    "keystrokes": "sed -n '1,25p' /app/clean.log\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 20,
+    "offset_sec": 341.5,
+    "keystrokes": "cat > /app/clean.py << 'PYEOF'\nimport os, random\nfrom rdkit import Chem, RDLogger\nfrom rdkit.Chem import AllChem, Descriptors, Crippen, Lipinski, rdMolDescriptors\nfrom rdkit.Chem.MolStandardize import rdMolStandardize\n\nRDLogger.DisableLog('rdApp.*')\nLIB = '/app/library'\n\nfiles = []\nwith open(os.path.join(LIB, 'manifest.txt')) as f:\n    for line in f:\n        line = line.strip()\n        if line and not line.startswith('#'):\n            files.append(line)\n\ndef resolve(fname):\n    p = os.path.join(LIB, fname)\n    if os.path.exists(p):\n        return p\n    stem = os.path.splitext(fname)[0]\n    for e in ('.sdf', '.mol', '.smi'):\n        q = os.path.join(LIB, stem + e)\n        if os.path.exists(q):\n            return q\n    return None\n\ndef smi2mol(s):\n    try:\n        return Chem.MolFromSmiles(s)\n    except Exception:\n        return None\n\ndef iter_mols(path):\n    ext = os.path.splitext(path)[1].lower()\n    if ext == '.smi':\n        with open(path) as f:\n            for line in f:\n                line = line.strip()\n                if not line:\n                    continue\n                parts = line.split()\n                yield smi2mol(parts[0]), (parts[1] if len(parts) > 1 else '')\n    else:\n        with open(path) as f:\n            content = f.read()\n        for rec in content.split('$$$$'):\n            rec = rec.strip('\\n')\n            if not rec.strip():\n                continue\n            title = rec.splitlines()[0].strip()\n            m = smi2mol(title) if title else None\n            if m is None:\n                try:\n                    m = Chem.MolFromMolBlock(rec)\n                except Exception:\n                    m = None\n            yield m, title\n\nuncharger = rdMolStandardize.Uncharger()\nte = rdMolStandardize.TautomerEnumerator()\n\ndef standardize(m):\n    try:\n        m = rdMolStandardize.FragmentParent(m)\n        if m is None or m.GetNumAtoms() == 0:\n            return None\n        m = uncharger.uncharge(m)\n        m = te.Canonicalize(m)\n        Chem.SanitizeMol(m)\n        return m\n    except Exception:\n        return None\n\ndef optimize(mh):\n    try:\n        AllChem.MMFFOptimizeMolecule(mh, maxIters=1000)\n    except Exception:\n        try:\n            AllChem.UFFOptimizeMolecule(mh, maxIters=1000)\n        except Exception:\n            pass\n\ndef embed3d(m):\n    try:\n        mh = Chem.AddHs(m)\n        params = AllChem.ETKDGv3()\n        params.randomSeed = 42\n        status = AllChem.EmbedMolecule(mh, params)\n        if status != 0:\n            params.useRandomCoords = True\n            status = AllChem.EmbedMolecule(mh, params)\n        if status != 0:\n            rng = random.Random(42)\n            conf = Chem.Conformer(mh.GetNumAtoms())\n            for i in range(mh.GetNumAtoms()):\n                conf.SetAtomPosition(i, (rng.uniform(-3,3), rng.uniform(-3,3), rng.uniform(-3,3)))\n            mh.RemoveAllConformers()\n            mh.AddConformer(conf)\n        optimize(mh)\n        return Chem.RemoveHs(mh)\n    except Exception:\n        return None\n\nseen = set()\nout = Chem.SDWriter('/app/cleaned_library.sdf')\nc = dict(total=0, parse_fail=0, std_fail=0, dup=0, lip_fail=0, embed_fail=0, kept=0)\n\nfor fname in files:\n    path = resolve(fname)\n    if path is None:\n        print('MISSING FILE:', fname)\n        continue\n    print('Processing:', os.path.basename(path))\n    for m, name in iter_mols(path):\n        c['total'] += 1\n        label = name[:40]\n        if m is None:\n            c['parse_fail'] += 1\n            print('  SKIP(parse)', label)\n            continue\n        ms = standardize(m)\n        if ms is None:\n            c['std_fail'] += 1\n            print('  SKIP(std)', label)\n            continue\n        key = Chem.MolToSmiles(ms)\n        if key in seen:\n            c['dup'] += 1\n            print('  SKIP(dup)', label)\n            continue\n        mw = Descriptors.MolWt(ms)\n        logp = Crippen.MolLogP(ms)\n        hbd = Lipinski.NumHDonors(ms)\n        hba = Lipinski.NumHAcceptors(ms)\n        tpsa = rdMolDescriptors.CalcTPSA(ms)\n        rot = Lipinski.NumRotatableBonds(ms)\n        if not (mw <= 500 and logp <= 5 and hbd <= 5 and hba <= 10):\n            c['lip_fail'] += 1\n            print('  SKIP(lip)', label, round(mw,1), round(logp,2), hbd, hba)\n            continue\n        m3 = embed3d(ms)\n        if m3 is None or m3.GetNumConformers() == 0:\n            c['embed_fail'] += 1\n            print('  SKIP(embed)', label)\n            continue\n        seen.add(key)\n        m3.SetProp('_Name', name if name else key)\n        m3.SetProp('MW', f'{mw:.2f}')\n        m3.SetProp('LogP', f'{logp:.2f}')\n        m3.SetProp('HBD', str(hbd))\n        m3.SetProp('HBA', str(hba))\n        m3.SetProp('TPSA', f'{tpsa:.2f}')\n        m3.SetProp('RotBonds', str(rot))\n        out.write(m3)\n        c['kept'] += 1\n        print('  KEPT', label, '|', key)\n\nout.close()\nprint('SUMMARY:', c)\nPYEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 21,
+    "offset_sec": 341.6,
+    "keystrokes": "python3 /app/clean.py > /app/clean.log 2>&1; tail -2 /app/clean.log; grep -c KEPT /app/clean.log\n",
+    "duration": 60.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 21,
+    "offset_sec": 341.6,
+    "keystrokes": "python3 -c \"\nfrom rdkit import Chem\nfrom rdkit import RDLogger\nRDLogger.DisableLog('rdApp.*')\nsuppl = Chem.SDMolSupplier('/app/cleaned_library.sdf')\nmols = [m for m in suppl if m is not None]\nprint('mols read back:', len(mols))\nkeys = set()\nok = True\nfor m in mols:\n    props = m.GetPropsAsDict()\n    for k in ['MW','LogP','HBD','HBA','TPSA','RotBonds']:\n        if k not in props:\n            print('MISSING PROP', k, m.GetProp('_Name')); ok = False\n    if not (props['MW'] <= 500 and props['LogP'] <= 5 and props['HBD'] <= 5 and props['HBA'] <= 10):\n        print('LIPINSKI VIOLATION', m.GetProp('_Name')); ok = False\n    if m.GetNumConformers() == 0:\n        print('NO CONFORMER', m.GetProp('_Name')); ok = False\n    else:\n        zs = [abs(p.z) for p in m.GetConformer().GetPositions()]\n        if max(zs) < 1e-4:\n            print('FLAT COORDS', m.GetProp('_Name')); ok = False\n    k = Chem.MolToSmiles(m)\n    if k in keys:\n        print('DUP IN OUTPUT', k); ok = False\n    keys.add(k)\nprint('all checks pass:', ok)\nprint('names:', sorted(m.GetProp('_Name') for m in mols))\n\"\n",
+    "duration": 15.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 22,
+    "offset_sec": 416.6,
+    "keystrokes": "python3 -c \"\nfrom rdkit import Chem\nfrom rdkit import RDLogger\nRDLogger.DisableLog('rdApp.*')\nsuppl = Chem.SDMolSupplier('/app/cleaned_library.sdf')\nmols = [m for m in suppl if m is not None]\nprint('mols read back:', len(mols))\nkeys = set()\nok = True\nfor m in mols:\n    props = m.GetPropsAsDict()\n    for k in ['MW','LogP','HBD','HBA','TPSA','RotBonds']:\n        if k not in props:\n            print('MISSING PROP', k, m.GetProp('_Name')); ok = False\n    if not (props['MW'] <= 500 and props['LogP'] <= 5 and props['HBD'] <= 5 and props['HBA'] <= 10):\n        print('LIPINSKI VIOLATION', m.GetProp('_Name')); ok = False\n    if m.GetNumConformers() == 0:\n        print('NO CONFORMER', m.GetProp('_Name')); ok = False\n    else:\n        import numpy as np\n        pos = m.GetConformer().GetPositions()\n        if np.abs(pos[:,2]).max() < 1e-4:\n            print('FLAT COORDS', m.GetProp('_Name')); ok = False\n    k = Chem.MolToSmiles(m)\n    if k in keys:\n        print('DUP IN OUTPUT', k); ok = False\n    keys.add(k)\nprint('all checks pass:', ok)\nprint('names:', sorted(m.GetProp('_Name') for m in mols))\n\"\n",
+    "duration": 15.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 23,
+    "offset_sec": 431.6,
+    "keystrokes": "python3 -c \"\nfrom rdkit import Chem\nfrom rdkit import RDLogger\nRDLogger.DisableLog('rdApp.*')\nn_multi = 0\nfor m in Chem.SDMolSupplier('/app/cleaned_library.sdf'):\n    if m and '.' in Chem.MolToSmiles(m):\n        n_multi += 1\n        print('multi-fragment:', m.GetProp('_Name'))\nprint('multi-fragment count:', n_multi)\n\"\n",
+    "duration": 10.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 23,
+    "offset_sec": 431.6,
+    "keystrokes": "sed -n '1,12p' /app/cleaned_library.sdf; grep -A1 '>  <MW>' /app/cleaned_library.sdf | head -6; ls -la /app/cleaned_library.sdf\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 24,
+    "offset_sec": 441.7,
+    "keystrokes": "echo DONE\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 24,
+    "offset_sec": 441.8,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 25,
+    "offset_sec": 441.8,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

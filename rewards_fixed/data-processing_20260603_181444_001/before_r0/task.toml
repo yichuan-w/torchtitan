@@ -1,0 +1,33 @@
+version = "1.0"
+
+[metadata]
+author_name = "authoring-agent"
+author_email = "tbench@example.com"
+difficulty = "medium"
+category = "data-processing"
+tags = [
+    "data-integration",
+    "fixed-width-parsing",
+    "encoding-repair",
+    "deduplication",
+    "csv",
+    "json",
+    "etl",
+    "data-cleaning",
+]
+expert_time_estimate_min = 30.0
+junior_time_estimate_min = 90.0
+
+[verifier]
+timeout_sec = 600.0
+
+[agent]
+timeout_sec = 1200.0
+
+[environment]
+build_timeout_sec = 300.0
+cpus = 1
+memory = "4G"
+storage = "10G"
+
+docker_image = "aweaiteam/calibforge:data-processing_20260603_181444_001_20260620_203601_452176"

@@ -1,0 +1,170 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "cat /app/train.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "head -3 /app/data/train_data.csv; wc -l /app/data/train_data.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "python3 -c \"import sklearn, pandas; print(sklearn.__version__, pandas.__version__)\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.3,
+    "keystrokes": "cat > /app/solution.py << 'EOF'\nimport pandas as pd\nimport numpy as np\nimport pickle, os\nfrom sklearn.compose import ColumnTransformer\nfrom sklearn.preprocessing import OneHotEncoder\nfrom sklearn.pipeline import Pipeline\nfrom sklearn.ensemble import GradientBoostingClassifier\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.metrics import accuracy_score\n\ndf = pd.read_csv(\"/app/data/train_data.csv\", sep=\"|\")\ntarget = df.columns[-1]\nX = df.drop(columns=[target])\ny = (df[target].astype(str).str.strip() == \">50K\").astype(int)\n\ncat_cols = X.select_dtypes(include=[\"object\"]).columns.tolist()\nnum_cols = [c for c in X.columns if c not in cat_cols]\n\npre = ColumnTransformer([\n    (\"cat\", OneHotEncoder(handle_unknown=\"ignore\"), cat_cols),\n    (\"num\", \"passthrough\", num_cols),\n])\n\ndef make_model():\n    return Pipeline([\n        (\"pre\", pre),\n        (\"clf\", GradientBoostingClassifier(n_estimators=300, learning_rate=0.1, max_depth=3, random_state=42)),\n    ])\n\nXtr, Xva, ytr, yva = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)\nm = make_model()\nm.fit(Xtr, ytr)\nacc = accuracy_score(yva, m.predict(Xva))\nprint(f\"Validation accuracy: {acc:.4f}\")\n\nmodel = make_model()\nmodel.fit(X, y)\nwith open(\"/app/model.pkl\", \"wb\") as f:\n    pickle.dump(model, f)\nsize = os.path.getsize(\"/app/model.pkl\") / (1024*1024)\nprint(f\"Model saved, size: {size:.2f} MB\")\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.3,
+    "keystrokes": "python3 /app/solution.py\n",
+    "duration": 60.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 60.4,
+    "keystrokes": "cat > /app/tune.py << 'EOF'\nimport pandas as pd, numpy as np\nfrom sklearn.compose import ColumnTransformer\nfrom sklearn.preprocessing import OneHotEncoder\nfrom sklearn.pipeline import Pipeline\nfrom sklearn.ensemble import GradientBoostingClassifier, HistGradientBoostingClassifier, RandomForestClassifier\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.metrics import accuracy_score\n\ndf = pd.read_csv(\"/app/data/train_data.csv\", sep=\"|\")\nfor c in df.select_dtypes(include=[\"object\"]).columns:\n    df[c] = df[c].str.strip()\ntarget = df.columns[-1]\nX = df.drop(columns=[target])\ny = (df[target] == \">50K\").astype(int)\ncat_cols = X.select_dtypes(include=[\"object\"]).columns.tolist()\nnum_cols = [c for c in X.columns if c not in cat_cols]\npre = ColumnTransformer([(\"cat\", OneHotEncoder(handle_unknown=\"ignore\"), cat_cols), (\"num\", \"passthrough\", num_cols)])\n\nXtr, Xva, ytr, yva = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)\n\nconfigs = {\n \"gbm_300_d3\": GradientBoostingClassifier(n_estimators=300, learning_rate=0.1, max_depth=3, random_state=42),\n \"gbm_500_lr05\": GradientBoostingClassifier(n_estimators=500, learning_rate=0.05, max_depth=3, subsample=0.8, random_state=42),\n \"gbm_400_d4\": GradientBoostingClassifier(n_estimators=400, learning_rate=0.08, max_depth=4, subsample=0.9, random_state=42),\n \"hgb\": HistGradientBoostingClassifier(max_iter=500, learning_rate=0.08, max_leaf_nodes=31, random_state=42),\n \"rf\": RandomForestClassifier(n_estimators=300, max_depth=18, min_samples_leaf=2, n_jobs=-1, random_state=42),\n}\nfor name, clf in configs.items():\n    p = Pipeline([(\"pre\", pre), (\"clf\", clf)])\n    p.fit(Xtr, ytr)\n    acc = accuracy_score(yva, p.predict(Xva))\n    print(name, f\"{acc:.4f}\", flush=True)\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 60.4,
+    "keystrokes": "python3 /app/tune.py\n",
+    "duration": 60.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 120.5,
+    "keystrokes": "cat > /app/tune2.py << 'EOF'\nimport pandas as pd, numpy as np\nfrom sklearn.compose import ColumnTransformer\nfrom sklearn.preprocessing import OneHotEncoder\nfrom sklearn.pipeline import Pipeline\nfrom sklearn.ensemble import GradientBoostingClassifier, HistGradientBoostingClassifier, RandomForestClassifier, VotingClassifier\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.metrics import accuracy_score\n\ndf = pd.read_csv(\"/app/data/train_data.csv\", sep=\"|\")\nfor c in df.select_dtypes(include=[\"object\"]).columns:\n    df[c] = df[c].str.strip()\ntarget = df.columns[-1]\nX = df.drop(columns=[target])\ny = (df[target] == \">50K\").astype(int)\ncat_cols = X.select_dtypes(include=[\"object\"]).columns.tolist()\nnum_cols = [c for c in X.columns if c not in cat_cols]\npre_dense = ColumnTransformer([(\"cat\", OneHotEncoder(handle_unknown=\"ignore\", sparse_output=False), cat_cols), (\"num\", \"passthrough\", num_cols)])\n\ndef build(name):\n    if name == \"gbm_d4_600\":\n        return GradientBoostingClassifier(n_estimators=600, learning_rate=0.05, max_depth=4, subsample=0.9, random_state=42)\n    if name == \"gbm_d4_400\":\n        return GradientBoostingClassifier(n_estimators=400, learning_rate=0.08, max_depth=4, subsample=0.9, random_state=42)\n    if name == \"gbm_d5_300\":\n        return GradientBoostingClassifier(n_estimators=300, learning_rate=0.08, max_depth=5, subsample=0.9, random_state=42)\n    if name == \"hgb\":\n        return HistGradientBoostingClassifier(max_iter=500, learning_rate=0.08, max_leaf_nodes=31, random_state=42)\n    if name == \"vote\":\n        return VotingClassifier(estimators=[\n            (\"gbm\", GradientBoostingClassifier(n_estimators=400, learning_rate=0.08, max_depth=4, subsample=0.9, random_state=42)),\n            (\"hgb\", HistGradientBoostingClassifier(max_iter=500, learning_rate=0.08, max_leaf_nodes=31, random_state=42)),\n            (\"rf\", RandomForestClassifier(n_estimators=200, max_depth=20, min_samples_leaf=2, n_jobs=-1, random_state=42)),\n        ], voting=\"soft\")\n\nnames = [\"gbm_d4_600\", \"gbm_d4_400\", \"gbm_d5_300\", \"hgb\", \"vote\"]\nfor seed in [42, 7]:\n    Xtr, Xva, ytr, yva = train_test_split(X, y, test_size=0.2, random_state=seed, stratify=y)\n    for name in names:\n        p = Pipeline([(\"pre\", pre_dense), (\"clf\", build(name))])\n        p.fit(Xtr, ytr)\n        acc = accuracy_score(yva, p.predict(Xva))\n        print(f\"seed{seed} {name} {acc:.4f}\", flush=True)\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 120.5,
+    "keystrokes": "python3 /app/tune2.py\n",
+    "duration": 60.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 180.6,
+    "keystrokes": "\n",
+    "duration": 45.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 225.6,
+    "keystrokes": "\n",
+    "duration": 60.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 285.6,
+    "keystrokes": "\n",
+    "duration": 60.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 345.6,
+    "keystrokes": "cat > /app/tune3.py << 'EOF'\nimport pandas as pd, numpy as np\nfrom sklearn.compose import ColumnTransformer\nfrom sklearn.preprocessing import OneHotEncoder\nfrom sklearn.pipeline import Pipeline\nfrom sklearn.ensemble import GradientBoostingClassifier\nfrom sklearn.model_selection import cross_val_score, StratifiedKFold\n\ndf = pd.read_csv(\"/app/data/train_data.csv\", sep=\"|\")\nfor c in df.select_dtypes(include=[\"object\"]).columns:\n    df[c] = df[c].str.strip()\ntarget = df.columns[-1]\ny = (df[target] == \">50K\").astype(int)\n\ndef get_X(fe):\n    X = df.drop(columns=[target]).copy()\n    if fe:\n        X[\"capital-gain\"] = np.log1p(X[\"capital-gain\"])\n        X[\"capital-loss\"] = np.log1p(X[\"capital-loss\"])\n        X = X.drop(columns=[\"fnlwgt\"])\n    return X\n\ncv = StratifiedKFold(5, shuffle=True, random_state=0)\nfor fe in [False, True]:\n    X = get_X(fe)\n    cat_cols = X.select_dtypes(include=[\"object\"]).columns.tolist()\n    num_cols = [c for c in X.columns if c not in cat_cols]\n    pre = ColumnTransformer([(\"cat\", OneHotEncoder(handle_unknown=\"ignore\", sparse_output=False), cat_cols), (\"num\", \"passthrough\", num_cols)])\n    clf = GradientBoostingClassifier(n_estimators=600, learning_rate=0.05, max_depth=4, subsample=0.9, random_state=42)\n    p = Pipeline([(\"pre\", pre), (\"clf\", clf)])\n    scores = cross_val_score(p, X, y, cv=cv, scoring=\"accuracy\", n_jobs=1)\n    print(f\"fe={fe}: {scores.mean():.4f} +- {scores.std():.4f} {scores}\", flush=True)\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 345.6,
+    "keystrokes": "python3 /app/tune3.py\n",
+    "duration": 60.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 405.7,
+    "keystrokes": "\n",
+    "duration": 60.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 465.7,
+    "keystrokes": "\n",
+    "duration": 60.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 525.7,
+    "keystrokes": "\n",
+    "duration": 60.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 13,
+    "offset_sec": 585.7,
+    "keystrokes": "\n",
+    "duration": 60.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 645.7,
+    "keystrokes": "cat > /app/final_train.py << 'EOF'\nimport pandas as pd, numpy as np, pickle, os\nfrom sklearn.compose import ColumnTransformer\nfrom sklearn.preprocessing import OneHotEncoder\nfrom sklearn.pipeline import Pipeline\nfrom sklearn.ensemble import GradientBoostingClassifier\n\ndf = pd.read_csv(\"/app/data/train_data.csv\", sep=\"|\")\nfor c in df.select_dtypes(include=[\"object\"]).columns:\n    df[c] = df[c].str.strip()\ntarget = df.columns[-1]\nX = df.drop(columns=[target])\ny = (df[target] == \">50K\").astype(int)\ncat_cols = X.select_dtypes(include=[\"object\"]).columns.tolist()\nnum_cols = [c for c in X.columns if c not in cat_cols]\npre = ColumnTransformer([(\"cat\", OneHotEncoder(handle_unknown=\"ignore\", sparse_output=False), cat_cols), (\"num\", \"passthrough\", num_cols)])\nmodel = Pipeline([(\"pre\", pre), (\"clf\", GradientBoostingClassifier(n_estimators=600, learning_rate=0.05, max_depth=4, subsample=0.9, random_state=42))])\nmodel.fit(X, y)\nwith open(\"/app/model.pkl\", \"wb\") as f:\n    pickle.dump(model, f)\nprint(\"train acc:\", (model.predict(X) == y).mean())\nprint(\"size MB:\", os.path.getsize(\"/app/model.pkl\") / (1024*1024))\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 645.7,
+    "keystrokes": "python3 /app/final_train.py\n",
+    "duration": 60.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 15,
+    "offset_sec": 705.8,
+    "keystrokes": "python3 -c \"\nimport pickle, pandas as pd\nm = pickle.load(open('/app/model.pkl','rb'))\ndf = pd.read_csv('/app/data/train_data.csv', sep='|')\nprint(m.predict(df.drop(columns=[df.columns[-1]]).head(5)))\nprint(df['income'].head(5).tolist())\n\"\n",
+    "duration": 10.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 15,
+    "offset_sec": 705.8,
+    "keystrokes": "ls -la /app/model.pkl\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 16,
+    "offset_sec": 715.9,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 17,
+    "offset_sec": 715.9,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

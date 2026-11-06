@@ -1,0 +1,1 @@
+The binary at /app/bin/processor is supposed to read lines from stdin and write each line to stdout prefixed with "OUT: " (note the trailing space). It's failing to run. The source code is not available — use strace to diagnose the problem and fix the environment so the program works correctly.

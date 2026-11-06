@@ -1,0 +1,14 @@
+[
+  {
+    "defect": "The default python3 interpreter is /usr/local/bin/python3, but DuckDB is installed only for /usr/bin/python3; installing DuckDB into the default interpreter obtains a newer storage format incompatible with the grader's pinned DuckDB.",
+    "evidence": "environment/Dockerfile PATH order conflicts with its own installed package location; attempt-01.jsonl turn 9 shows the missing import and its verifier reports database version 999, as do 9 other attempts.",
+    "change": "Put /usr/bin before /usr/local/bin in PATH so python3 uses the preinstalled DuckDB-compatible interpreter.",
+    "kind": "broken_setup"
+  },
+  {
+    "defect": "The top-products checker requires an integer lexical spelling even though the instruction requires a numeric total quantity and valid CSV writers may serialize an integral aggregate as 19.0.",
+    "evidence": "tests/test_outputs.py parses total_quantity with int(); attempt-02.jsonl and attempt-09.jsonl verifier diagnostics show all other checks pass and only int('19.0') fails.",
+    "change": "Parse total_quantity numerically, require integral values, and retain the descending-order and expected-content checks.",
+    "kind": "other"
+  }
+]

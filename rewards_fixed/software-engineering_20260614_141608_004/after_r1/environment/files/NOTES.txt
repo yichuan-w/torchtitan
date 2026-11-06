@@ -1,0 +1,37 @@
+VM Design Notes
+================
+
+Instruction Semantics:
+- PUSH n: push value n onto stack
+- POP: remove top of stack
+- DUP: duplicate top of stack
+- SWAP: swap top two elements
+- ADD: pop b, pop a, push a + b
+- SUB: pop b, pop a, push a - b
+- MUL: pop b, pop a, push a * b
+- DIV: pop b, pop a, push a / b
+- MOD: pop b, pop a, push a % b
+- EQ:  pop b, pop a, push a == b
+- NE:  pop b, pop a, push a != b
+- LT:  pop b, pop a, push a < b
+- GT:  pop b, pop a, push a > b
+- LE:  pop b, pop a, push a <= b
+- GE:  pop b, pop a, push a >= b
+- JMP offset: absolute jump to offset
+- JZ offset: pop, if zero, absolute jump to offset
+- JNZ offset: pop, if nonzero, absolute jump to offset
+- CALL offset: push return address, absolute jump to offset
+- RET: pop return address, jump
+- LOAD idx: push locals[idx]
+- STORE idx: pop to locals[idx]
+- PRINT: pop and print
+
+Jump Addressing:
+All jump and call instructions use absolute addressing. The offset field
+contains the absolute byte position in the code buffer to jump to.
+
+Register Usage:
+- sp: stack pointer, points to next free slot (0 when empty)
+- cp: call stack pointer
+- pc: program counter
+- locals[0..255]: general-purpose local variables

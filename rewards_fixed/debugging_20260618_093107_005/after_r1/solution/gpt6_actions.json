@@ -1,0 +1,128 @@
+[
+  {
+    "step_id": 3,
+    "offset_sec": 0.0,
+    "keystrokes": "ls -la /app\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.0,
+    "keystrokes": "cat /app/format.h\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.0,
+    "keystrokes": "stat /app/sensor.log\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.0,
+    "keystrokes": "xxd -g1 -l 256 /app/sensor.log",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 0.4,
+    "keystrokes": "C-c",
+    "duration": 0.2,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 0.4,
+    "keystrokes": "od -Ax -tx1z /app/sensor.log",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 1.6,
+    "keystrokes": "",
+    "duration": 2.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 3.6,
+    "keystrokes": "\n",
+    "duration": 2.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 5.6,
+    "keystrokes": "python3 - <<'PY'\nimport struct, zlib\ndata = open('/app/sensor.log', 'rb').read()\nprint('size', len(data))\nfor endian in ['<', '>']:\n    print('ENDIAN', endian)\n    matches = []\n    for off in range(0, len(data) - 15):\n        rec = data[off:off+16]\n        ts, sid, rt, val = struct.unpack(endian + 'IHHf', rec[:12])\n        stored_le = struct.unpack('<I', rec[12:16])[0]\n        stored_be = struct.unpack('>I', rec[12:16])[0]\n        crc = zlib.crc32(rec[:12]) & 0xffffffff\n        if crc == stored_le or crc == stored_be:\n            which = 'LE' if crc == stored_le else 'BE'\n            valid = (1600000000 <= ts <= 1800000000 and 1 <= sid <= 50 and rt in (1, 2, 3))\n            if rt == 1:\n                valok = 10.0 <= val <= 40.0\n            elif rt == 2:\n                valok = 20.0 <= val <= 100.0\n            elif rt == 3:\n                valok = 900.0 <= val <= 1100.0\n            else:\n                valok = False\n            matches.append((off, endian, which, ts, sid, rt, val, valid, valok))\n    print('matches', len(matches))\n    for off, endian, which, ts, sid, rt, val, valid, valok in matches:\n        print(f'off={off:3d} {endian} stored={which} ts={ts} sid={sid} rt={rt} val={val:.6g} valid={valid} valok={valok}')\nPY\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 6.6,
+    "keystrokes": "python3 - <<'PY'\nimport struct, zlib\ndata = open('/app/sensor.log', 'rb').read()\nfor k in range(39):\n    off = 11 + 16*k\n    rec = data[off:off+16]\n    if len(rec) < 16:\n        continue\n    crc = zlib.crc32(rec[:12]) & 0xffffffff\n    stored_le = struct.unpack('<I', rec[12:16])[0]\n    print('slot=%2d off=%3d bytes=%s crc_ok=%s' % (k, off, rec.hex(' '), crc == stored_le))\n    for e, name in [('<', 'LE'), ('>', 'BE')]:\n        ts,sid,rt,val = struct.unpack(e+'IHHf', rec[:12])\n        valid = (1600000000 <= ts <= 1800000000 and 1 <= sid <= 50 and rt in (1,2,3))\n        if rt == 1:\n            vok = 10.0 <= val <= 40.0\n        elif rt == 2:\n            vok = 20.0 <= val <= 100.0\n        elif rt == 3:\n            vok = 900.0 <= val <= 1100.0\n        else:\n            vok = False\n        if valid and vok:\n            print('  %s ts=%d sid=%d rt=%d value=%.6g' % (name, ts, sid, rt, val))\nPY\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 13,
+    "offset_sec": 7.6,
+    "keystrokes": "python3 -c 'exec(\"\"\"import json,zlib,struct\ndata=open(\"/app/sensor.log\",\"rb\").read()\nrecs=[]\nfor off in range(len(data)-15):\n    r=data[off:off+16]\n    if int.from_bytes(r[12:16],\"little\") != zlib.crc32(r[:12]):\n        continue\n    for bo in (\"little\",\"big\"):\n        ts=int.from_bytes(r[0:4],bo)\n        sid=int.from_bytes(r[4:6],bo)\n        typ=int.from_bytes(r[6:8],bo)\n        raw=r[8:12] if bo == \"little\" else r[8:12][::-1]\n        val=struct.unpack(\"f\",raw)[0]\n        if ts not in range(1600000000,1800000001):\n            continue\n        if sid not in range(1,51):\n            continue\n        if typ not in (1,2,3):\n            continue\n        if typ == 1:\n            ok=min(40.0,val) == val and max(10.0,val) == val\n        elif typ == 2:\n            ok=min(100.0,val) == val and max(20.0,val) == val\n        else:\n            ok=min(1100.0,val) == val and max(900.0,val) == val\n        if not ok:\n            continue\n        recs.append({\"off\":off,\"timestamp\":ts,\"sensor_id\":sid,\"reading_type\":typ,\"value\":round(val,2)})\nseen=[]\nout=[]\nfor r in sorted(recs,key=lambda x:x[\"off\"]):\n    if r[\"off\"] in seen:\n        continue\n    seen.append(r[\"off\"])\n    out.append({\"timestamp\":r[\"timestamp\"],\"sensor_id\":r[\"sensor_id\"],\"reading_type\":r[\"reading_type\"],\"value\":r[\"value\"]})\nopen(\"/app/recovered.json\",\"w\").write(json.dumps(out,indent=2)+\"\\n\")\nprint(\"recovered\",len(out))\n\"\"\")'\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 13,
+    "offset_sec": 7.6,
+    "keystrokes": "python3 -c 'exec(\"\"\"import json\nrecords=json.load(open(\"/app/recovered.json\"))\nprint(\"count\",len(records))\nprint(\"first\",records[0])\nprint(\"last\",records[-1])\nfor rec in records:\n    assert isinstance(rec[\"timestamp\"],int)\n    assert isinstance(rec[\"sensor_id\"],int)\n    assert rec[\"reading_type\"] in (1,2,3)\n    assert isinstance(rec[\"value\"],(int,float))\nprint(\"schema/type checks passed\")\n\"\"\")'",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 9.1,
+    "keystrokes": "\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 9.1,
+    "keystrokes": "python3 - <<'PY'\nimport json\nimport struct\nimport zlib\n\ndata = open('/app/sensor.log', 'rb').read()\nby_offset = {}\n\nfor off in range(len(data) - 15):\n    rec = data[off:off + 16]\n    stored_crc = int.from_bytes(rec[12:16], 'little')\n    if zlib.crc32(rec[:12]) & 0xffffffff != stored_crc:\n        continue\n\n    for endian in ('<', '>'):\n        timestamp, sensor_id, reading_type, value = struct.unpack(endian + 'IHHf', rec[:12])\n\n        if not (1600000000 <= timestamp <= 1800000000):\n            continue\n        if not (1 <= sensor_id <= 50):\n            continue\n        if reading_type not in (1, 2, 3):\n            continue\n        if reading_type == 1:\n            in_range = 10.0 <= value <= 40.0\n        elif reading_type == 2:\n            in_range = 20.0 <= value <= 100.0\n        else:\n            in_range = 900.0 <= value <= 1100.0\n        if not in_range:\n            continue\n\n        by_offset[off] = {\n            'timestamp': timestamp,\n            'sensor_id': sensor_id,\n            'reading_type': reading_type,\n            'value': round(value, 2),\n        }\n\nrecords = [by_offset[off] for off in sorted(by_offset)]\nwith open('/app/recovered.json', 'w') as f:\n    json.dump(records, f, indent=2)\n    f.write('\\n')\n\nprint('recovered records:', len(records))\nPY\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 9.1,
+    "keystrokes": "python3 - <<'PY'\nimport json\n\nwith open('/app/recovered.json') as f:\n    records = json.load(f)\n\nprint('count:', len(records))\nprint('first:', records[0])\nprint('last:', records[-1])\nfor rec in records:\n    assert set(rec) == {'timestamp', 'sensor_id', 'reading_type', 'value'}\n    assert isinstance(rec['timestamp'], int)\n    assert isinstance(rec['sensor_id'], int)\n    assert rec['reading_type'] in (1, 2, 3)\n    assert isinstance(rec['value'], (int, float))\nprint('schema/type checks passed')\nPY\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 9.1,
+    "keystrokes": "ls -l /app/recovered.json\n",
+    "duration": 0.2,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 15,
+    "offset_sec": 12.3,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 16,
+    "offset_sec": 12.3,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

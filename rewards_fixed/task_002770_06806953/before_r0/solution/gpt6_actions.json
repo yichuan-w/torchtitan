@@ -1,0 +1,72 @@
+[
+  {
+    "step_id": 3,
+    "offset_sec": 0.0,
+    "keystrokes": "cat > /home/user/setup_local_proxy.sh <<'EOF'\n#!/usr/bin/env bash\nset -euo pipefail\n\nprintf 'Enter deployment tier: '\nread -r tier\n\nmkdir -p /home/user/certs\n\nopenssl req -x509 -newkey rsa:2048 -nodes \\\n  -keyout /home/user/certs/key.pem \\\n  -out /home/user/certs/cert.pem \\\n  -days 365 \\\n  -subj '/CN=localhost' > /dev/null 2>&1\n\ncat > /home/user/proxy.conf <<'NGINX'\npid /home/user/nginx.pid;\nerror_log /home/user/error.log;\n\nevents {}\n\nhttp {\n    access_log /home/user/access.log;\n\n    server {\n        listen 127.0.0.1:8443 ssl;\n        server_name localhost;\n\n        ssl_certificate /home/user/certs/cert.pem;\n        ssl_certificate_key /home/user/certs/key.pem;\n\n        location / {\n            proxy_pass http://127.0.0.1:8080;\n        }\n    }\n}\nNGINX\n\nnginx -t -c /home/user/proxy.conf\n\nfingerprint=$(openssl x509 -in /home/user/certs/cert.pem -noout -fingerprint -sha256 | cut -d'=' -f2)\necho \"Tier: ${tier}, Cert SHA256: ${fingerprint}\" >> /home/user/deploy.log\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.0,
+    "keystrokes": "chmod +x /home/user/setup_local_proxy.sh\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.0,
+    "keystrokes": "rm -f /home/user/deploy.log\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.0,
+    "keystrokes": "printf 'production\\n' | /home/user/setup_local_proxy.sh\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 1.3,
+    "keystrokes": "ls -l /home/user/setup_local_proxy.sh /home/user/proxy.conf /home/user/certs/cert.pem /home/user/certs/key.pem /home/user/deploy.log\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 1.3,
+    "keystrokes": "cat /home/user/proxy.conf\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 1.3,
+    "keystrokes": "cat /home/user/deploy.log\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 1.3,
+    "keystrokes": "openssl x509 -in /home/user/certs/cert.pem -noout -fingerprint -sha256 | cut -d'=' -f2\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 2.6,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 2.6,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

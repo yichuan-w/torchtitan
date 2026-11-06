@@ -1,0 +1,168 @@
+{
+  "retained_skill": "Infer and reverse a uniform reversible byte transformation from known archive structure, then parse the ARCV1 metadata and extract the exact files.",
+  "bottleneck": "All 12 scored attempts entered an open-ended corruption search immediately after observing the invalid magic; nine exhausted context and three exhausted time before obtaining a complete inverse transformation.",
+  "change": "Help is in the original binary signal: replace the arbitrary invertible GF(2) affine byte map with a composition of two common reversible byte operations. This removes the broad matrix/substitution search stage while leaving the student to infer the operations from the same known ARCV1 magic, decode the archive, parse its index, and extract it.",
+  "restore": "Restore the original arbitrary affine byte mapping while retaining the same archive, instruction, outputs, and checks.",
+  "prediction": "The change addresses repeated ad hoc XOR/replacement/brute-force exploration. The simpler transformed header should enable some attempts to recognize and invert a short composition, leading next to a valid ARCV1 header and index rather than another transform sweep; this is refuted if the next group still spends its limits without producing a valid decoded header or if all 12 immediately decode and extract successfully.",
+  "expected": "5 of 12",
+  "evidence": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turn": 3,
+      "observation": "Recognized the invalid magic, then treated 0xAA as damage and began ad hoc XOR/bit trials; no files were submitted."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turn": 3,
+      "observation": "Interpreted frequent 0xAA bytes as overwritten data and spent the remaining context testing corruption guesses."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turn": 3,
+      "observation": "Classified the archive as garbage/0xAA corruption, then exhausted context on XOR, rotation, and boundary guesses."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turn": 3,
+      "observation": "Identified a complex substitution and some repeated character mappings, but timed out without deriving a complete inverse."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turn": 4,
+      "observation": "Saw repeated 0xAA as corruption and exhausted context on simple XOR and replacement hypotheses."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turn": 3,
+      "observation": "Assumed random-looking bytes were damaged; eventually wrote five equal garbled chunks. Replayed that final approach after a fresh reset by clearing bit 7 on five 183-byte chunks; grade failed readme, config JSON, CSV, notes, and pipeline content checks, while directory, names, no-extra-files, and unchanged-archive checks passed."
+    },
+    {
+      "attempt": "attempt-07.jsonl",
+      "turn": 3,
+      "observation": "Entered open-ended corruption guessing after the magic mismatch and exhausted context without a valid decode."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turn": 3,
+      "observation": "Treated the bytes as damaged/encrypted and exhausted context on broad transform experiments."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turn": 3,
+      "observation": "Began ad hoc substitution recovery; later obtained partial plaintext character mappings but timed out before a complete inverse or extraction. After editing, replayed the attempt-09 transform-analysis approach from a fresh reset: single-XOR, bit-reversal, and high-bit-clearing candidates still failed the known ARCV1 magic, but a bounded search over rotation plus XOR reached ARC\\x01 and decoded the archive; grading a deliberately incomplete extraction containing only the correctly decoded config.json still failed all four missing-content checks, so the replay does not count as solved."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turn": 3,
+      "observation": "Treated 0xAA as a corruption marker and exhausted context after recovering only the known header with positional guesses."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turn": 3,
+      "observation": "Searched for literal magic and filenames, then spent the time budget on unrelated simple transforms. Replayed its placeholder-file approach after a fresh reset by creating the five empty named files; grade failed readme, config JSON, CSV, notes, and pipeline content checks, while directory, names, no-extra-files, and unchanged-archive checks passed."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turn": 3,
+      "observation": "Interpreted 0xAA as destructive corruption and exhausted context on replacement, XOR, and bit-reversal experiments."
+    }
+  ],
+  "budget": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turns": [
+        3,
+        43
+      ],
+      "stage": "Open-ended search over arbitrary corruption models; the revised fixture replaces the eight-bit affine map with a two-operation byte transform, sharply reducing the hypothesis space while preserving transform inference."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turns": [
+        3,
+        40
+      ],
+      "stage": "Open-ended search over arbitrary corruption models; the revised fixture replaces the eight-bit affine map with a two-operation byte transform, sharply reducing the hypothesis space while preserving transform inference."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turns": [
+        3,
+        44
+      ],
+      "stage": "Open-ended search over arbitrary corruption models; the revised fixture replaces the eight-bit affine map with a two-operation byte transform, sharply reducing the hypothesis space while preserving transform inference."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turns": [
+        3,
+        31
+      ],
+      "stage": "Open-ended search over arbitrary corruption models; the revised fixture replaces the eight-bit affine map with a two-operation byte transform, sharply reducing the hypothesis space while preserving transform inference."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turns": [
+        3,
+        46
+      ],
+      "stage": "Open-ended search over arbitrary corruption models; the revised fixture replaces the eight-bit affine map with a two-operation byte transform, sharply reducing the hypothesis space while preserving transform inference."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turns": [
+        3,
+        39
+      ],
+      "stage": "Open-ended search over arbitrary corruption models; the revised fixture replaces the eight-bit affine map with a two-operation byte transform, sharply reducing the hypothesis space while preserving transform inference."
+    },
+    {
+      "attempt": "attempt-07.jsonl",
+      "turns": [
+        3,
+        45
+      ],
+      "stage": "Open-ended search over arbitrary corruption models; the revised fixture replaces the eight-bit affine map with a two-operation byte transform, sharply reducing the hypothesis space while preserving transform inference."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turns": [
+        3,
+        51
+      ],
+      "stage": "Open-ended search over arbitrary corruption models; the revised fixture replaces the eight-bit affine map with a two-operation byte transform, sharply reducing the hypothesis space while preserving transform inference."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turns": [
+        3,
+        43
+      ],
+      "stage": "Open-ended search over arbitrary corruption models; the revised fixture replaces the eight-bit affine map with a two-operation byte transform, sharply reducing the hypothesis space while preserving transform inference."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turns": [
+        3,
+        52
+      ],
+      "stage": "Open-ended search over arbitrary corruption models; the revised fixture replaces the eight-bit affine map with a two-operation byte transform, sharply reducing the hypothesis space while preserving transform inference."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turns": [
+        3,
+        52
+      ],
+      "stage": "Open-ended search over arbitrary corruption models; the revised fixture replaces the eight-bit affine map with a two-operation byte transform, sharply reducing the hypothesis space while preserving transform inference."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turns": [
+        3,
+        42
+      ],
+      "stage": "Open-ended search over arbitrary corruption models; the revised fixture replaces the eight-bit affine map with a two-operation byte transform, sharply reducing the hypothesis space while preserving transform inference."
+    }
+  ]
+}

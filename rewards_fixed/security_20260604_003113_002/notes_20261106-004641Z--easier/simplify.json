@@ -1,0 +1,32 @@
+{
+  "retained_skill": "Recover a passphrase from a binary resource using supplied byte-location metadata, then extract and decrypt hidden OpenSSL-protected data from a JPEG.",
+  "bottleneck": "The first obstacle is a broken promised input: all 12 attempts found config/keyloc.txt absent, and had to detour through source code or Git history before beginning the stated workflow. All recovered the passphrase by turn 9, but eight later exhausted context during JPEG extraction and four submitted incorrect content.",
+  "change": "Repair-only intervention in the environment: restore the promised config/keyloc.txt input so the solver can begin the stated byte extraction directly. No additional simplification is combined with this repair, as required for a demonstrated seed defect.",
+  "restore": "Remove config/keyloc.txt from the fixture to restore the defective seed state; no retained requirement or verifier check is removed.",
+  "prediction": "The repair addresses the initial failed file lookup and enables the different next action of extracting the passphrase directly from the stated metadata rather than searching Git or source. A fresh replay should reach passphrase recovery several turns earlier. It is refuted if config/keyloc.txt is still absent or its literal metadata does not recover the same passphrase. Because the dominant later extraction obstacle remains intentionally unchanged in this repair-only rewrite, the next measured group may still remain below the learnable band.",
+  "expected": "1 of 12",
+  "evidence": [
+    {"attempt": "attempt-01.jsonl", "turn": 3, "observation": "The promised config directory was empty; the attempt detoured through Git/source, recovered the passphrase at turn 8, then exhausted context during JPEG extraction. Replayed its passphrase artifact before editing using ./sandbox reset, ./sandbox exec with the recovered passphrase written to /app/solution.txt, and ./sandbox grade: file existence passed and final decrypted content failed."},
+    {"attempt": "attempt-02.jsonl", "turn": 6, "observation": "The attempt had to read config/keyloc.txt from the initial Git commit because it was absent in the working tree; it recovered the passphrase at turn 8 and later exhausted context. Replayed its no-deliverable state before editing using removal of /app/solution.txt followed by ./sandbox grade: both existence and content checks failed. After editing, a fresh ./sandbox reset followed by direct use of config/keyloc.txt recovered the passphrase immediately; ./sandbox grade then still failed both final-artifact checks, confirming the repair reaches its target but does not hand over the retained JPEG/OpenSSL work."},
+    {"attempt": "attempt-03.jsonl", "turn": 6, "observation": "Recovered the passphrase by source/history inspection, then exhausted context at turn 120 during hidden-payload extraction."},
+    {"attempt": "attempt-04.jsonl", "turn": 8, "observation": "Recovered the passphrase despite the missing promised config, then submitted that passphrase rather than decrypted content."},
+    {"attempt": "attempt-05.jsonl", "turn": 9, "observation": "Recovered the passphrase after investigating repository alternatives, then submitted incorrect content after repeated extraction attempts."},
+    {"attempt": "attempt-06.jsonl", "turn": 6, "observation": "Recovered the passphrase and later exhausted context during the JPEG stage."},
+    {"attempt": "attempt-07.jsonl", "turn": 7, "observation": "Recovered the passphrase and later exhausted context after steghide/binwalk and raw transformation attempts."},
+    {"attempt": "attempt-08.jsonl", "turn": 8, "observation": "Recovered the passphrase and later exhausted context without a deliverable."},
+    {"attempt": "attempt-09.jsonl", "turn": 9, "observation": "Recovered the passphrase and later exhausted context while repeatedly trying guessed decryptions."},
+    {"attempt": "attempt-10.jsonl", "turn": 6, "observation": "Recovered the passphrase and later exhausted context during custom JPEG and cryptographic experiments."},
+    {"attempt": "attempt-11.jsonl", "turn": 5, "observation": "Recovered the passphrase and submitted an incorrect final artifact after failing the JPEG extraction stage."},
+    {"attempt": "attempt-12.jsonl", "turn": 7, "observation": "Recovered the passphrase and submitted it instead of decrypted hidden content."}
+  ],
+  "budget": [
+    {"attempt": "attempt-01.jsonl", "turns": [2, 8], "stage": "Locating missing byte metadata; restoring the promised file removes the Git/source detour."},
+    {"attempt": "attempt-02.jsonl", "turns": [2, 8], "stage": "Locating missing byte metadata; restoring the promised file removes the Git-history detour."},
+    {"attempt": "attempt-03.jsonl", "turns": [2, 6], "stage": "Locating missing byte metadata; restoring the promised file shortens initial discovery."},
+    {"attempt": "attempt-06.jsonl", "turns": [2, 6], "stage": "Locating missing byte metadata; restoring the promised file shortens initial discovery."},
+    {"attempt": "attempt-07.jsonl", "turns": [2, 7], "stage": "Locating missing byte metadata; restoring the promised file shortens initial discovery."},
+    {"attempt": "attempt-08.jsonl", "turns": [2, 8], "stage": "Locating missing byte metadata; restoring the promised file shortens initial discovery."},
+    {"attempt": "attempt-09.jsonl", "turns": [2, 9], "stage": "Locating missing byte metadata; restoring the promised file shortens initial discovery."},
+    {"attempt": "attempt-10.jsonl", "turns": [2, 6], "stage": "Locating missing byte metadata; restoring the promised file shortens initial discovery."}
+  ]
+}

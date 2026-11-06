@@ -1,0 +1,23 @@
+version = "1.0"
+
+[metadata]
+author_name = "authoring-agent"
+difficulty = "easy"
+category = "security"
+tags = ["security", "password-cracking", "john", "hashcat", "forensics"]
+expert_time_estimate_min = 10.0
+junior_time_estimate_min = 20.0
+
+[verifier]
+timeout_sec = 900.0
+
+[agent]
+timeout_sec = 900.0
+
+[environment]
+build_timeout_sec = 600.0
+cpus = 1
+memory = "2G"
+storage = "10G"
+
+docker_image = "aweaiteam/calibforge:security_20260604_193356_007_20260621_165417_234315"

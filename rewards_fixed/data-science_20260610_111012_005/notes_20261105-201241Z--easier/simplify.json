@@ -1,0 +1,70 @@
+{
+  "retained_skill": "Debugging a transaction aggregation pipeline by inspecting the source data, normalizing category and price fields, computing transaction revenue, and producing a complete per-category summary.",
+  "bottleneck": "All 12 scored attempts first encountered a broken default Python that could not import the preinstalled pandas dependency, then all 12 retained the seed script's incorrect interpretation of avg_order_value as mean unit price because the public contract did not define that metric.",
+  "change": "Repair the environment so the default python3 resolves to the task's pandas-capable system interpreter, and state at a vague requirement level that avg_order_value averages transaction revenue rather than unit price. This removes installation/interpreter mechanics and clarifies the promised statistic; students still must discover and implement price cleaning, category normalization, missing-category handling, revenue calculation, and aggregation.",
+  "restore": "These are fairness repairs and should remain. A later hardening can vary malformed values or category spellings while preserving the metric definition and working runtime.",
+  "prediction": "Attempts currently respond to the first execution by installing pandas or finding another interpreter, and later leave avg_order_value aggregated from price_num or total_price. A working default interpreter lets them immediately observe the original script's bad output, while the metric definition lets them change the aggregation target to per-transaction revenue. This prediction is refuted if attempts still encounter a pandas import error from plain python3 or produce mean unit price after reading the revised contract.",
+  "expected": "9 of 12",
+  "evidence": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turn": 5,
+      "observation": "Plain python3 failed with ModuleNotFoundError for pandas. Replayed its final submitted script using /usr/bin/python3.12, then ./sandbox grade: file existence, columns, all transactions, clean names, no duplicates, and six categories passed; known-category and missing-category value checks failed because avg_order_value was mean unit price (Electronics 871.67 rather than average transaction revenue). After the rewrite and fresh reset, plain python3 imported pandas and ran immediately. Replaying the same approach with the revised contract's revenue-based average produced six rows and ./sandbox grade passed all eight checks."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turn": 4,
+      "observation": "Plain python3 failed to import pandas; the final implementation used avg_order_value=('price_num', 'mean')."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turn": 4,
+      "observation": "Plain python3 failed to import pandas; the final implementation used avg_order_value=('price_num', 'mean')."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turn": 4,
+      "observation": "Plain python3 failed to import pandas; the final implementation used avg_order_value=('price_num', 'mean')."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turn": 4,
+      "observation": "Plain python3 failed to import pandas; the final implementation used avg_order_value=('price_num', 'mean')."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turn": 5,
+      "observation": "Plain python3 failed to import pandas. Replayed its final submitted script using /usr/bin/python3.12, then ./sandbox grade: file existence, columns, all transactions, clean names, and no duplicates passed; known-category values, the catch-all group, and exactly six categories failed. Its average used mean unit price and its cleaning split missing categories into two rows."
+    },
+    {
+      "attempt": "attempt-07.jsonl",
+      "turn": 4,
+      "observation": "Plain python3 failed to import pandas; the final implementation used avg_order_value=('price_num', 'mean')."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turn": 5,
+      "observation": "Plain python3 failed to import pandas; the final implementation used avg_order_value=('price_num', 'mean')."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turn": 4,
+      "observation": "Plain python3 failed to import pandas; the final implementation used avg_order_value=('price_num', 'mean')."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turn": 3,
+      "observation": "Plain python3 failed to import pandas; the replacement csv implementation computed avg_order_value from accumulated unit prices rather than transaction revenue."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turn": 4,
+      "observation": "Plain python3 failed to import pandas; the replacement csv implementation computed avg_order_value from total_price rather than transaction revenue."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turn": 4,
+      "observation": "Plain python3 failed to import pandas; the final implementation used avg_order_value=('price_num', 'mean')."
+    }
+  ]
+}

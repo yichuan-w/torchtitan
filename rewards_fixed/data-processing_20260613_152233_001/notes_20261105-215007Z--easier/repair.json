@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The required day/month/year interpretation of the raw date strings is not stated or discoverable, and every supplied date is also a valid month/day/year date, while grading requires day/month/year results.",
+    "evidence": "instruction.md describes the raw CSV but gives no date convention; environment/files/sales_data/daily_sales.csv contains only ambiguous values such as 03/05/2023; tests/test_outputs.py requires that value to mean 2023-05-03. All attempts reached this stage and left month-first parsing, including attempt-04.jsonl turn 9 and attempt-12.jsonl turn 9; both replayed states failed only date-related checks.",
+    "change": "State in instruction.md that dates in the raw sales CSV use day/month/year order.",
+    "kind": "hidden_requirement"
+  }
+]

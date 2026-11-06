@@ -1,0 +1,24 @@
+version = "1.0"
+
+[metadata]
+author_name = "authoring-agent"
+author_email = "author@example.com"
+difficulty = "hard"
+category = "mathematics"
+tags = ["numerical-algorithms", "pslq", "integer-relations", "high-precision"]
+expert_time_estimate_min = 120.0
+junior_time_estimate_min = 480.0
+
+[verifier]
+timeout_sec = 600.0
+
+[agent]
+timeout_sec = 1800.0
+
+[environment]
+build_timeout_sec = 300.0
+cpus = 1
+memory = "2G"
+storage = "5G"
+
+docker_image = "aweaiteam/calibforge:mathematics_20260418_044216_004_20260422_022938_609068"

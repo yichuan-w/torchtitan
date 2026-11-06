@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The verifier requires validation_score at an exact DataFrame column position even though the public task requires the column and value but leaves column order open.",
+    "evidence": "tests/test.patch test_no_search compares the complete ordered Index, while instruction.md states no position; attempt-01.jsonl turn 14 and attempt-12.jsonl turn 55 show correct first-fold columns in other positions, and both replays failed only that assertion.",
+    "change": "Compare the promised ranking schema without imposing column order, while retaining checks that validation_score exists and represents the first CV fold.",
+    "kind": "hidden_requirement"
+  }
+]

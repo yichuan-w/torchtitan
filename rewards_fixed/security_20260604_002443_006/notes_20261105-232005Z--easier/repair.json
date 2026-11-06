@@ -1,0 +1,14 @@
+[
+  {
+    "defect": "The instruction says Python 3 and Pillow are available, but the default python3 is /opt/verifier/bin/python3 and cannot import PIL.",
+    "evidence": "attempt-01.jsonl turn 2 and all other attempts' initial Python invocation fail with ModuleNotFoundError; sandbox reset confirms default python3 cannot import PIL while /usr/bin/python3 can.",
+    "change": "Put /usr/bin before the verifier virtual environment on PATH so the advertised default python3 imports the installed Pillow package.",
+    "kind": "broken_setup"
+  },
+  {
+    "defect": "The instruction describes the supplied image as 8x8, while the supplied fixture is 32x32.",
+    "evidence": "instruction.md describes 8x8; environment/files/image.png and attempt-01.jsonl turn 10 report 32x32.",
+    "change": "Describe the image truthfully as small rather than asserting an incorrect dimension, since the simplified fixture is 16x8.",
+    "kind": "other"
+  }
+]

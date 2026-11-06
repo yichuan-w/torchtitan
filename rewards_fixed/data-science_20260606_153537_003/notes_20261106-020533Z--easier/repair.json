@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The verifier expects inconsistent model and dataset labels to be normalized and repeated sub-team reports for one model-dataset pair to yield one equally weighted dataset contribution, but the instruction states neither reconciliation requirement.",
+    "evidence": "instruction.md originally only asked for a mean on datasets, while tests/test_outputs.py requires normalization, deduplication, and aggregation; attempt-02.jsonl turn 12 averages report rows, and replaying attempt-10.jsonl turn 28 with equal dataset weighting still fails because dataset-name variants remain split.",
+    "change": "Direct the solver to normalize model and dataset naming variations and state that each distinct dataset has equal weight regardless of report count.",
+    "kind": "hidden_requirement"
+  }
+]

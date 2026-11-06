@@ -1,0 +1,23 @@
+version = "1.0"
+
+[metadata]
+author_name = "authoring-agent"
+difficulty = "hard"
+category = "scientific-computing"
+tags = ["crystallography", "saxs", "structural-biology", "scattering",]
+expert_time_estimate_min = 45.0
+junior_time_estimate_min = 150.0
+
+[verifier]
+timeout_sec = 600.0
+
+[agent]
+timeout_sec = 1800.0
+
+[environment]
+build_timeout_sec = 300.0
+cpus = 2
+memory = "2G"
+storage = "10G"
+
+docker_image = "aweaiteam/calibforge:tb2_contrast_dpsk_failed_icm_scientific_computing_20260607_104421_003_20260622_114402_8154_209348"

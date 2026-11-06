@@ -1,0 +1,52 @@
+diff --git a/src/trio/_core/_wakeup_socketpair.py b/src/trio/_core/_wakeup_socketpair.py
+index ea45670..046f497 100644
+--- a/src/trio/_core/_wakeup_socketpair.py
++++ b/src/trio/_core/_wakeup_socketpair.py
+@@ -50,24 +50,19 @@ class WakeupSocketpair:
+             pass
+ 
+     def wakeup_on_signals(self) -> None:
+-        assert self.old_wakeup_fd is None
++        """Set up the write end of this socket pair as a signal wakeup fd."""
+         if not is_main_thread():
+-            return
+-        fd = self.write_sock.fileno()
+-        self.old_wakeup_fd = signal.set_wakeup_fd(fd, warn_on_full_buffer=False)
+-        if self.old_wakeup_fd != -1:
+             warnings.warn(
+-                RuntimeWarning(
+-                    "It looks like Trio's signal handling code might have "
+-                    "collided with another library you're using. If you're "
+-                    "running Trio in guest mode, then this might mean you "
+-                    "should set host_uses_signal_set_wakeup_fd=True. "
+-                    "Otherwise, file a bug on Trio and we'll help you figure "
+-                    "out what's going on.",
+-                ),
+-                stacklevel=1,
++                "Can't use signal handling in non-main threads; "
++                "signals will be ignored",
++                RuntimeWarning,
+             )
+-
++            return
++    
++        # Get the file descriptor for our write socket
++        fileno = self.write_sock.fileno()
++        # Remember the old wakeup fd so we can restore it later
++        self.old_wakeup_fd = signal.set_wakeup_fd(fileno)
+     def close(self) -> None:
+         self.wakeup_sock.close()
+         self.write_sock.close()
+diff --git a/src/trio/_subprocess_platform/__init__.py b/src/trio/_subprocess_platform/__init__.py
+index daa28d8..bb18c9b 100644
+--- a/src/trio/_subprocess_platform/__init__.py
++++ b/src/trio/_subprocess_platform/__init__.py
+@@ -91,7 +91,7 @@ try:
+ 
+         def create_pipe_from_child_output() -> tuple[trio.lowlevel.FdStream, int]:
+             rfd, wfd = os.pipe()
+-            return trio.lowlevel.FdStream(rfd), wfd
++            return trio.lowlevel.FdStream(wfd), rfd
+ 
+     elif os.name == "nt":
+         import msvcrt

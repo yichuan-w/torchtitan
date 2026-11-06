@@ -1,0 +1,71 @@
+{
+  "retained_skill": "Choose and implement a numerically stable integration method that preserves the invariants of Hamiltonian two-body coast dynamics while accurately modeling the scheduled finite maneuver.",
+  "bottleneck": "The grader infers each returned state's time as its row index multiplied by the requested dt, although the public state-only API neither returns timestamps nor requires one output row per dt. All 12 attempts used denser internal or returned trajectories; their maneuver samples were consequently classified as coast samples, and otherwise reasonable physical results were rejected.",
+  "change": "Repair the grading-side hidden representation constraint: identify the maneuver interval from the trajectory's angular-momentum change, then evaluate the same conservation requirements on the states before and after it. This is help at the original trajectory signal, not physics help; the student must still choose the stable coast integrator and model the finite maneuver accurately.",
+  "restore": "A cadence-based mask can be restored only if the public contract is later changed to require every returned row to be exactly dt seconds apart or the API returns timestamps. No student-facing implementation hint is added here.",
+  "prediction": "The repair lets dense-output attempts advance past the falsely inflated coast-drift failure and exposes only genuine remaining physics errors. A new attempt that already knows to model the burn accurately can now validate the retained physical requirements without reverse-engineering an impossible row-cadence constraint; this is refuted if reference validation fails or replayed dense approaches still stop at coast classification.",
+  "expected": "1 of 12",
+  "previous": "The harder rewrite added the one-second maneuver and moved training from 12/12 to 0/12. The interrupted prior simplification diagnosed the same cadence defect but left no package edit; current replays reproduce it. The attempts get through the maneuver decision and report target increases near 44.49 km, so this rewrite applies the uncompleted repair rather than repeating a hint or withdrawing the maneuver.",
+  "evidence": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turn": 22,
+      "observation": "First wrong turn is validation against the implementation's dense trajectory without any way to know the grader assigns row-index times; it reaches about 44.487 km and flat coasts, then repeatedly rewrites diagnostics and times out."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turn": 18,
+      "observation": "Reports 44.487 km and tiny coast drift on dense samples; its separate coarse-request behavior remains wrong, so the repair does not predict this attempt will pass."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turn": 24,
+      "observation": "Validates dense samples around the maneuver rather than the grader's unstated row cadence, then continues implementation rewrites before submitting."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turn": 16,
+      "observation": "Reports a 44.476 km increase and flat coast intervals. Replayed final cat/sed edits with ./sandbox reset, ./sandbox exec, and ./sandbox grade; the only reported failure was coast energy [0.2843445562%, 0.6196387283%], where the second mask includes dense maneuver-adjacent rows under index*300 timing. After the repair, replay and ./sandbox grade advanced through every conservation check and failed only the retained final-axis check at 53.149094 km when invoked with dt=300; it is therefore not counted as a predicted pass."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turn": 15,
+      "observation": "Uses dense integration and spends its remaining time tuning and rerunning around the maneuver; it times out without receiving a discoverable output-cadence contract."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turn": 18,
+      "observation": "Builds custom dense-trajectory checks and submits after diagnosing physical coast behavior, but cannot infer that returned row positions will be treated as 300-second timestamps."
+    },
+    {
+      "attempt": "attempt-07.jsonl",
+      "turn": 20,
+      "observation": "Spends the remainder of its time rerunning conservation diagnostics on internally sampled states and times out; the state-only API exposes no required cadence."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turn": 26,
+      "observation": "Judges conservation on a dense dt=0.1 trajectory and submits, while grading requests dt=300 and assigns times from returned row indices."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turn": 8,
+      "observation": "Creates a coast checker around dense integration and reports maneuver behavior, with no public signal that output rows must match requested cadence."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turn": 30,
+      "observation": "Runs many custom dense-trajectory diagnostics before submitting; validation follows physical trajectory transitions rather than the unstated exact row cadence."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turn": 39,
+      "observation": "Reports 44.489 km and tiny coast errors. Replayed its final turn-31 implementation after a fresh reset and graded it; the reported failure was only coast energy [0.2843445562%, 0.6197939985%] caused by cadence-based masking. After the repair, fresh replay advanced through all conservation checks and failed only the retained final-axis check at 53.161388 km, so it is not counted as a predicted pass."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turn": 39,
+      "observation": "Reports 44.487 km and all self-checked coast requirements passing, then spends four more turns rerunning and times out; its dense rows cannot communicate timestamps through the required API."
+    }
+  ]
+}

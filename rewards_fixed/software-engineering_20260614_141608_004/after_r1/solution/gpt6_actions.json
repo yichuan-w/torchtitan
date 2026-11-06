@@ -1,0 +1,51 @@
+[
+  {
+    "step_id": 1,
+    "offset_sec": 0.0,
+    "duration": 0.2,
+    "kind": "terminal_action",
+    "keystrokes": "cd /app && timeout 2 ./svm test_progs/test_call.asm; echo exit=$?\n"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 1.0,
+    "duration": 0.2,
+    "kind": "terminal_action",
+    "keystrokes": "objdump -d --start-address=0x2548 --stop-address=0x25e9 svm\n"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 2.0,
+    "duration": 0.2,
+    "kind": "terminal_action",
+    "keystrokes": "xxd -s 0x25c0 -l 40 svm\n"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 3.0,
+    "duration": 0.2,
+    "kind": "terminal_action",
+    "keystrokes": "cp svm /tmp/svm.before && python3 - <<'PYEOF'\nfrom pathlib import Path\np=Path('/app/svm')\ndata=bytearray(p.read_bytes())\nold=bytes.fromhex('c7 84 93 04 14 00 00 00 00 00 00')\nnew=bytes.fromhex('44 89 84 93 04 14 00 00 90 90 90')\nassert data.count(old)==1\ni=data.index(old); data[i:i+len(old)]=new\np.write_bytes(data)\nPYEOF\n"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 4.0,
+    "duration": 2.0,
+    "kind": "terminal_action",
+    "keystrokes": "cd /app; for t in test_progs/*.asm; do echo \"== $t ==\"; timeout 5 ./svm \"$t\"; echo \"exit=$?\"; done\n"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 5.0,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 5.0,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

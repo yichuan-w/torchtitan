@@ -1,0 +1,70 @@
+{
+  "retained_skill": "Infer heterogeneous tabular schemas and normalize every valid transaction into one deduplicated canonical dataset.",
+  "bottleneck": "The task requires equivalent category labels from different source systems to collapse to shared English labels, but the instruction only types category as str. All 12 scored attempts reached category handling without a fair contract for that semantic normalization; most preserved source spellings and therefore failed otherwise strong outputs.",
+  "change": "Instruction-level repair at the original category-variation signal: explicitly require semantically equivalent category labels across exports to use one shared English label. This is vague guidance and gives neither the labels nor mappings; students must still inspect the source values and infer the canonicalization.",
+  "restore": "Remove the standalone sentence requiring shared English category labels; the remaining task is the original task, including heterogeneous parsing, cleaning, deduplication, Parquet output, and summary construction.",
+  "prediction": "Attempts that currently preserve source-specific category spellings after parsing will instead inspect recurring category variants and canonicalize them; the observable result is that summary categories no longer contain translated, accented, or verbose duplicates. This is refuted if the next 12 attempts still preserve those variants or if all 12 solve the task.",
+  "expected": "4 of 12",
+  "evidence": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turn": 13,
+      "observation": "Replayed the final submitted script on a fresh seed with ./sandbox reset, restored /app/normalize.py, and ran ./sandbox grade. It passed 15 of 17 checks; only category normalization and the category-dependent summary-values check failed."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turn": 34,
+      "observation": "The attempt produced the correct 1450 rows, 4500 raw rows, and total amount 3703263.88, but its summary still showed many source-specific category spellings after the implementation introduced at turn 12."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turn": 12,
+      "observation": "Its first implementation preserved raw category labels; by turn 32 it had 1450 rows but the incorrect total amount 3453360.85 and still had category variants."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turn": 12,
+      "observation": "Its first implementation preserved source category spellings; turn 18 showed 1450 rows but an incorrect total amount of 3685894.93."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turn": 12,
+      "observation": "Its first implementation preserved raw categories; the final summary had 1451 rows and total amount 3554879.48."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turn": 12,
+      "observation": "Its first implementation preserved raw categories; turn 22 explicitly observed multiple unique source category forms and turn 25 still reported total amount 3572117.28."
+    },
+    {
+      "attempt": "attempt-07.jsonl",
+      "turn": 13,
+      "observation": "Its first implementation preserved raw categories and subsequent rewrites continued to summarize the uncanonicalized category column."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turn": 13,
+      "observation": "Its first implementation preserved raw categories; twelve full script rewrites through turn 63 consumed the run, and it hit the time budget at turn 68 while debugging null dates rather than submitting."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turn": 4,
+      "observation": "Its first implementation preserved raw categories; turn 28 ended with only 1350 rows, 4499 raw rows, and total amount 3405711.81."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turn": 11,
+      "observation": "Its first implementation preserved raw categories; turn 33 showed translated and accented category variants plus only 3999 raw rows and total amount 3203457.82."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turn": 20,
+      "observation": "The attempt reached the correct 1450 rows, 4500 raw rows, and total amount 3703263.88, then observed 16 unique categories at turn 22 but submitted without collapsing them. After the instruction change, replayed this approach from a fresh ./sandbox reset, added only category canonicalization at its existing category-cleaning point, and ran ./sandbox grade; all 17 checks passed, so this prior attempt now reaches a complete solution at the targeted obstacle."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turn": 32,
+      "observation": "Replayed the final submitted script on a fresh seed with ./sandbox reset, restored /app/normalize.py, and ran ./sandbox grade. It passed 13 of 17 checks; row count, ID coverage, category normalization, and summary values failed, with 1350 rows and source-specific categories."
+    }
+  ]
+}

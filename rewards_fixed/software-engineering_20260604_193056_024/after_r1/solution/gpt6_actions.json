@@ -1,0 +1,128 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "ls -la\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "cat compress.h\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "cat compress.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.3,
+    "keystrokes": "nm decompress.o\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.3,
+    "keystrokes": "objdump -d decompress.o\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.5,
+    "keystrokes": "gcc -shared -fPIC -o libtest.so decompress.o && echo OK\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.5,
+    "keystrokes": "python3 -c \"\nimport ctypes, zlib\nlib = ctypes.CDLL('/app/libtest.so')\nlib.decompress.restype = ctypes.c_int\nlib.decompress.argtypes = [ctypes.c_char_p, ctypes.c_void_p, ctypes.c_int]\ndata = b'AAAA'\nstream = bytes([0xd7,0x9c,0x01,0,0,0,4, 0x40]) + data + zlib.crc32(data).to_bytes(4,'little')\nout = ctypes.create_string_buffer(64)\nr = lib.decompress(stream, ctypes.byref(out), len(stream))\nprint('ret', r, 'out', out.raw[:r])\n# test with a match: 'AAAAAAAAAAAA' = lit 'A' + match off1 len 11 -> nib 11-3=8\ndata = b'A'*12\nstream = bytes([0xd7,0x9c,0x01,0,0,0,12, 0x18]) + b'A' + bytes([0,1]) + zlib.crc32(data).to_bytes(4,'little')\nr = lib.decompress(stream, ctypes.byref(out), len(stream))\nprint('ret', r, 'out', out.raw[:r])\n# test long match via nibble 15 + varint: 'A'*30 -> lit1, match 29 -> 15, varint 29-18=11\ndata = b'A'*30\nstream = bytes([0xd7,0x9c,0x01,0,0,0,30, 0x1f]) + b'A' + bytes([0,1,11]) + zlib.crc32(data).to_bytes(4,'little')\nr = lib.decompress(stream, ctypes.byref(out), len(stream))\nprint('ret', r, 'out', out.raw[:r])\n# test long literals: 20 literals -> nibble 15 varint 5\ndata = bytes(range(20))\nstream = bytes([0xd7,0x9c,0x01,0,0,0,20, 0xf0, 5]) + data + zlib.crc32(data).to_bytes(4,'little')\nr = lib.decompress(stream, ctypes.byref(out), len(stream))\nprint('ret', r, 'out', out.raw[:r])\n\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 0.7,
+    "keystrokes": "python3 -c \"\nimport ctypes, zlib\nlib = ctypes.CDLL('/app/libtest.so')\nlib.decompress.restype = ctypes.c_int\nlib.decompress.argtypes = [ctypes.c_char_p, ctypes.c_void_p, ctypes.c_int]\nout = ctypes.create_string_buffer(64)\n# 'A'*12 = lit 'A' + match off1 len 11 (nib 8), then end token 0x00\ndata = b'A'*12\nstream = bytes([0xd7,0x9c,0x01,0,0,0,12, 0x18]) + b'A' + bytes([0,1]) + bytes([0x00]) + zlib.crc32(data).to_bytes(4,'little')\nr = lib.decompress(stream, ctypes.byref(out), len(stream))\nprint('ret', r, 'out', out.raw[:r])\n# 'A'*30 = lit1 + match 29 -> nib 15, varint 29-18=11, end token\ndata = b'A'*30\nstream = bytes([0xd7,0x9c,0x01,0,0,0,30, 0x1f]) + b'A' + bytes([0,1,11]) + bytes([0x00]) + zlib.crc32(data).to_bytes(4,'little')\nr = lib.decompress(stream, ctypes.byref(out), len(stream))\nprint('ret', r, 'out', out.raw[:r])\n# empty input\ndata = b''\nstream = bytes([0xd7,0x9c,0x01,0,0,0,0, 0x00]) + zlib.crc32(data).to_bytes(4,'little')\nr = lib.decompress(stream, ctypes.byref(out), len(stream))\nprint('ret', r, 'out', out.raw[:r])\n\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 0.8,
+    "keystrokes": "cat > compress.c << 'EOF'\n#include \"compress.h\"\n#include <stdint.h>\n#include <string.h>\n\nstatic uint32_t crc32_of(const unsigned char *data, int size) {\n    uint32_t crc = 0xffffffffu;\n    for (int i = 0; i < size; i++) {\n        crc ^= data[i];\n        for (int bit = 0; bit < 8; bit++)\n            crc = (crc >> 1) ^ (0xedb88320u & (0u - (crc & 1u)));\n    }\n    return ~crc;\n}\n\nstatic unsigned char *emit_varint(unsigned char *output, unsigned int value) {\n    while (value >= 0x80) {\n        *output++ = (unsigned char)((value & 0x7f) | 0x80);\n        value >>= 7;\n    }\n    *output++ = (unsigned char)value;\n    return output;\n}\n\nint compressBound(int inputSize) {\n    if (inputSize < 0) return -1;\n    return inputSize + 17;\n}\n\nint compress(const char *source, char *dest, int sourceSize) {\n    if (sourceSize < 0 || !dest || (!source && sourceSize)) return -1;\n    const unsigned char *input = (const unsigned char *)source;\n    unsigned char *output = (unsigned char *)dest;\n\n    *output++ = 0xd7; *output++ = 0x9c; *output++ = 0x01;\n    *output++ = (unsigned char)((uint32_t)sourceSize >> 24);\n    *output++ = (unsigned char)((uint32_t)sourceSize >> 16);\n    *output++ = (unsigned char)((uint32_t)sourceSize >> 8);\n    *output++ = (unsigned char)sourceSize;\n\n    if (sourceSize < 15) {\n        *output++ = (unsigned char)(sourceSize << 4);\n    } else {\n        *output++ = 0xf0;\n        output = emit_varint(output, (unsigned int)(sourceSize - 15));\n    }\n    if (sourceSize) {\n        memcpy(output, input, (size_t)sourceSize);\n        output += sourceSize;\n    }\n\n    uint32_t crc = crc32_of(input, sourceSize);\n    *output++ = (unsigned char)crc;\n    *output++ = (unsigned char)(crc >> 8);\n    *output++ = (unsigned char)(crc >> 16);\n    *output++ = (unsigned char)(crc >> 24);\n    return (int)(output - (unsigned char *)dest);\n}\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 0.8,
+    "keystrokes": "gcc -shared -fPIC -O2 -o libcompress.so compress.c decompress.o && echo BUILD_OK\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 1.9,
+    "keystrokes": "cat > test_roundtrip.py << 'EOF'\nimport ctypes, os, random, zlib, sys\n\nlib = ctypes.CDLL('/app/libcompress.so')\nlib.compressBound.restype = ctypes.c_int\nlib.compressBound.argtypes = [ctypes.c_int]\nlib.compress.restype = ctypes.c_int\nlib.compress.argtypes = [ctypes.c_char_p, ctypes.c_void_p, ctypes.c_int]\nlib.decompress.restype = ctypes.c_int\nlib.decompress.argtypes = [ctypes.c_char_p, ctypes.c_void_p, ctypes.c_int]\n\ndef roundtrip(data, name):\n    n = len(data)\n    bound = lib.compressBound(n)\n    assert bound > 0, (name, bound)\n    cbuf = ctypes.create_string_buffer(bound)\n    csize = lib.compress(data, ctypes.byref(cbuf), n)\n    assert csize > 0, (name, csize)\n    assert csize <= bound, (name, csize, bound)\n    out = ctypes.create_string_buffer(n + 16)\n    dsize = lib.decompress(cbuf.raw[:csize], ctypes.byref(out), csize)\n    assert dsize == n, (name, dsize, n)\n    assert out.raw[:n] == data, (name, 'data mismatch')\n    print(f'OK {name}: {n} -> {csize}')\n\nroundtrip(b'', 'empty')\nroundtrip(b'a', 'one')\nroundtrip(b'ab', 'two')\nroundtrip(b'abc', 'three')\nroundtrip(b'abcd', 'four')\nroundtrip(b'aaaa', 'four-same')\nroundtrip(bytes(range(256)), 'all-bytes')\nroundtrip(b'hello world, hello world, hello world!', 'hello')\nfor L in [5, 14, 15, 16, 17, 18, 19, 20, 30, 100, 127, 128, 129, 255, 256, 1000]:\n    roundtrip(b'A' * L, f'Ax{L}')\n    roundtrip(bytes(range(L % 251)) if L <= 251 else os.urandom(L), f'seq/rand{L}')\n    roundtrip(os.urandom(L), f'random{L}')\nroundtrip(b'A' * 100000, 'A x 100k')\nroundtrip((b'abcdefgh' * 20000), 'pattern 160k')\nroundtrip(os.urandom(1000000), 'random 1MB')\nbig = (b'the quick brown fox jumps over the lazy dog. ' * 5000) + os.urandom(70000) + (b'the quick brown fox jumps over the lazy dog. ' * 5000)\nroundtrip(big, 'mixed >64k window')\nroundtrip(b'\\x00' * 50000, 'zeros 50k')\nroundtrip(bytes([random.randrange(4) for _ in range(200000)]), 'low-entropy 200k')\n# long-range match beyond 65535 apart (should still work: just not matched)\nchunk = os.urandom(1000)\nroundtrip(chunk + os.urandom(70000) + chunk, 'repeated chunk far apart')\n# exactly window-distance match\nchunk = os.urandom(100)\nroundtrip(chunk + os.urandom(65435) + chunk, 'match at 65535')\nprint('ALL TESTS PASSED')\nEOF\npython3 test_roundtrip.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 1.9,
+    "keystrokes": "\n",
+    "duration": 30.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 32.0,
+    "keystrokes": "gcc -shared -fPIC -o libcompress.so compress.c decompress.o && echo BUILD_OK\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 32.0,
+    "keystrokes": "python3 -c \"\nimport ctypes, os, random\nlib = ctypes.CDLL('/app/libcompress.so')\nlib.compressBound.restype = ctypes.c_int\nlib.compress.argtypes = [ctypes.c_char_p, ctypes.c_void_p, ctypes.c_int]\nlib.decompress.argtypes = [ctypes.c_char_p, ctypes.c_void_p, ctypes.c_int]\nlib.compress.restype = ctypes.c_int\nlib.decompress.restype = ctypes.c_int\nrandom.seed(1234)\nfor t in range(300):\n    n = random.randrange(0, 30000)\n    kind = t % 4\n    if kind == 0:\n        data = os.urandom(n)\n    elif kind == 1:\n        data = bytes([random.randrange(256)]) * n\n    elif kind == 2:\n        unit = os.urandom(random.randrange(1, 50))\n        data = (unit * (n // max(1,len(unit)) + 1))[:n]\n    else:\n        data = bytes(random.randrange(256) for _ in range(min(n, 2000)))\n        data = (data * (n // max(1,len(data)) + 1))[:n] if n else b''\n    bound = lib.compressBound(len(data))\n    cb = ctypes.create_string_buffer(bound)\n    cs = lib.compress(data, ctypes.byref(cb), len(data))\n    assert 0 < cs <= bound, (t, len(data), cs, bound)\n    out = ctypes.create_string_buffer(len(data) + 16)\n    ds = lib.decompress(cb.raw[:cs], ctypes.byref(out), cs)\n    assert ds == len(data) and out.raw[:len(data)] == data, (t, len(data), ds)\nprint('FUZZ PASSED: 300 cases')\n\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 32.0,
+    "keystrokes": "\n",
+    "duration": 30.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 63.1,
+    "keystrokes": "ls -la /app\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 63.2,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 63.2,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

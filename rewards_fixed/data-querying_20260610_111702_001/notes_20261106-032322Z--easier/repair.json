@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The instruction requires UNION ALL but gives incompatible section-specific column lists without defining the single shared result schema, while correct grading requires package_name and cve_count to remain addressable alongside the exposure fields.",
+    "evidence": "instruction.md section column lists conflict with tests/test_outputs.py accesses to row['package_name'] and row['cve_count']; attempt-01.jsonl turn 29 replay passes five checks and fails only with KeyError package_name, as do attempts 04, 05, 06, and 08 through 12.",
+    "change": "State the common eight-column output schema and which columns are NULL in each section.",
+    "kind": "hidden_requirement"
+  }
+]

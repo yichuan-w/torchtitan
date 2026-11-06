@@ -1,0 +1,212 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "ls -la /app/libbinparse/\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "cat /app/libbinparse/Makefile\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "cat /app/libbinparse/binparse.h\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "cat /app/libbinparse/binparse.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.4,
+    "keystrokes": "cat /app/libbinparse/binparse_test.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.4,
+    "keystrokes": "ls -la /app/libbinparse/testdata/ 2>/dev/null || ls -la /app/testdata/ 2>/dev/null; find / -name 'sample*.bin' 2>/dev/null | head\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.4,
+    "keystrokes": "cd /app/libbinparse && make clean && make\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.4,
+    "keystrokes": "./binparse_test testdata/sample1.bin testdata/sample2.bin; echo \"exit=$?\"\n",
+    "duration": 2.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 3.6,
+    "keystrokes": "\n",
+    "duration": 3.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 6.6,
+    "keystrokes": "ls -la /app/testdata/; md5sum /app/testdata/sample1.bin /app/libbinparse/testdata/sample1.bin\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 6.6,
+    "keystrokes": "strace -f -e trace=openat,read,close ./binparse_test testdata/sample1.bin 2>&1 | head -40\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 6.6,
+    "keystrokes": "xxd /app/libbinparse/testdata/sample1.bin | head -10\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 7.8,
+    "keystrokes": "./binparse_test /app/testdata/sample1.bin /app/testdata/sample2.bin; echo \"exit=$?\"\n",
+    "duration": 2.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 7.8,
+    "keystrokes": "od -A x -t x1z /app/testdata/sample1.bin | head -10\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 9.9,
+    "keystrokes": "python3 -c \"\nimport struct\nfor name in ['sample1.bin','sample2.bin','sample3.bin','sample4.bin','sample5.bin']:\n    data = open('/app/testdata/'+name,'rb').read()\n    def csum(buf):\n        s = 0\n        n = len(buf)//4\n        for i in range(n):\n            w = struct.unpack_from('<I', buf, i*4)[0]\n            s = (s + w) & 0xffffffff\n            s = ((s << 1) | (s >> 31)) & 0xffffffff\n        for i in range(n*4, len(buf)):\n            s = (s + buf[i]) & 0xffffffff\n            s = ((s << 1) | (s >> 31)) & 0xffffffff\n        return s\n    magic, ver, rc, ck = struct.unpack_from('<4I', data, 0)\n    exp = 16 + rc*16\n    print(name, 'len', len(data), 'magic', hex(magic), 'rc', rc, 'hdr_ck', hex(ck), 'calc', hex(csum(data[:exp])), 'match', ck == csum(data[:exp]))\n    for i in range(rc):\n        t,l,o,f = struct.unpack_from('<4I', data, 16+i*16)\n        if l > 0 and f != 0:\n            dc = csum(data[o:o+l])\n            print('  rec', i, 'len', l, 'off', o, 'flags', hex(f), 'datack', hex(dc), 'match', f == dc)\n\"\n",
+    "duration": 2.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 11.9,
+    "keystrokes": "python3 -c \"\nimport struct\ndef rol1(s): return ((s << 1) | (s >> 31)) & 0xffffffff\nM = 0xffffffff\n\ndef v_bytes_add_rol(buf):\n    s = 0\n    for b in buf:\n        s = (s + b) & M; s = rol1(s)\n    return s\n\ndef v_bytes_rol_add(buf):\n    s = 0\n    for b in buf:\n        s = rol1(s); s = (s + b) & M\n    return s\n\ndef v_words_le(buf):\n    s = 0\n    n = len(buf)//4\n    for i in range(n):\n        s = (s + struct.unpack_from('<I', buf, i*4)[0]) & M; s = rol1(s)\n    for i in range(n*4, len(buf)):\n        s = (s + buf[i]) & M; s = rol1(s)\n    return s\n\ndef v_words_be(buf):\n    s = 0\n    n = len(buf)//4\n    for i in range(n):\n        s = (s + struct.unpack_from('>I', buf, i*4)[0]) & M; s = rol1(s)\n    for i in range(n*4, len(buf)):\n        s = (s + buf[i]) & M; s = rol1(s)\n    return s\n\ndef v_bytes_xor(buf):\n    s = 0\n    for b in buf:\n        s = (s ^ b) & M; s = rol1(s)\n    return s\n\nvariants = {'bytes_add_rol': v_bytes_add_rol, 'bytes_rol_add': v_bytes_rol_add, 'words_le': v_words_le, 'words_be': v_words_be, 'bytes_xor': v_bytes_xor}\n\nfiles = {}\nfor name in ['sample1.bin','sample2.bin','sample3.bin','sample4.bin','sample5.bin']:\n    data = open('/app/testdata/'+name,'rb').read()\n    magic, ver, rc, ck = struct.unpack_from('<4I', data, 0)\n    files[name] = (data, rc, ck)\n\nfor vn, vf in variants.items():\n    ok = all(vf(data[:16+rc*16]) == ck for name,(data,rc,ck) in files.items())\n    print(vn, 'header match all:', ok)\n\"\n",
+    "duration": 2.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 13.9,
+    "keystrokes": "cat > /tmp/brute.py << 'PYEOF'\nimport struct\n\ndef rol1(s):\n    return ((s << 1) | (s >> 31)) & 0xffffffff\n\nM = 0xffffffff\n\ndef mk_word(endian):\n    def f(buf):\n        s = 0\n        n = len(buf) // 4\n        for i in range(n):\n            s = (s + struct.unpack_from(endian + 'I', buf, i * 4)[0]) & M\n            s = rol1(s)\n        for i in range(n * 4, len(buf)):\n            s = (s + buf[i]) & M\n            s = rol1(s)\n        return s\n    return f\n\ndef v_bytes(buf):\n    s = 0\n    for b in buf:\n        s = (s + b) & M\n        s = rol1(s)\n    return s\n\nvariants = {'words_le': mk_word('<'), 'words_be': mk_word('>'), 'bytes': v_bytes}\n\nfiles = {}\nfor name in ['sample1.bin', 'sample2.bin', 'sample3.bin', 'sample4.bin', 'sample5.bin']:\n    data = open('/app/testdata/' + name, 'rb').read()\n    magic, ver, rc, ck = struct.unpack_from('<4I', data, 0)\n    files[name] = (data, rc, ck)\n\ndef get_ranges(data, rc):\n    hdr0 = data[:12] + b'\\x00\\x00\\x00\\x00'\n    return {\n        'hdr+recs': data[:16 + rc * 16],\n        'whole': data,\n        'recs_only': data[16:16 + rc * 16],\n        'hdr0+recs': hdr0 + data[16:16 + rc * 16],\n        'after_hdr': data[16:],\n        'hdr_only': data[:16],\n        'hdr0_only': hdr0,\n        'recs+data': data[16:],\n    }\n\nfound = False\nfor vn, vf in variants.items():\n    for rn in get_ranges(b'', 0).keys():\n        ok = all(vf(get_ranges(data, rc)[rn]) == ck for name, (data, rc, ck) in files.items())\n        if ok:\n            print('MATCH:', vn, rn)\n            found = True\nif not found:\n    print('no match; sample values:')\n    for name, (data, rc, ck) in files.items():\n        print(name, 'hdr_ck', hex(ck))\n        for vn, vf in variants.items():\n            for rn, rr in get_ranges(data, rc).items():\n                print('   ', vn, rn, hex(vf(rr)))\nPYEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 13.9,
+    "keystrokes": "python3 /tmp/brute.py\n",
+    "duration": 3.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 17.0,
+    "keystrokes": "cat > /tmp/verify.py << 'PYEOF'\nimport struct\n\ndef rol1(s):\n    return ((s << 1) | (s >> 31)) & 0xffffffff\n\ndef csum(buf):\n    s = 0\n    for b in buf:\n        s = (s + b) & 0xffffffff\n        s = rol1(s)\n    return s\n\nfor name in ['sample1.bin', 'sample2.bin', 'sample3.bin', 'sample4.bin', 'sample5.bin']:\n    data = open('/app/testdata/' + name, 'rb').read()\n    magic, ver, rc, ck = struct.unpack_from('<4I', data, 0)\n    hdr0 = data[:12] + b'\\x00\\x00\\x00\\x00'\n    ok_hdr = csum(hdr0 + data[16:16 + rc * 16]) == ck\n    print(name, 'header ok:', ok_hdr)\n    allok = True\n    for i in range(rc):\n        t, l, o, f = struct.unpack_from('<4I', data, 16 + i * 16)\n        if l > 0 and f != 0:\n            m = csum(data[o:o + l]) == f\n            if not m:\n                allok = False\n                print('   rec', i, 'MISMATCH flags', hex(f), 'calc', hex(csum(data[o:o+l])))\n    print(name, 'record data checksums ok:', allok)\nPYEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 17.0,
+    "keystrokes": "python3 /tmp/verify.py\n",
+    "duration": 3.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 13,
+    "offset_sec": 20.1,
+    "keystrokes": "cat > /app/libbinparse/binparse.c << 'CEOF'\n/*\n * binparse.c - Binary file parsing library implementation\n *\n * Implements parsing and validation of binary data files.\n * Version 2.2 - Bugfix release:\n *   - Restored the byte-wise rolling checksum. The v2.1 word-based\n *     \"optimization\" both changed checksum semantics and required\n *     4-byte aligned buffers; casting arbitrary byte buffers to\n *     uint32_t* is undefined behavior and caused SIGSEGV under -O2\n *     (vectorized/aligned loads on misaligned pointers).\n *   - Header is copied with memcpy instead of a misaligned struct cast.\n *   - Record field assembly casts to uint32_t before shifting (avoids\n *     signed int overflow UB in \"byte << 24\").\n *   - Record bounds check uses size_t arithmetic (avoids 32-bit\n *     overflow that could bypass validation).\n */\n\n#include \"binparse.h\"\n#include <stdlib.h>\n#include <string.h>\n#include <stdio.h>\n\n#define MAGIC_NUMBER 0x42504152  /* \"BPAR\" */\n\n/*\n * Compute checksum over a buffer of bytes.\n * Byte-wise rolling 32-bit algorithm: add the byte, then rotate\n * the accumulator left by 1. Operates purely on uint8_t elements,\n * so it is safe for buffers at ANY alignment.\n */\nuint32_t binparse_checksum(const uint8_t *data, size_t len)\n{\n    uint32_t sum = 0;\n\n    for (size_t i = 0; i < len; i++) {\n        sum += data[i];\n        sum = (sum << 1) | (sum >> 31);\n    }\n\n    return sum;\n}\n\n/*\n * Parse records from a buffer.\n * Records are 16 bytes each (4 uint32_t fields).\n */\nint binparse_records(const uint8_t *data, size_t len, BinRecord *records, size_t max_records)\n{\n    if (len % 16 != 0) {\n        return PARSE_ERR_SIZE;\n    }\n\n    size_t count = len / 16;\n    if (count > max_records) {\n        count = max_records;\n    }\n\n    /* Parse each record field byte-by-byte: alignment-safe and free of\n     * signed-shift undefined behavior (bytes are widened to uint32_t\n     * before shifting). */\n    for (size_t i = 0; i < count; i++) {\n        size_t offset = i * 16;\n        records[i].type = (uint32_t)data[offset] | ((uint32_t)data[offset+1] << 8) |\n                          ((uint32_t)data[offset+2] << 16) | ((uint32_t)data[offset+3] << 24);\n        records[i].length = (uint32_t)data[offset+4] | ((uint32_t)data[offset+5] << 8) |\n                            ((uint32_t)data[offset+6] << 16) | ((uint32_t)data[offset+7] << 24);\n        records[i].offset = (uint32_t)data[offset+8] | ((uint32_t)data[offset+9] << 8) |\n                            ((uint32_t)data[offset+10] << 16) | ((uint32_t)data[offset+11] << 24);\n        records[i].flags = (uint32_t)data[offset+12] | ((uint32_t)data[offset+13] << 8) |\n                           ((uint32_t)data[offset+14] << 16) | ((uint32_t)data[offset+15] << 24);\n    }\n\n    return (int)count;\n}\n\n/*\n * Validate file header.\n */\nint binparse_validate_header(const BinHeader *header)\n{\n    if (header->magic != MAGIC_NUMBER) {\n        return 0;\n    }\n    if (header->version > 100) {\n        return 0;\n    }\n    if (header->record_count > 1000000) {\n        return 0;\n    }\n    return 1;\n}\n\n/*\n * Internal helper to read file into a buffer.\n * Returns allocated buffer that must be freed by caller.\n */\nstatic uint8_t *read_file_buffer(const char *filename, long *out_size)\n{\n    FILE *f = fopen(filename, \"rb\");\n    if (!f) {\n        return NULL;\n    }\n\n    fseek(f, 0, SEEK_END);\n    long file_size = ftell(f);\n    fseek(f, 0, SEEK_SET);\n\n    /* Allocate a normally-aligned buffer large enough for the file. */\n    uint8_t *buffer = (uint8_t *)malloc(file_size > 0 ? (size_t)file_size : 1);\n    if (!buffer) {\n        fclose(f);\n        return NULL;\n    }\n\n    size_t bytes_read = fread(buffer, 1, (size_t)file_size, f);\n    fclose(f);\n\n    if ((long)bytes_read != file_size) {\n        free(buffer);\n        return NULL;\n    }\n\n    *out_size = file_size;\n    return buffer;\n}\n\n/* Free a buffer allocated by read_file_buffer */\nstatic void free_file_buffer(uint8_t *buffer)\n{\n    free(buffer);\n}\n\n/*\n * Parse a complete binary file.\n * Format:\n *   - 16-byte header (magic, version, record_count, checksum)\n *   - Array of 16-byte records\n *   - Data section (variable length)\n *\n * The stored header checksum is computed over the header with its\n * checksum field treated as zero, followed by the record array.\n */\nint binparse_file(const char *filename)\n{\n    long file_size;\n    uint8_t *buffer = read_file_buffer(filename, &file_size);\n\n    if (!buffer) {\n        return PARSE_ERR_IO;\n    }\n\n    if (file_size < (long)sizeof(BinHeader)) {\n        free_file_buffer(buffer);\n        return PARSE_ERR_SIZE;\n    }\n\n    /* Parse header - copy into an aligned local struct rather than\n     * casting the byte buffer (avoids misaligned-access UB). */\n    BinHeader header;\n    memcpy(&header, buffer, sizeof(header));\n\n    if (!binparse_validate_header(&header)) {\n        free_file_buffer(buffer);\n        return PARSE_ERR_MAGIC;\n    }\n\n    /* Calculate expected data size */\n    size_t header_size = sizeof(BinHeader);\n    size_t records_size = (size_t)header.record_count * sizeof(BinRecord);\n    size_t expected_size = header_size + records_size;\n\n    if ((size_t)file_size < expected_size) {\n        free_file_buffer(buffer);\n        return PARSE_ERR_SIZE;\n    }\n\n    /* Parse records */\n    BinRecord *records = NULL;\n    if (records_size > 0) {\n        records = (BinRecord *)malloc(records_size);\n        if (!records) {\n            free_file_buffer(buffer);\n            return PARSE_ERR_IO;\n        }\n    }\n\n    int rec_result = binparse_records(buffer + header_size, records_size,\n                                       records, header.record_count);\n    if (rec_result < 0) {\n        free(records);\n        free_file_buffer(buffer);\n        return rec_result;\n    }\n\n    /*\n     * Verify checksum. The reference checksum covers the header with\n     * the checksum field zeroed, followed by the records. Temporarily\n     * zero the field in our own writable buffer, then restore it.\n     */\n    uint8_t saved_cksum[4];\n    memcpy(saved_cksum, buffer + 12, sizeof(saved_cksum));\n    memset(buffer + 12, 0, sizeof(saved_cksum));\n    uint32_t computed_checksum = binparse_checksum(buffer, expected_size);\n    memcpy(buffer + 12, saved_cksum, sizeof(saved_cksum));\n\n    if (computed_checksum != header.checksum) {\n        free(records);\n        free_file_buffer(buffer);\n        return PARSE_ERR_CSUM;\n    }\n\n    /* Process each record */\n    for (uint32_t i = 0; i < header.record_count; i++) {\n        /* size_t arithmetic: a 32-bit offset+length cannot overflow,\n         * so out-of-range records are always rejected. */\n        if ((size_t)records[i].offset + (size_t)records[i].length > (size_t)file_size) {\n            free(records);\n            free_file_buffer(buffer);\n            return PARSE_ERR_SIZE;\n        }\n\n        /* For records with data, verify data integrity */\n        if (records[i].length > 0 && records[i].flags != 0) {\n            const uint8_t *rec_data = buffer + records[i].offset;\n            uint32_t data_csum = binparse_checksum(rec_data, records[i].length);\n            if (records[i].flags != data_csum) {\n                free(records);\n                free_file_buffer(buffer);\n                return PARSE_ERR_CSUM;\n            }\n        }\n    }\n\n    free(records);\n    free_file_buffer(buffer);\n    return PARSE_OK;\n}\nCEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 13,
+    "offset_sec": 20.1,
+    "keystrokes": "cd /app/libbinparse && make clean && make\n",
+    "duration": 2.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 13,
+    "offset_sec": 20.1,
+    "keystrokes": "./binparse_test /app/testdata/sample1.bin /app/testdata/sample2.bin /app/testdata/sample3.bin /app/testdata/sample4.bin /app/testdata/sample5.bin; echo \"exit=$?\"\n",
+    "duration": 2.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 24.2,
+    "keystrokes": "ln -sfn /app/testdata /app/libbinparse/testdata && ls -la /app/libbinparse/\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 24.2,
+    "keystrokes": "cd /app/libbinparse && make clean && make && ./binparse_test testdata/sample1.bin testdata/sample2.bin; echo \"exit=$?\"\n",
+    "duration": 2.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 24.2,
+    "keystrokes": "gcc -Wall -Wextra -O2 -g -fsanitize=address,undefined -fno-sanitize-recover=all -o /tmp/binparse_san binparse.c binparse_test.c && /tmp/binparse_san testdata/sample1.bin testdata/sample2.bin testdata/sample3.bin testdata/sample4.bin testdata/sample5.bin; echo \"sanitizer exit=$?\"\n",
+    "duration": 5.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 24.2,
+    "keystrokes": "fails=0; for i in $(seq 1 50); do ./binparse_test testdata/sample1.bin testdata/sample2.bin testdata/sample3.bin testdata/sample4.bin testdata/sample5.bin > /dev/null 2>&1 || fails=$((fails+1)); done; echo \"failures in 50 runs: $fails\"\n",
+    "duration": 10.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 15,
+    "offset_sec": 41.3,
+    "keystrokes": "echo \"Task complete: binparse.c fixed, -O2 build passes all tests.\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 15,
+    "offset_sec": 41.4,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 16,
+    "offset_sec": 41.4,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

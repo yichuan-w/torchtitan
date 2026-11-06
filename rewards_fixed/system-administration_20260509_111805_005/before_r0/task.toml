@@ -1,0 +1,25 @@
+version = "1.0"
+
+[metadata]
+author_name = "authoring-agent"
+author_email = "authoring-agent@terminal.dev"
+difficulty = "medium"
+category = "system-administration"
+tags = ["nginx", "git", "fcgiwrap", "http-server", "permissions", "systemd", "debugging"]
+estimated_duration_sec = 900.0
+expert_time_estimate_min = 30.0
+junior_time_estimate_min = 90.0
+
+[verifier]
+timeout_sec = 1800.0
+
+[agent]
+timeout_sec = 1800.0
+
+[environment]
+build_timeout_sec = 600.0
+cpus = 1
+memory = "2G"
+storage = "10G"
+
+docker_image = "aweaiteam/calibforge:system-administration_20260509_111805_005_20260515_114452_879758"

@@ -1,0 +1,170 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "ls -la\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "cat Makefile\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "cat imgproc.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.3,
+    "keystrokes": "cat imgproc.h\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.3,
+    "keystrokes": "cat utils.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.3,
+    "keystrokes": "cat utils.h\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.6,
+    "keystrokes": "sed -i 's/ny >= 0 \\&\\& ny <= src->height/ny >= 0 \\&\\& ny < src->height/; s/nx >= 0 \\&\\& nx <= src->width/nx >= 0 \\&\\& nx < src->width/' imgproc.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.6,
+    "keystrokes": "sed -i 's|(unsigned char)(sum / 9);|(unsigned char)(sum / count);|' imgproc.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.6,
+    "keystrokes": "sed -i 's/gx = p00 + p02/gx = -p00 + p02/' imgproc.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.6,
+    "keystrokes": "sed -i 's/0.33 \\* r + 0.5 \\* g + 0.17 \\* b/0.299 * r + 0.587 * g + 0.114 * b/' imgproc.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.6,
+    "keystrokes": "grep -n 'ny >= 0\\|sum / count\\|gx =\\|0.299' imgproc.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.6,
+    "keystrokes": "make clean && make\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 2.1,
+    "keystrokes": "for img in small.ppm test_img.ppm sample3.ppm; do for op in grayscale blur edge; do ./imgproc $op $img out_${op}_${img} && echo \"OK $op $img\"; done; done\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 2.1,
+    "keystrokes": "for op in grayscale blur edge; do valgrind --leak-check=full --error-exitcode=99 ./imgproc $op test_img.ppm /tmp/v_$op.ppm 2>&1 | tail -4; done\n",
+    "duration": 5.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 7.2,
+    "keystrokes": "head -c 400 sample3.ppm | cat -v\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 7.3,
+    "keystrokes": "python3 - <<'EOF'\nimport re\nsrc = open('imgproc.c').read()\nold = \"\"\"        if (c == '#') {\n            char buf[256];\n            int i = 0;\n            buf[i++] = (char)c;\n            while ((c = fgetc(fp)) != EOF && c != '\\\\n') {\n                buf[i++] = (char)c;\n            }\n            buf[i] = '\\\\0';\n            continue;\n        }\"\"\"\nnew = \"\"\"        if (c == '#') {\n            /* skip comment to end of line */\n            while ((c = fgetc(fp)) != EOF && c != '\\\\n')\n                ;\n            continue;\n        }\"\"\"\nassert old in src\nsrc = src.replace(old, new)\nold2 = \"\"\"    dst->channels = 1;\n    dst->data = xmalloc(gray->width * gray->height);\n\n    /* Sobel kernels */\"\"\"\nnew2 = \"\"\"    dst->channels = 1;\n    dst->data = xmalloc(gray->width * gray->height);\n    memset(dst->data, 0, (size_t)gray->width * gray->height);\n\n    /* Sobel kernels */\"\"\"\nassert old2 in src\nsrc = src.replace(old2, new2)\nopen('imgproc.c','w').write(src)\nprint(\"patched\")\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 7.3,
+    "keystrokes": "make clean && make\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 7.3,
+    "keystrokes": "for img in small.ppm test_img.ppm sample3.ppm; do for op in grayscale blur edge; do ./imgproc $op $img out_${op}_${img} && echo \"OK $op $img\"; done; done\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 7.3,
+    "keystrokes": "for img in small.ppm sample3.ppm test_img.ppm; do for op in grayscale blur edge; do echo \"== $op $img\"; valgrind --leak-check=full ./imgproc $op $img /tmp/v.ppm 2>&1 | grep -E 'ERROR SUMMARY|no leaks|definitely lost'; done; done\n",
+    "duration": 5.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 13.5,
+    "keystrokes": "cat -v small.ppm; echo; ./imgproc grayscale small.ppm /dev/stdout | od -A d -c | head\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 13.5,
+    "keystrokes": "./imgproc blur small.ppm /dev/stdout | od -A d -c | head; rm -f out_*.ppm /tmp/v*.ppm\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 13.7,
+    "keystrokes": "make clean && make && echo BUILD_OK\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 13.8,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 13.8,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

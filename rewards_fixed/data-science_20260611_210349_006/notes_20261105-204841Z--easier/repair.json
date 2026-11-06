@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The verifier requires semantically equivalent source category labels to be normalized to shared English labels, while instruction.md only requires category to be a string and never states this semantic normalization.",
+    "evidence": "instruction.md category schema requirement conflicts with tests/test_outputs.py category normalization and expected summary categories; attempt-01.jsonl turn 13 replay failed only category normalization and category-dependent summary values, and attempt-11.jsonl turn 22 observed 16 categories despite otherwise exact aggregate values.",
+    "change": "State in instruction.md that semantically equivalent category labels across exports must use one shared English label, without revealing the labels or mappings.",
+    "kind": "hidden_requirement"
+  }
+]

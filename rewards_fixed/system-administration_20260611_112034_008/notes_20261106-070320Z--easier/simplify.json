@@ -1,0 +1,23 @@
+{
+  "retained_skill": "Build, install, configure, and launch the supplied daemon so it serves system-information JSON on the requested port and remains independent of the terminal session.",
+  "bottleneck": "All 12 scored attempts repaired the two build faults, installed sysinfod, and reached a working JSON endpoint. Attempts 01 through 11 then used nohup with redirected output (usually followed by disown), but grading rejected them solely because the still-open launcher shell remained their immediate parent; attempt 12 also tried setsid but its final recorded state was still rejected by the same parent-only proxy.",
+  "change": "Repair the scratch verifier's disconnect check at the original lifecycle signal. Instead of requiring immediate reparenting before the terminal actually disconnects, accept a shell-parented daemon only when it ignores SIGHUP and none of standard input, output, or error remains attached to a terminal. This removes an unfair proxy but leaves the student responsible for build debugging, installation, configuration, launch, and actual terminal independence.",
+  "restore": "Restore the original immediate-parent assertion in the disconnect-survival check; no public instruction or environment change is involved.",
+  "prediction": "The failing action is grading a correctly prepared nohup process while its launcher shell is still open. Testing terminal dependencies directly enables those attempts' existing next action—submit after confirming the endpoint—to pass, while an ordinary '&' process remains rejected. This is refuted if a replayed nohup launch with redirected streams still fails, or if a plain terminal-attached background launch passes.",
+  "expected": "11 of 12",
+  "previous": "The 20261105 rewrite proposed an ancestry hint but stopped after showing that immediate parentage was not a valid proxy for the public requirement. The 20261106 interrupted rewrite identified the same hidden requirement and drafted this direct repair, but did not finish. Current traces still fail at that proxy, so repeating the unshipped instruction hint would not address the defect.",
+  "evidence": [
+    {"attempt":"attempt-01.jsonl","turn":10,"observation":"First lifecycle state used nohup with redirected output. Replayed its build fixes, install, config, and launch after ./sandbox reset; seed ./sandbox grade passed process-running, binary, and HTTP checks and failed only disconnect survival because parent command was bash. After the repair, a fresh replay passed all four checks; a plain '&' negative control failed the retained disconnect check because SIGHUP was not ignored."},
+    {"attempt":"attempt-02.jsonl","turn":14,"observation":"Launched with nohup and redirected logs, then disowned at turn 15; endpoint worked, but immediate shell parentage was the remaining rejection."},
+    {"attempt":"attempt-03.jsonl","turn":14,"observation":"Launched with nohup and redirected logs and confirmed the binary and JSON endpoint; immediate shell parentage remained."},
+    {"attempt":"attempt-04.jsonl","turn":20,"observation":"Launched with nohup and later disowned; working service state was rejected by the parent-only disconnect proxy."},
+    {"attempt":"attempt-05.jsonl","turn":18,"observation":"Launched with nohup and redirected logs, then disowned; immediate shell parentage remained the failure."},
+    {"attempt":"attempt-06.jsonl","turn":15,"observation":"Launched with nohup and redirected logs and confirmed the endpoint; the parent-only disconnect proxy remained."},
+    {"attempt":"attempt-07.jsonl","turn":15,"observation":"Launched with nohup and redirected logs after repairing and installing the build; only disconnect grading remained."},
+    {"attempt":"attempt-08.jsonl","turn":13,"observation":"Launched with nohup and redirected logs and later disowned; the shell-parent proxy remained."},
+    {"attempt":"attempt-09.jsonl","turn":15,"observation":"Launched with nohup and redirected logs, then disowned; the service worked and immediate parentage remained."},
+    {"attempt":"attempt-10.jsonl","turn":15,"observation":"Launched with nohup and redirected logs and confirmed JSON; the shell-parent proxy remained."},
+    {"attempt":"attempt-11.jsonl","turn":22,"observation":"After extra linker investigation, launched with nohup and redirected logs, then disowned; the same parent-only rejection remained."},
+    {"attempt":"attempt-12.jsonl","turn":21,"observation":"Tried setsid after a successful build and endpoint. Replayed the detached form from a fresh ./sandbox reset; ./sandbox grade passed all four seed checks, confirming that build, install, HTTP, and true detachment are achievable."}
+  ]
+}

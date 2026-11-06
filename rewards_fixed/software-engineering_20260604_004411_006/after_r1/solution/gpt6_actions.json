@@ -1,0 +1,219 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "ls -la\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "find /app -type f | head -50\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "cat Makefile\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.3,
+    "keystrokes": "cat include/strlib.h\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.3,
+    "keystrokes": "cat src/main.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.3,
+    "keystrokes": "cat src/strbuf.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.3,
+    "keystrokes": "cat src/strsplit.c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.7,
+    "keystrokes": "sed -i 's|-o \\$@ \\$<|-o \\$@ \\$^|' Makefile\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.7,
+    "keystrokes": "cat Makefile\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.7,
+    "keystrokes": "make\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.7,
+    "keystrokes": "./build/strtool \"a,b,c\" \",\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.7,
+    "keystrokes": "./build/strtool \"hello world\" \" \"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.7,
+    "keystrokes": "./build/strtool \"solo\" \",\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 2.2,
+    "keystrokes": "make clean && make\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 2.2,
+    "keystrokes": "./build/strtool \"a,b,c\" \",\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 2.2,
+    "keystrokes": "./build/strtool \"hello world\" \" \"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 2.2,
+    "keystrokes": "./build/strtool \"solo\" \",\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 2.2,
+    "keystrokes": "./build/strtool \"a,,b\" \",\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 2.2,
+    "keystrokes": "./build/strtool \",a,\" \",\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 2.2,
+    "keystrokes": "md5sum include/strlib.h\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 3.8,
+    "keystrokes": "cat > src/strsplit.c << 'EOF'\n#include \"strlib.h\"\n#include <stdlib.h>\n#include <string.h>\n\nchar **strsplit(const char *s, char delim, size_t *count) {\n    if (!s || !count) return NULL;\n    size_t n = 1;\n    for (const char *p = s; *p; p++)\n        if (*p == delim) n++;\n    char **result = malloc((n + 1) * sizeof(char *));\n    if (!result) return NULL;\n    size_t idx = 0;\n    const char *p = s;\n    for (;;) {\n        const char *start = p;\n        while (*p && *p != delim) p++;\n        size_t len = p - start;\n        result[idx] = malloc(len + 1);\n        if (result[idx]) { memcpy(result[idx], start, len); result[idx][len] = '\\0'; }\n        idx++;\n        if (!*p) break;\n        p++;\n    }\n    result[idx] = NULL;\n    *count = idx;\n    return result;\n}\n\nvoid strsplit_free(char **parts) {\n    if (!parts) return;\n    for (size_t i = 0; parts[i]; i++) free(parts[i]);\n    free(parts);\n}\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 3.8,
+    "keystrokes": "make clean && make\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 3.8,
+    "keystrokes": "./build/strtool \"a,b,c\" \",\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 3.8,
+    "keystrokes": "./build/strtool \"hello world\" \" \"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 3.8,
+    "keystrokes": "./build/strtool \"solo\" \",\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 3.8,
+    "keystrokes": "./build/strtool \"a,,b\" \",\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 3.8,
+    "keystrokes": "./build/strtool \",a,\" \",\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 3.8,
+    "keystrokes": "md5sum include/strlib.h\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 5.5,
+    "keystrokes": "ls -la /app/build/strtool\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 5.6,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 5.6,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

@@ -1,0 +1,20 @@
+[
+  {
+    "defect": "The verifier requires every field value in each order object, including OrderID and blank fields, to be a JSON string, but the instruction never states order value types.",
+    "evidence": "instruction.md:16-18 only requests order objects; tests/test_outputs.py:test_all_values_are_strings rejects numeric representations. attempt-01.jsonl turn 0 shows the resulting integer OrderID rejection, repeated in ten attempts.",
+    "change": "State in instruction.md that each order has the seven source fields and every order value is represented as a JSON string, with missing fields represented by the empty string.",
+    "kind": "hidden_requirement"
+  },
+  {
+    "defect": "The verifier requires the customer aggregation to include the record whose CustomerName is blank, but the instruction does not define whether an empty name is a customer group.",
+    "evidence": "instruction.md:19-22 describes customer objects without blank-name semantics; tests/test_outputs.py:test_customers_correct_count requires 13. attempt-03.jsonl turn 12 filters falsey customer_name and its turn-0 diagnostics fail only customer count and spend reconciliation.",
+    "change": "State in instruction.md that customers aggregate every order by CustomerName, including the empty-string name.",
+    "kind": "hidden_requirement"
+  },
+  {
+    "defect": "The reference workflow contains an obsolete validation assertion that March has one order even though its generated report and retained monthly aggregation requirement correctly include two.",
+    "evidence": "solution/gpt6_actions.json has an early expected tuple for 2024-03 with order_count 1 and a later validation with order_count 2; sandbox oracle visibly raised AssertionError at the early check while grading still passed.",
+    "change": "Correct the obsolete reference self-check to expect two March orders, matching the runtime-derived report and its later validation.",
+    "kind": "other"
+  }
+]

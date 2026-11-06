@@ -1,0 +1,17 @@
+# East Region Sales Data - Q1 2024
+order_id	customer_id	order_date	item	qty	unit_price	region
+E001	EC301	2024-01-15	Wireless Mouse	2	$24.99	East
+E002	EC302	2024-01-16	Keyboard	1	$49.99	East
+E003	EC303	2024-01-17	Monitor 27"	1	$210.00	East
+E004	EC301	2024-01-18	USB-C Hub	3	$32.00	East
+E005	EC304	2024-01-19	Wireless Mouse	5	$24.99	East
+E006	EC305	2024-01-20	Laptop Stand	1	$45.00	East
+E007	EC306	2024-01-21	Keyboard	2	$49.99	East
+E008	EC307	2024-01-22	Webcam HD	1	$79.99	East
+E009	EC308	2024-01-23	Monitor 27"	1	$210.00	East
+E010	EC302	2024-01-24	Wireless Mouse	2	$24.99	East
+E011	EC309	2024-01-25	USB-C Hub	4	$32.00	East
+E012	EC310	2024-01-26	Keyboard	3	$49.99	East
+E013	EC311	2024-01-27	Webcam HD	-1	$79.99	East
+E014	EC312	2024-01-28	Desk Lamp	2	$29.99	East
+E015	EC313	2024-01-29	Wireless Mouse	1	$24.99	East

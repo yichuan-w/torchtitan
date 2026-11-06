@@ -1,0 +1,72 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "cat /app/vulnerabilities.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "cat /app/packages.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "cat /app/dependencies.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.3,
+    "keystrokes": "cat > /app/solution.sql <<'EOF'\nWITH RECURSIVE\npkg AS (\n  SELECT id, name FROM read_csv_auto('/app/packages.csv', header = true)\n),\ndep AS (\n  SELECT package_id, depends_on_id FROM read_csv_auto('/app/dependencies.csv', header = true)\n),\nvuln AS (\n  SELECT cve_id, package_name FROM read_csv_auto('/app/vulnerabilities.csv', header = true)\n),\nwalk AS (\n  SELECT\n    v.cve_id,\n    v.package_name AS vulnerable_package,\n    dp.name AS affected_package,\n    1 AS depth,\n    [v.package_name, dp.name] AS path_list\n  FROM vuln v\n  JOIN pkg pv ON pv.name = v.package_name\n  JOIN dep d ON d.depends_on_id = pv.id\n  JOIN pkg dp ON dp.id = d.package_id\n\n  UNION ALL\n\n  SELECT\n    w.cve_id,\n    w.vulnerable_package,\n    dp.name,\n    w.depth + 1,\n    list_append(w.path_list, dp.name)\n  FROM walk w\n  JOIN pkg pa ON pa.name = w.affected_package\n  JOIN dep d ON d.depends_on_id = pa.id\n  JOIN pkg dp ON dp.id = d.package_id\n  WHERE NOT list_contains(w.path_list, dp.name)\n    AND w.depth < 35\n),\nexposure AS (\n  SELECT\n    cve_id,\n    vulnerable_package,\n    affected_package,\n    min(depth) AS depth,\n    min_by(array_to_string(path_list, ' -> '), depth) AS path\n  FROM walk\n  GROUP BY cve_id, vulnerable_package, affected_package\n),\nmulti AS (\n  SELECT\n    affected_package AS package_name,\n    count(DISTINCT cve_id) AS cve_count\n  FROM walk\n  GROUP BY affected_package\n  HAVING count(DISTINCT cve_id) >= 2\n)\nSELECT\n  'exposure' AS section,\n  cve_id,\n  vulnerable_package,\n  affected_package,\n  depth,\n  path,\n  NULL AS package_name,\n  NULL AS cve_count\nFROM exposure\nUNION ALL\nSELECT\n  'multi_hit' AS section,\n  NULL AS cve_id,\n  NULL AS vulnerable_package,\n  NULL AS affected_package,\n  NULL AS depth,\n  NULL AS path,\n  package_name,\n  cve_count\nFROM multi\nORDER BY section, cve_count DESC NULLS LAST, package_name, cve_id, affected_package;\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.3,
+    "keystrokes": "duckdb -c \".read /app/solution.sql\"\n",
+    "duration": 5.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 5.4,
+    "keystrokes": "duckdb -csv -c \"$(cat /app/solution.sql)\" | grep multi_hit | head -10\n",
+    "duration": 5.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 5.4,
+    "keystrokes": "ls -la /app/solution.sql\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 10.5,
+    "keystrokes": "echo \"Task complete\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 10.6,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 10.6,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

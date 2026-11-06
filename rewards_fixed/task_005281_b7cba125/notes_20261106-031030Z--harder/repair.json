@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The planted set(range(...)) likelihood loop is deterministic for these integer indices, so the claimed cross-run divergence does not occur and the original reproducibility test passes before repair.",
+    "evidence": "traces/attempt-01.jsonl turn 3 follows the prompt's diagnosis without reproducing divergence; direct inspection of the shipped mcmc.py shows only integer set iteration.",
+    "change": "Make the planted reduction traverse hash-randomized string indices so separate Python processes genuinely encounter different floating-point reduction orders, while retaining the requested vectorization repair.",
+    "kind": "broken_setup"
+  }
+]

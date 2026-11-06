@@ -1,0 +1,135 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "cat /app/inventory.txt\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "which ssh-keygen python3\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "mkdir -p /app/ssh-ca\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.3,
+    "keystrokes": "ssh-keygen -q -t ed25519 -f /app/ssh-ca/ca -N \"\" -C \"prod-internal-ssh-ca\" && chmod 600 /app/ssh-ca/ca && ls -la /app/ssh-ca/\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.3,
+    "keystrokes": "cd /app/ssh-ca && serial=0 && while IFS=, read -r name fqdn ip ktype; do case \"$name\" in ''|'#'*) continue;; esac; serial=$((serial+1)); ssh-keygen -q -t \"$ktype\" -f \"${name}_host_key\" -N \"\" -C \"${name} host key\"; ssh-keygen -q -s /app/ssh-ca/ca -I \"$name\" -h -n \"${fqdn},${name},${ip}\" -V +52w -z \"$serial\" \"${name}_host_key.pub\"; echo \"signed $name serial=$serial type=$ktype\"; done < /app/inventory.txt\n",
+    "duration": 15.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.3,
+    "keystrokes": "ls -la /app/ssh-ca/\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 16.8,
+    "keystrokes": "ssh-keygen -k -f /app/ssh-ca/revoked.krl /app/ssh-ca/db2_host_key-cert.pub\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 16.8,
+    "keystrokes": "ca_pub=$(awk '{print $1\" \"$2}' /app/ssh-ca/ca.pub) && db2_pub=$(awk '{print $1\" \"$2}' /app/ssh-ca/db2_host_key.pub) && printf '@cert-authority *.prod.internal %s\\n' \"$ca_pub\" > /app/ssh-ca/known_hosts && printf '@revoked *.prod.internal %s # revoked; see /app/ssh-ca/revoked.krl\\n' \"$db2_pub\" >> /app/ssh-ca/known_hosts && cat /app/ssh-ca/known_hosts\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 16.8,
+    "keystrokes": "ssh-keygen -Qf /app/ssh-ca/revoked.krl /app/ssh-ca/db2_host_key-cert.pub; echo \"rc=$?\"; ssh-keygen -Qf /app/ssh-ca/revoked.krl /app/ssh-ca/app1_host_key-cert.pub; echo \"rc=$?\"\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 16.8,
+    "keystrokes": "ssh-keygen -Lf /app/ssh-ca/db2_host_key-cert.pub\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 19.3,
+    "keystrokes": "cat > /app/ssh-ca/generate_report.sh <<'EOF'\n#!/bin/bash\n# Generate verification report for all non-revoked SSH host certificates.\nset -u\nCADIR=/app/ssh-ca\nINVENTORY=/app/inventory.txt\nREPORT=\"$CADIR/verification.txt\"\nCA_FP=$(ssh-keygen -lf \"$CADIR/ca.pub\" | awk '{print $2}')\n\nis_revoked() {\n    ssh-keygen -Qf \"$CADIR/revoked.krl\" \"$1\" 2>/dev/null | grep -q REVOKED\n}\n\n{\n    echo \"SSH Host Certificate Verification Report\"\n    echo \"Generated: $(date -u '+%Y-%m-%d %H:%M:%S UTC')\"\n    echo \"CA fingerprint: $CA_FP\"\n    echo \"\"\n    while IFS=, read -r name fqdn ip ktype; do\n        case \"$name\" in ''|'#'*) continue;; esac\n        cert=\"$CADIR/${name}_host_key-cert.pub\"\n        if is_revoked \"$cert\"; then\n            continue\n        fi\n        info=$(ssh-keygen -Lf \"$cert\")\n        identity=$(echo \"$info\" | sed -n 's/.*Key ID: \"\\(.*\\)\"/\\1/p')\n        sig_fp=$(echo \"$info\" | sed -n 's/.*Signing CA: [^ ]* \\([^ ]*\\).*/\\1/p')\n        valid_from=$(echo \"$info\" | sed -n 's/.*Valid: from \\([^ ]*\\) to.*/\\1/p')\n        valid_to=$(echo \"$info\" | sed -n 's/.*Valid: from [^ ]* to \\([^ ]*\\).*/\\1/p')\n        principals=$(echo \"$info\" | awk '/Principals:/{f=1;next} /Critical Options:/{f=0} f && NF{printf \"%s%s\", (c++?\", \":\"\"), $1}')\n        if [ \"$sig_fp\" = \"$CA_FP\" ]; then\n            sig_status=\"VALID (matches CA fingerprint $CA_FP)\"\n        else\n            sig_status=\"INVALID (got $sig_fp, expected $CA_FP)\"\n        fi\n        echo \"Server: $name\"\n        echo \"  Identity: $identity\"\n        echo \"  Principals: $principals\"\n        echo \"  Valid from: ${valid_from:0:10} to ${valid_to:0:10}\"\n        echo \"  CA signature: $sig_status\"\n        echo \"\"\n    done < \"$INVENTORY\"\n} > \"$REPORT\"\necho \"Report written to $REPORT\"\nEOF\nchmod +x /app/ssh-ca/generate_report.sh\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 19.3,
+    "keystrokes": "/app/ssh-ca/generate_report.sh && cat /app/ssh-ca/verification.txt\n",
+    "duration": 2.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 21.8,
+    "keystrokes": "cat > /app/check_certs.py <<'EOF'\n#!/usr/bin/env python3\n\"\"\"Check SSH host certificates for all servers in the inventory.\n\nVerifies each certificate is a valid host certificate signed by the CA,\nchecks revocation state against the KRL, prints a per-server summary and\nexits 0 only if all active certificates pass and revoked ones are identified.\n\"\"\"\nimport re\nimport subprocess\nimport sys\n\nINVENTORY = \"/app/inventory.txt\"\nCADIR = \"/app/ssh-ca\"\nCA_PUB = CADIR + \"/ca.pub\"\nKRL = CADIR + \"/revoked.krl\"\nREVOKED_SERVERS = {\"db2\"}\n\n\ndef run(cmd):\n    return subprocess.run(cmd, stdout=subprocess.PIPE,\n                          stderr=subprocess.PIPE, text=True)\n\n\ndef ca_fingerprint():\n    r = run([\"ssh-keygen\", \"-lf\", CA_PUB])\n    if r.returncode != 0:\n        return None\n    return r.stdout.split()[1]\n\n\ndef parse_cert(text):\n    d = {\"principals\": []}\n    in_principals = False\n    for line in text.splitlines():\n        s = line.strip()\n        if not s:\n            continue\n        if s.startswith(\"Type:\"):\n            d[\"type\"] = s.split(\":\", 1)[1].strip()\n            in_principals = False\n        elif s.startswith(\"Signing CA:\"):\n            parts = s.split()\n            d[\"signing_ca\"] = parts[3] if len(parts) >= 4 else None\n            in_principals = False\n        elif s.startswith(\"Key ID:\"):\n            m = re.search(r'\"([^\"]*)\"', s)\n            d[\"key_id\"] = m.group(1) if m else \"\"\n            in_principals = False\n        elif s.startswith(\"Serial:\"):\n            d[\"serial\"] = s.split(\":\", 1)[1].strip()\n            in_principals = False\n        elif s.startswith(\"Valid:\"):\n            m = re.search(r\"from (\\S+) to (\\S+)\", s)\n            if m:\n                d[\"valid_from\"] = m.group(1)\n                d[\"valid_to\"] = m.group(2)\n            in_principals = False\n        elif s.startswith(\"Principals:\"):\n            in_principals = True\n        elif s.startswith(\"Critical Options:\") or s.startswith(\"Extensions:\"):\n            in_principals = False\n        elif in_principals:\n            d[\"principals\"].append(s)\n    return d\n\n\ndef is_revoked(path):\n    r = run([\"ssh-keygen\", \"-Qf\", KRL, path])\n    return \"REVOKED\" in r.stdout\n\n\ndef main():\n    servers = []\n    with open(INVENTORY) as f:\n        for line in f:\n            line = line.strip()\n            if not line or line.startswith(\"#\"):\n                continue\n            name, fqdn, ip, ktype = line.split(\",\")\n            servers.append((name, fqdn, ip, ktype))\n\n    ca_fp = ca_fingerprint()\n    if not ca_fp:\n        print(\"ERROR: could not read CA public key\")\n        return 1\n\n    all_ok = True\n    for name, fqdn, ip, ktype in servers:\n        cert = \"{}/{}_host_key-cert.pub\".format(CADIR, name)\n        expected_revoked = name in REVOKED_SERVERS\n        problems = []\n        info = {}\n        r = run([\"ssh-keygen\", \"-Lf\", cert])\n        if r.returncode != 0:\n            problems.append(\"cannot inspect certificate\")\n        else:\n            info = parse_cert(r.stdout)\n            if \"host certificate\" not in info.get(\"type\", \"\"):\n                problems.append(\"not a host certificate\")\n            if info.get(\"signing_ca\") != ca_fp:\n                problems.append(\"not signed by CA\")\n            if info.get(\"key_id\") != name:\n                problems.append(\"identity mismatch\")\n            for p in (fqdn, name, ip):\n                if p not in info[\"principals\"]:\n                    problems.append(\"missing principal \" + p)\n        revoked = is_revoked(cert)\n        if revoked and not expected_revoked:\n            problems.append(\"unexpectedly revoked\")\n        if expected_revoked and not revoked:\n            problems.append(\"should be revoked but is not\")\n        ok = not problems\n        all_ok = all_ok and ok\n        expires = info.get(\"valid_to\", \"?\")[:10]\n        prins = \",\".join(info.get(\"principals\", []))\n        if revoked:\n            status = \"REVOKED\"\n        elif ok:\n            status = \"OK\"\n        else:\n            status = \"FAIL (\" + \"; \".join(problems) + \")\"\n        print(\"{}: principals=[{}] expires={} status={}\".format(\n            name, prins, expires, status))\n\n    print(\"Overall: \" + (\"PASS\" if all_ok else \"FAIL\"))\n    return 0 if all_ok else 1\n\n\nif __name__ == \"__main__\":\n    sys.exit(main())\nEOF\nchmod +x /app/check_certs.py\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 21.8,
+    "keystrokes": "python3 /app/check_certs.py; echo \"exit=$?\"\n",
+    "duration": 3.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 25.3,
+    "keystrokes": "ls -la /app/ssh-ca/ && stat -c '%a %n' /app/ssh-ca/ca\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 25.3,
+    "keystrokes": "for n in app1 app2 db1 db2 monitor; do echo \"== $n ==\"; ssh-keygen -Lf /app/ssh-ca/${n}_host_key-cert.pub | grep -E 'Type:|Key ID:|Serial:'; done\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 27.3,
+    "keystrokes": "true\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 27.4,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 27.4,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

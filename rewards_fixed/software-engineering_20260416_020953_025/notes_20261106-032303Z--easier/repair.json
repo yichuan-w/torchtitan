@@ -1,0 +1,14 @@
+[
+  {
+    "defect": "The build command in instruction.md addresses testdata/ from libbinparse/, but the image only creates /app/testdata, so the stated command reports IO errors.",
+    "evidence": "instruction.md build command conflicts with environment/Dockerfile; attempt-01 turns 11-16 and analogous early turns in the other attempts observe IO errors until using ../testdata or /app/testdata.",
+    "change": "Create /app/libbinparse/testdata as a symlink to /app/testdata in the image.",
+    "kind": "broken_setup"
+  },
+  {
+    "defect": "The generator creates byte-wise checksums while the shipped library implements a word-wise checksum, and verification includes the stored checksum field although generation computes with that field zeroed; valid supplied samples therefore fail before the advertised optimization/alignment bug.",
+    "evidence": "environment/files/generate_testdata.py compute_checksum and environment/files/libbinparse/binparse.c binparse_checksum/checksum verification conflict; all attempts observe checksum mismatch and attempts 01-03, 05, 07-08, 10-12 spend their final stage trying to reconcile it.",
+    "change": "Generate checksums with the library's word-wise format and zero the checksum field only while verifying the header/record region.",
+    "kind": "broken_setup"
+  }
+]

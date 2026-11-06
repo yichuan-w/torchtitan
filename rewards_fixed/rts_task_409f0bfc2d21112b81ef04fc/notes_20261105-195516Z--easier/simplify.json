@@ -1,0 +1,70 @@
+{
+  "retained_skill": "Use Git rebase and reflog evidence to identify the rewritten branch tip and compare it with the final linear history.",
+  "bottleneck": "A hidden output-location and report-shape contract defeats otherwise complete attempts: all 12 attempts finish the rebase correctly but create changelog.md and diff_report.md inside exercise, while the verifier reads them from the kata root; the instruction's 'same directory' wording does not identify that root. The verifier also requires the original uppercase tip and an exact fenced unified patch although the instruction only says 'pre-rebase ancestor' and 'document what changed'.",
+  "change": "Repair the public contract in words and in the discoverable changelog specification: name the kata-root deliverable paths, define the compared endpoint as the pre-rebase uppercase tip recovered from that branch's reflog, require a fenced unified patch, and describe each changelog field. This is instruction/workspace help at the original task's output-writing and reflog signals; it leaves the rebase and reflog decision with the student.",
+  "restore": "A later hardening can remove the standalone clarification sentences for the deliverable location, uppercase reflog endpoint, fenced patch, and changelog field representations while retaining the original rebase and report goals.",
+  "prediction": "Attempts currently change into exercise and then write relative report paths, so grading cannot see either artifact; the explicit kata-root destination enables them to write where requested, and the clarified reflog endpoint and report representation let some generate rather than paraphrase the required comparison. This is refuted if new attempts still write both reports in exercise or if reports at the kata root still systematically compare pre-rebase master rather than the former uppercase tip.",
+  "expected": "4 of 12",
+  "evidence": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turn": 6,
+      "observation": "First wrong step: after source setup.sh leaves the shell in exercise, writes relative changelog.md there; turn 8 does the same for diff_report.md. Header grading reports 8 failed/6 passed, with all artifact checks failing on absent kata-root files."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turn": 7,
+      "observation": "First wrong step: explicitly cd exercise, then creates both reports there. Exact command replay on a fresh reset graded 8 failed/6 passed: changelog readiness, structure, tip and rows plus diff-report existence, reflog reference, placeholder/structure and expected patch all failed because kata-root files were absent."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turn": 9,
+      "observation": "First wrong step: writes changelog.md in exercise, followed by diff_report.md there at turn 11; header grading reports the same 8 artifact failures after all 6 repository checks pass."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turn": 8,
+      "observation": "First wrong step: writes changelog.md in exercise and diff_report.md there at turn 9; header grading reports 8 failed/6 passed."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turn": 7,
+      "observation": "First wrong step: writes both relative deliverables from exercise; header grading reports 8 failed/6 passed."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turn": 8,
+      "observation": "First wrong step: creates changelog.md in exercise; later appends generated diff output to diff_report.md in that same directory. Header grading reports 8 failed/6 passed."
+    },
+    {
+      "attempt": "attempt-07.jsonl",
+      "turn": 6,
+      "observation": "First wrong step: creates changelog.md in exercise and generates diff_report.md there at turn 7. Header grading reports 8 failed/6 passed."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turn": 8,
+      "observation": "First wrong step: creates changelog.md in exercise and diff_report.md there at turn 9. Header grading reports 8 failed/6 passed."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turn": 9,
+      "observation": "First wrong step: creates changelog.md in exercise and diff_report.md there at turn 11. Header grading reports 8 failed/6 passed."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turn": 7,
+      "observation": "First wrong step: creates both deliverables in exercise. Header grading reports 8 failed/6 passed."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turn": 8,
+      "observation": "First wrong step: after explicit cd exercise, creates changelog.md there and diff_report.md there at turn 9. Header grading reports 8 failed/6 passed."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turn": 11,
+      "observation": "First wrong step: source setup.sh leaves the shell in exercise and relative paths place both reports there. Exact command replay on a fresh reset graded 8 failed/6 passed, the same eight absent-artifact checks as attempt-02. After editing, a fresh-reset replay of its approach using the now-stated kata-root paths, uppercase reflog endpoint, specified changelog fields, and generated fenced patch reached all deliverables and graded 14 passed/0 failed."
+    }
+  ]
+}

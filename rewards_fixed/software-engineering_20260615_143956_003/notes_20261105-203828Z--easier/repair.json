@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The instruction requires building with the provided setup.py, but the active python3 cannot import setuptools and neither pip nor pip3 is initially available.",
+    "evidence": "instruction.md requires the provided setup.py; environment/files/setup.py imports setuptools; all attempts fail that build (for example attempt-01.jsonl turn 4 and attempt-12.jsonl turn 16), and a fresh sandbox reproduces ModuleNotFoundError.",
+    "change": "Bootstrap pip and install pinned setuptools 80.9.0 into the active Python during the image build.",
+    "kind": "broken_setup"
+  }
+]

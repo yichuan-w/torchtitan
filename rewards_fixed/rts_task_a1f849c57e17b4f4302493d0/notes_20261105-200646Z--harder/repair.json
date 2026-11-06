@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The instruction directed students to four contract JSON files that do not exist in the untouched image.",
+    "evidence": "traces/attempt-11.jsonl turn 17 explicitly searched /app/rewrite_contract.json and received 'File not found'; the untouched sandbox also reports all four named files missing.",
+    "change": "Removed the final instruction sentence that points to the nonexistent contract files.",
+    "kind": "broken_setup"
+  }
+]

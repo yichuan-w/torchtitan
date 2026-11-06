@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The instruction does not say that starting Trio in a non-main thread must be warning-free or that the main-thread collision and full-buffer signal behavior must remain intact, but grading requires all three behaviors.",
+    "evidence": "instruction.md Issue 1 versus tests/test.sh selected checks; attempt-03.jsonl turn 16 and attempt-05.jsonl turn 49 reasonably initialize old_wakeup_fd while retaining the described warning, yet the wrong-thread check rejects that behavior.",
+    "change": "State the observable signal-handling requirements in Issue 1 without prescribing an implementation.",
+    "kind": "hidden_requirement"
+  }
+]

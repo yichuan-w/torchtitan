@@ -1,0 +1,93 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "ls -la /app",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "ffprobe -v error -select_streams v:0 -show_entries stream=width,height,r_frame_rate,nb_frames -of csv=p=0 /app/corrupted_video.mp4",
+    "duration": 5.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 5.1,
+    "keystrokes": "C-c",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 5.1,
+    "keystrokes": "ls -la /app\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 5.1,
+    "keystrokes": "ffprobe -v error -select_streams v:0 -show_entries stream=width,height,r_frame_rate,nb_frames -of csv=p=0 /app/corrupted_video.mp4\n",
+    "duration": 5.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 10.3,
+    "keystrokes": "cat > /app/video_repair.py << 'EOF'\nimport json\nimport cv2\nimport numpy as np\n\nSRC = \"/app/corrupted_video.mp4\"\nJSON_OUT = \"/app/corrupted_frames.json\"\nVID_OUT = \"/app/repaired_video.mp4\"\n\ndef main():\n    cap = cv2.VideoCapture(SRC)\n    fps = cap.get(cv2.CAP_PROP_FPS) or 30.0\n    w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))\n    h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))\n    frames = []\n    while True:\n        ok, f = cap.read()\n        if not ok:\n            break\n        frames.append(f)\n    cap.release()\n    n = len(frames)\n\n    gray = [cv2.cvtColor(f, cv2.COLOR_BGR2GRAY).astype(np.float64) for f in frames]\n\n    # Feature 1: high-frequency noise energy (Laplacian abs mean)\n    noise = np.array([np.mean(np.abs(cv2.Laplacian(g, cv2.CV_64F))) for g in gray])\n    # Feature 2: mean brightness\n    bright = np.array([g.mean() for g in gray])\n    # Feature 3: saturation / colorfulness (color blocks are vivid)\n    sat = np.array([cv2.cvtColor(f, cv2.COLOR_BGR2HSV)[:, :, 1].mean() for f in frames])\n    # Feature 4: temporal diff to previous frame\n    tdiff = np.zeros(n)\n    for i in range(1, n):\n        tdiff[i] = np.mean(np.abs(gray[i] - gray[i - 1]))\n    # Feature 5: horizontal streak score: variance of row means relative to total\n    streak = np.zeros(n)\n    for i, g in enumerate(gray):\n        rm = g.mean(axis=1)\n        streak[i] = rm.std()\n\n    def robust_flags(x, thresh=4.0):\n        med = np.median(x)\n        mad = np.median(np.abs(x - med)) + 1e-9\n        z = np.abs(x - med) / (1.4826 * mad)\n        return z > thresh, z\n\n    flags = np.zeros(n, dtype=bool)\n    for feat in (noise, bright, sat, streak):\n        f_, _ = robust_flags(feat, 4.0)\n        flags |= f_\n    # temporal: corrupted frames differ strongly from BOTH neighbors typically\n    f_t, z_t = robust_flags(tdiff[1:], 4.0)\n    tf = np.zeros(n, dtype=bool)\n    tf[1:] = f_t\n    flags |= tf\n\n    # Keep only isolated/sparse corruption: corrupted frames should be a minority.\n    # If too many flagged, keep the strongest outliers.\n    if flags.sum() > 0.4 * n:\n        score = np.zeros(n)\n        for feat in (noise, sat, streak):\n            _, z = robust_flags(feat)\n            score += z\n        score[1:] += z_t\n        idx = np.argsort(score)[::-1]\n        flags = np.zeros(n, dtype=bool)\n        flags[idx[:int(0.1 * n)]] = True\n\n    corrupted = sorted(int(i) for i in np.where(flags)[0])\n\n    with open(JSON_OUT, \"w\") as f:\n        json.dump(corrupted, f)\n\n    bad = set(corrupted)\n\n    def nearest_good(i, direction):\n        j = i + direction\n        while 0 <= j < n:\n            if j not in bad:\n                return j\n            j += direction\n        return None\n\n    repaired = []\n    for i in range(n):\n        if i not in bad:\n            repaired.append(frames[i])\n            continue\n        a = nearest_good(i, -1)\n        b = nearest_good(i, +1)\n        if a is not None and b is not None:\n            alpha = (i - a) / float(b - a)\n            interp = cv2.addWeighted(frames[a], 1.0 - alpha, frames[b], alpha, 0)\n            repaired.append(interp)\n        elif a is not None:\n            repaired.append(frames[a].copy())\n        elif b is not None:\n            repaired.append(frames[b].copy())\n        else:\n            repaired.append(np.zeros_like(frames[0]))\n\n    fourcc = cv2.VideoWriter_fourcc(*\"mp4v\")\n    out = cv2.VideoWriter(VID_OUT, fourcc, fps, (w, h))\n    for f in repaired:\n        out.write(f)\n    out.release()\n\n    print(f\"total={n} corrupted={len(corrupted)}\")\n    print(corrupted)\n\nif __name__ == \"__main__\":\n    main()\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 10.3,
+    "keystrokes": "python3 /app/video_repair.py\n",
+    "duration": 60.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 70.4,
+    "keystrokes": "cat /app/corrupted_frames.json\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 70.4,
+    "keystrokes": "python3 -c \"import json; d=json.load(open('/app/corrupted_frames.json')); assert all(isinstance(i,int) for i in d); print('JSON OK', len(d))\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 70.4,
+    "keystrokes": "ffprobe -v error -select_streams v:0 -show_entries stream=width,height,r_frame_rate,nb_frames -of csv=p=0 /app/repaired_video.mp4\n",
+    "duration": 5.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 75.6,
+    "keystrokes": "\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 75.7,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 75.7,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The verifier requires /app/data.bin to remain unchanged and forbids extra files under /app/recovered, but the public instruction does not state either constraint.",
+    "evidence": "instruction.md lists the five requested outputs, while tests/test_outputs.py:test_no_extra_files and test_archive_unmodified impose additional constraints.",
+    "change": "State both output-cleanliness and source-preservation requirements explicitly in instruction.md.",
+    "kind": "hidden_requirement"
+  }
+]

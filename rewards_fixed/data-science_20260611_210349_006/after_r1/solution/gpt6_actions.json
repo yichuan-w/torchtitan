@@ -1,0 +1,128 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "ls -la /app/data/\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "for f in /app/data/*; do echo \"=== $f ===\"; head -5 \"$f\"; done\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.2,
+    "keystrokes": "wc -l /app/data/*\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.2,
+    "keystrokes": "cat /app/data/legacy_dump.csv | awk -F, '{print $2}' | sort -u | head -30\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.2,
+    "keystrokes": "cat /app/data/partner_feed.csv | awk -F, '{print $4}' | sort -u | head -30\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.2,
+    "keystrokes": "grep -v -E '^[0-9]' /app/data/raw_export.txt | head\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.2,
+    "keystrokes": "awk -F, '{print $1}' /app/data/eu_export.csv | sort -u | head -20\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.7,
+    "keystrokes": "python3 -c \"\nimport csv,glob\nfor f in sorted(glob.glob('/app/data/*')):\n    print('===',f)\n    with open(f,encoding='utf-8') as fh:\n        lines=fh.read().splitlines()\n    print('sample last:', lines[-1])\n\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.7,
+    "keystrokes": "python3 << 'EOF'\nimport glob\ncats=set(); regs=set(); badid=[]\nimport csv\nfor f in sorted(glob.glob('/app/data/*')):\n    with open(f,encoding='utf-8') as fh:\n        txt=fh.read().splitlines()\n    if f.endswith('.txt'):\n        for ln in txt:\n            p=ln.split('|')\n            regs.add(p[1]); cats.add(p[2])\n            if not p[4].strip().isdigit(): badid.append((f,ln))\n        continue\n    delim=';' if 'nordic' in f else '\\t' if f.endswith('.tsv') else ','\n    r=csv.reader([l for l in txt],delimiter=delim)\n    rows=list(r); hdr=rows[0]\n    for row in rows[1:]:\n        if 'legacy' in f:\n            regs.add(row[0]); cats.add(row[1]); idv=row[4]\n        else:\n            idv=row[0]; cats.add(row[3]); regs.add(row[4])\n        if not idv.strip().isdigit(): badid.append((f,row))\nprint('CATS:',sorted(cats))\nprint('REGS:',sorted(regs))\nprint('BADIDS:',badid[:20], len(badid))\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 0.9,
+    "keystrokes": "cat > /tmp/explore.py << 'PYEOF'\nimport glob, csv\ndef read(f):\n    for enc in ('utf-8','latin-1'):\n        try:\n            with open(f,encoding=enc) as fh: return fh.read().splitlines()\n        except UnicodeDecodeError: continue\ncats=set(); regs=set(); badid=[]\nfor f in sorted(glob.glob('/app/data/*')):\n    txt=read(f)\n    if f.endswith('.txt'):\n        for ln in txt:\n            p=ln.split('|'); regs.add(p[1]); cats.add(p[2])\n            if not p[4].strip().isdigit(): badid.append((f,ln))\n        continue\n    delim=';' if 'nordic' in f else '\\t' if f.endswith('.tsv') else ','\n    rows=list(csv.reader(txt,delimiter=delim))\n    for row in rows[1:]:\n        if not row: continue\n        if 'legacy' in f:\n            regs.add(row[0]); cats.add(row[1]); idv=row[4]\n        else:\n            idv=row[0]; cats.add(row[3]); regs.add(row[4])\n        if not idv.strip().isdigit(): badid.append((f,row))\nprint('CATS:',sorted(cats))\nprint('REGS:',sorted(regs))\nprint('BADIDS count:',len(badid))\nfor b in badid[:15]: print(b)\nPYEOF\npython3 /tmp/explore.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 1.0,
+    "keystrokes": "mkdir -p /app/output\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 1.0,
+    "keystrokes": "cat > /app/normalize.py << 'PYEOF'\nimport csv, glob, json, os, re, unicodedata\nfrom datetime import date\nimport pandas as pd\n\nDATA_DIR = '/app/data'\nOUT_DIR = '/app/output'\n\n# column indexes per file: id, date, amount, category, region\nCONFIGS = {\n    'eu_export.csv':           dict(delim=',',  header=True,  cols=(0,1,2,3,4), dayfirst=True),\n    'legacy_dump.csv':         dict(delim=',',  header=True,  cols=(4,2,3,1,0), dayfirst='auto'),\n    'nordic_export.csv':       dict(delim=';',  header=True,  cols=(0,1,2,3,4), dayfirst=False),\n    'partner_feed.csv':        dict(delim=',',  header=True,  cols=(0,1,2,3,4), dayfirst=False),\n    'raw_export.txt':          dict(delim='|',  header=False, cols=(4,0,3,2,1), dayfirst=True),\n    'sales_report_feb.csv':    dict(delim=',',  header=True,  cols=(0,1,2,3,4), dayfirst=False),\n    'tab_export.tsv':          dict(delim='\\t', header=True,  cols=(0,1,2,3,4), dayfirst=False),\n    'transactions_2023_q1.csv':dict(delim=',',  header=True,  cols=(0,1,2,3,4), dayfirst=False),\n    'weekly_export_2023.csv':  dict(delim=',',  header=True,  cols=(0,1,2,3,4), dayfirst=False),\n}\n\ndef read_lines(path):\n    for enc in ('utf-8', 'latin-1'):\n        try:\n            with open(path, encoding=enc) as fh:\n                return fh.read().splitlines()\n        except UnicodeDecodeError:\n            continue\n    with open(path, encoding='utf-8', errors='replace') as fh:\n        return fh.read().splitlines()\n\ndef parse_id(s):\n    s = (s or '').strip()\n    if not s:\n        return None\n    try:\n        return int(s)\n    except ValueError:\n        pass\n    try:\n        f = float(s)\n        return int(f) if f.is_integer() else None\n    except ValueError:\n        return None\n\ndef parse_date(s, dayfirst):\n    s = (s or '').strip()\n    if not s:\n        return None\n    toks = re.split(r'[-/.]', s)\n    if len(toks) != 3:\n        return None\n    if len(toks[0]) == 4:  # year first\n        y, m, d = toks\n    else:\n        y = toks[2]\n        df = dayfirst\n        if df == 'auto':  # legacy: dash -> day first, slash -> month first (US)\n            df = '-' in s\n        if df:\n            d, m = toks[0], toks[1]\n        else:\n            m, d = toks[0], toks[1]\n    try:\n        return date(int(y), int(m), int(d)).isoformat()\n    except ValueError:\n        return None\n\ndef parse_amount(s):\n    s = (s or '').strip()\n    if not s:\n        return None\n    s = re.sub(r'(?i)usd', '', s)\n    for ch in ('$', '€', '£', ' ', '\\xa0', '\"'):\n        s = s.replace(ch, '')\n    if ',' in s and '.' in s:\n        if s.rfind(',') > s.rfind('.'):\n            s = s.replace('.', '').replace(',', '.')\n        else:\n            s = s.replace(',', '')\n    elif ',' in s:\n        s = s.replace(',', '.')\n    try:\n        return float(s)\n    except ValueError:\n        return None\n\ndef norm_category(s):\n    if s is None:\n        return None\n    s = s.strip()\n    if not s:\n        return None\n    t = unicodedata.normalize('NFKD', s)\n    t = ''.join(c for c in t if not unicodedata.combining(c)).lower()\n    if 'book' in t or 'livre' in t:\n        return 'Books'\n    if 'cloth' in t or 'vetement' in t:\n        return 'Clothing'\n    if 'electr' in t:\n        return 'Electronics'\n    if 'food' in t or 'aliment' in t:\n        return 'Food'\n    if 'sport' in t:\n        return 'Sports'\n    return s\n\ndef norm_region(s):\n    if s is None:\n        return None\n    s = s.strip()\n    if not s or s.upper() in ('N/A', 'NA', 'NONE', 'NULL', '-'):\n        return None\n    return s\n\nrecords = []\ntotal_raw = 0\nfor path in sorted(glob.glob(os.path.join(DATA_DIR, '*'))):\n    name = os.path.basename(path)\n    cfg = CONFIGS[name]\n    lines = read_lines(path)\n    rows = list(csv.reader(lines, delimiter=cfg['delim']))\n    if cfg['header'] and rows:\n        rows = rows[1:]\n    ci, cd, ca, cc, cr = cfg['cols']\n    for row in rows:\n        if not row or all(not (x or '').strip() for x in row):\n            continue\n        total_raw += 1\n        rid = parse_id(row[ci] if ci < len(row) else '')\n        if rid is None:\n            continue  # drop only missing/unparseable id\n        records.append({\n            'id': rid,\n            'order_date': parse_date(row[cd] if cd < len(row) else '', cfg['dayfirst']),\n            'amount': parse_amount(row[ca] if ca < len(row) else ''),\n            'category': norm_category(row[cc] if cc < len(row) else None),\n            'region': norm_region(row[cr] if cr < len(row) else None),\n        })\n\ndf = pd.DataFrame(records, columns=['id', 'order_date', 'amount', 'category', 'region'])\ndf = df.drop_duplicates(subset='id', keep='first').reset_index(drop=True)\ndf['id'] = df['id'].astype('int64')\ndf['amount'] = df['amount'].astype('float64')\n\nos.makedirs(OUT_DIR, exist_ok=True)\ndf.to_parquet(os.path.join(OUT_DIR, 'clean.parquet'), index=False, engine='pyarrow')\n\ndates = df['order_date'].dropna()\nsummary = {\n    'total_rows': int(len(df)),\n    'total_rows_raw': int(total_raw),\n    'date_range': {'min': str(dates.min()) if len(dates) else None,\n                   'max': str(dates.max()) if len(dates) else None},\n    'categories': sorted(df['category'].dropna().unique().tolist()),\n    'regions': sorted(df['region'].dropna().unique().tolist()),\n    'total_amount': round(float(df['amount'].sum()), 2),\n}\nwith open(os.path.join(OUT_DIR, 'summary.json'), 'w') as fh:\n    json.dump(summary, fh, indent=2)\nprint(json.dumps(summary, indent=2))\nPYEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 1.0,
+    "keystrokes": "python3 /app/normalize.py\n",
+    "duration": 5.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 6.2,
+    "keystrokes": "python3 -c \"\nimport pandas as pd\ndf = pd.read_parquet('/app/output/clean.parquet')\nprint(df.dtypes)\nprint(df.columns.tolist())\nprint(df.isnull().sum())\nprint('dup ids:', df['id'].duplicated().sum())\nprint(df[df['id'].isin([1302,1303,1702,1703,1704,1801,1502,1602,1101,1001])].sort_values('id').to_string())\n\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 6.2,
+    "keystrokes": "cat /app/output/summary.json\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 6.4,
+    "keystrokes": "ls -la /app/output/\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 6.5,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 6.5,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

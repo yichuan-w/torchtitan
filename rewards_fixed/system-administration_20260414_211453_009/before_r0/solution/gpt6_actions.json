@@ -1,0 +1,128 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 3.0,
+    "keystrokes": "cat /opt/myapp/config/supervisord.conf\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 3.0,
+    "keystrokes": "ls -la /opt/myapp /opt/myapp/* 2>/dev/null\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 6.2,
+    "keystrokes": "cat /opt/myapp/config/redis.conf /opt/myapp/config/nginx.conf\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 6.2,
+    "keystrokes": "cat /opt/myapp/bin/api-server /opt/myapp/bin/worker\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 6.2,
+    "keystrokes": "id myapp; ls -ld /var/log/myapp /var/log/supervisor 2>&1\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 9.5,
+    "keystrokes": "useradd -r -s /bin/false myapp; mkdir -p /var/run/redis /var/log/redis /opt/myapp/redis-data /var/log/nginx /var/run/nginx; chown -R myapp:myapp /var/run/redis /var/log/redis /opt/myapp/redis-data /var/log/nginx /var/run/nginx /var/log/myapp\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 9.5,
+    "keystrokes": "python3 -c \"import redis; print(redis.__version__)\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 9.5,
+    "keystrokes": "sed -i 's/^daemonize yes/daemonize no/' /opt/myapp/config/redis.conf; grep daemonize /opt/myapp/config/redis.conf\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 12.8,
+    "keystrokes": "supervisord -c /opt/myapp/config/supervisord.conf &\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 12.8,
+    "keystrokes": "sleep 5; supervisorctl -c /opt/myapp/config/supervisord.conf status\n",
+    "duration": 5.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 12.8,
+    "keystrokes": "curl -s http://localhost:8080/health\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 20.402466,
+    "keystrokes": "cat /var/log/myapp/nginx_error.log; tail /var/log/nginx/error.log\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 23.502466,
+    "keystrokes": "chown -R myapp:myapp /var/lib/nginx\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 23.502466,
+    "keystrokes": "supervisorctl -c /opt/myapp/config/supervisord.conf start nginx; sleep 3; supervisorctl -c /opt/myapp/config/supervisord.conf status\n",
+    "duration": 3.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 23.502466,
+    "keystrokes": "curl -s http://localhost:8080/health; echo\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 29.702466,
+    "keystrokes": "supervisorctl -c /opt/myapp/config/supervisord.conf status; curl -s http://localhost:8080/health; echo\n",
+    "duration": 3.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 35.312848,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 38.312848,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

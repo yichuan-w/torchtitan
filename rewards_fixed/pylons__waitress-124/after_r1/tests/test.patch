@@ -1,0 +1,60 @@
+diff --git a/waitress/tests/test_task.py b/waitress/tests/test_task.py
+index c836f69..2a2759a 100644
+--- a/waitress/tests/test_task.py
++++ b/waitress/tests/test_task.py
+@@ -416,6 +416,55 @@ class TestWSGITask(unittest.TestCase):
+         inst.channel.server.application = app
+         self.assertRaises(ValueError, inst.execute)
+ 
++    def test_execute_bad_header_name_control_characters(self):
++        def app(environ, start_response):
++            start_response('200 OK', [('a\r', 'value')])
++        inst = self._makeOne()
++        inst.channel.server.application = app
++        self.assertRaises(ValueError, inst.execute)
++
++    def test_execute_bad_status_control_characters(self):
++        def app(environ, start_response):
++            start_response('200 OK\r', [])
++        inst = self._makeOne()
++        inst.channel.server.application = app
++        self.assertRaises(ValueError, inst.execute)
++
++    def test_execute_rejects_status_outside_http_syntax(self):
++        for status in ('20 OK', '200OK', '200\tOK', '200 OK\x00',
++                       '200 OK\x7f', '200 OK\n'):
++            def app(environ, start_response, status=status):
++                start_response(status, [])
++                return [b'body']
++            inst = self._makeOne()
++            inst.channel.server.application = app
++            self.assertRaises(Exception, inst.execute)
++
++    def test_execute_rejects_header_names_outside_http_syntax(self):
++        for name in ('', 'Bad Name', 'Bad:Name', 'Bad/Name', 'Bad\tName',
++                     'Bad\n'):
++            def app(environ, start_response, name=name):
++                start_response('200 OK', [(name, 'value')])
++                return [b'body']
++            inst = self._makeOne()
++            inst.channel.server.application = app
++            self.assertRaises(Exception, inst.execute)
++
++    def test_execute_accepts_valid_status_and_header_name_syntax(self):
++        cases = (
++            ('200 ', 'X-Test'),
++            ('000 reason', "!#$%&'*+-.^_`|~09AZaz"),
++            ('999 \t!~', 'a'),
++        )
++        for status, name in cases:
++            def app(environ, start_response, status=status, name=name):
++                start_response(status, [(name, 'value')])
++                return [b'body']
++            inst = self._makeOne()
++            inst.channel.server.application = app
++            inst.execute()
++            self.assertTrue(inst.channel.written)
++
+     def test_preserve_header_value_order(self):
+         def app(environ, start_response):
+             write = start_response('200 OK', [('C', 'b'), ('A', 'b'), ('A', 'a')])

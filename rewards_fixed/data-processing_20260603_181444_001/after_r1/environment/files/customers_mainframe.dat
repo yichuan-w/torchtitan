@@ -1,0 +1,27 @@
+00000101James               Wilson              james.wilson@email.com                  212-555-0101   123 Park Avenue                                   New York                 NY10001USA2019-03-15
+00000102Maria               Garcia              maria.garcia@email.com                  305-555-0202   456 Ocean Drive                                   Miami                    FL33101USA2019-06-22
+00000103Robert              Johnson             robert.j@email.com                      312-555-0303   789 Michigan Ave                                  Chicago                  IL60601USA2020-01-10
+00000104Patricia            Brown               pat.brown@email.com                     415-555-0404   321 Market Street                                 San Francisco            CA94101USA2020-04-05
+00000105Michael             Smith               mike.smith@email.com                    617-555-0505   654 Beacon Street                                 Boston                   MA02101USA2020-08-18
+00000106Linda               Martinez            linda.m@email.com                       713-555-0606   987 Main Street                                   Houston                  TX77001USA2020-11-30
+00000107William             Anderson            will.anderson@email.com                 206-555-0707   147 Pine Street                                   Seattle                  WA98101USA2021-02-14
+00000108Elizabeth           Taylor              eliz.taylor@email.com                   303-555-0808   258 Broadway                                      Denver                   CO80201USA2021-05-20
+00000109David               Thomas              david.t@email.com                       602-555-0909   369 Camelback Rd                                  Phoenix                  AZ85001USA2021-07-04
+00000110Jennifer            Jackson             jen.jackson@email.com                   503-555-1010   482 Pioneer Square                                Portland                 OR97201USA2021-09-12
+00000999BAD_RECORD_TRUNCATED_HERE                     bad@email.com                              555-0000       123 Bad St                                        Bad City        
+00000111Richard             White               rich.white@email.com                    612-555-1111   591 Nicollet Mall                                 Minneapolis              MN55401USA2022-01-05
+00000112Barbara             Harris              barb.harris@email.com                   404-555-1212   705 Peachtree St                                  Atlanta                  GA30301USA2022-03-18
+00000113Joseph              Martin              joe.martin@email.com                    314-555-1313   813 Delmar Blvd                                   St. Louis                MO63101USA2022-06-25
+00000114Susan               Thompson            sue.thompson@email.com                  702-555-1414   927 Las Vegas Blvd                                Las Vegas                NV89101USA2022-08-07
+00000115Thomas              Garcia              tom.garcia@email.com                    210-555-1515   136 Alamo Plaza                                   San Antonio              TX78201USA2022-11-11
+00000116Margaret            Robinson            maggie.r@email.com                      801-555-1616   249 Temple Square                                 Salt Lake City           UT84101USA2023-01-22
+00000117Charles             Clark               chuck.clark@email.com                   504-555-1717   357 Bourbon Street                                New Orleans              LA70112USA2023-04-14
+00000118Dorothy             Lewis               dot.lewis@email.com                     215-555-1818   468 Liberty Bell                                  Philadelphia             PA19101USA2023-07-30
+00000119Christopher         Lee                 chris.lee@email.com                     510-555-1919   579 Telegraph Ave                                 Berkeley                 CA94701USA2023-10-05
+00000120Sandra              Walker              sandra.w@email.com                      202-555-2020   684 Capitol Hill                                  Washington               DC20001USA2024-01-15
+00000998Another             BadRec              another.bad@email.com                    555-9999       456 Trash Ave                                     Garbage                  ZZ00000USA2020-01-01EXTRA_GARBAGE_DATA_HERE
+00000121Daniel              Hall                dan.hall@email.com                      619-555-2121   795 Gaslamp Quarter                               San Diego                CA92101USA2024-04-20
+00000122Nancy               Allen               nancy.allen@email.com                   214-555-2222   801 Deep Ellum                                    Dallas                   TX75201USA2024-07-08
+00000123Paul                Young               paul.young@email.com                    813-555-2323   914 Ybor City                                     Tampa                    FL33601USA2024-09-16
+00000124Betty               King                betty.king@email.com                    916-555-2424   103 Old Sacramento                                Sacramento               CA95801USA2024-12-01
+00000125Mark                Wright              mark.wright@email.com                   571-555-2525   218 Clarendon Blvd                                Arlington                VA22201USA2025-02-28

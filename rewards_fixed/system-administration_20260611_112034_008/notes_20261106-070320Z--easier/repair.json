@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "Disconnect survival is graded by requiring sysinfod's immediate parent not to be a shell while the agent terminal is still connected, although the public task requires independence after disconnect and a nohup process can meet that requirement before reparenting occurs.",
+    "evidence": "tests/test_outputs.py checks immediate parentage, while instruction.md requires survival after disconnect; attempt-01.jsonl turn 10 replay passed the process, binary, and HTTP checks but failed only because its still-open launcher bash remained the parent.",
+    "change": "Replace the immediate-parent-only proxy with a terminal-independence check: accept non-shell parentage, or require ignored SIGHUP and standard streams detached from terminal devices while a shell remains the parent.",
+    "kind": "hidden_requirement"
+  }
+]

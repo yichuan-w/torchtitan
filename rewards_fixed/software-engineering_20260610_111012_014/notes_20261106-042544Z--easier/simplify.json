@@ -1,0 +1,168 @@
+{
+  "retained_skill": "Implement the Lua 5.1 virtual-machine execution decision: decode instructions and reproduce Lua register, control-flow, call, value, and print semantics from parsed bytecode rather than hardcoding a supplied program's output.",
+  "bottleneck": "All 12 scored attempts exhausted the time budget while reverse-engineering or debugging the standard binary-chunk parser, before they could validate an execution engine. Two reconstructed submissions existed but failed both output checks with syntax or indentation errors after repeated rewrites. The seed verifier also runs the interpreter on prog2.luac although the public instruction names only program.luac.",
+  "change": "Environment structural help: ship /app/luavm.py with a complete reusable Lua 5.1 binary-chunk parser and parsed prototype representation, removing the entire chunk-layout reverse-engineering stage (roughly turns 2 through each timeout). The student still designs and implements all instruction decoding and execution semantics. Instruction repair: state that the interpreter must run both supplied chunks. The original signal retained is running a supplied .luac file and observing the interpreter's output or runtime error.",
+  "restore": "For a harder version, remove the parser starter and the sentence saying parsing is prepared, while retaining the repaired requirement that both supplied chunks run through the same interpreter.",
+  "prediction": "The parser starter changes the next action from repeatedly guessing offsets and rewriting loaders to inspecting valid Proto objects and implementing the execution loop. Some attempts should finish because every current attempt spent nearly its whole run before that point; the prediction is refuted if attempts still spend most turns debugging chunk offsets or if none reaches observable bytecode execution on both chunks.",
+  "expected": "5 of 12",
+  "evidence": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turn": 10,
+      "observation": "First parser run misread the prototype and began repeated offset debugging; by turn 40 it was still retracing nested-prototype positions and timed out."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turn": 8,
+      "observation": "Parser/executor testing led to invalid opcode decoding; at turn 32 it was still trying alternate instruction start positions and timed out."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turn": 7,
+      "observation": "Header/parser verification failed and the attempt repeatedly rewrote/debugged it through turn 42, ending on a debug-script typo."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turn": 3,
+      "observation": "It incorrectly inferred the header layout, then scanned for plausible instruction boundaries through turn 22 instead of reaching execution."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turn": 11,
+      "observation": "Its first integrated parser/VM failed and it rewrote luavm.py repeatedly through turn 38. Replayed turn-by-turn on the seed image and graded: existence passed; program.luac and prog2.luac output checks both failed because the final file had IndentationError at line 158."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turn": 10,
+      "observation": "The parser produced no output and the attempt spent the remainder adding parser diagnostics, timing out at turn 37."
+    },
+    {
+      "attempt": "attempt-07.jsonl",
+      "turn": 10,
+      "observation": "Parsing failed before useful execution; by turn 39 it was still searching for instruction alignment around the constants."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turn": 8,
+      "observation": "The integrated implementation entered repeated structural and parsing fixes and timed out at turn 26 before valid execution."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turn": 12,
+      "observation": "The parser failed on chunk positions and the attempt was still reconsidering the prototype layout at turn 32."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turn": 9,
+      "observation": "Its parser indexed past data and prompted repeated loader rewrites. Replayed turn-by-turn on the seed image and graded: existence passed; both bytecode output checks failed because the final file had SyntaxError at line 124. After the rewrite, a fresh reset and replay of its initial inspect-then-implement approach immediately parsed program.luac as 98 instructions/15 constants/2 children and prog2.luac as 46 instructions/16 constants/0 children. Grading the unchanged starter passed existence but both retained output checks still failed only at the deliberately unimplemented execution stage."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turn": 14,
+      "observation": "Parser testing failed; turns 25-45 remained focused on source lengths and instruction alignment, ending while checking bit extraction."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turn": 15,
+      "observation": "Header parsing failed and the attempt spent through turn 40 manually locating constants and guessing structure rather than executing bytecode."
+    }
+  ],
+  "budget": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turns": [
+        2,
+        40
+      ],
+      "stage": "Chunk inspection, parser rewrites, and offset debugging; the shipped parser removes this stage."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turns": [
+        2,
+        32
+      ],
+      "stage": "Chunk inspection and invalid instruction-boundary debugging; the shipped parser removes this stage."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turns": [
+        2,
+        42
+      ],
+      "stage": "Header and prototype parser construction/debugging; the shipped parser removes this stage."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turns": [
+        2,
+        22
+      ],
+      "stage": "Header-layout inference and instruction-boundary scanning; the shipped parser removes this stage."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turns": [
+        2,
+        38
+      ],
+      "stage": "Integrated parser rewrites and parse-position diagnostics; the shipped parser removes this stage."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turns": [
+        2,
+        37
+      ],
+      "stage": "Chunk parser construction and no-output diagnostics; the shipped parser removes this stage."
+    },
+    {
+      "attempt": "attempt-07.jsonl",
+      "turns": [
+        2,
+        39
+      ],
+      "stage": "Chunk parsing and byte-alignment investigation; the shipped parser removes this stage."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turns": [
+        2,
+        26
+      ],
+      "stage": "Integrated parser construction and structural fixes; the shipped parser removes the parsing portion."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turns": [
+        2,
+        32
+      ],
+      "stage": "Binary layout inspection and parser-offset debugging; the shipped parser removes this stage."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turns": [
+        2,
+        25
+      ],
+      "stage": "Binary inspection and repeated loader rewrites; the shipped parser removes this stage."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turns": [
+        2,
+        45
+      ],
+      "stage": "Chunk parsing, position tracking, and alignment analysis; the shipped parser removes this stage."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turns": [
+        2,
+        40
+      ],
+      "stage": "Full dumps and manual prototype/constants layout inference; the shipped parser removes this stage."
+    }
+  ]
+}

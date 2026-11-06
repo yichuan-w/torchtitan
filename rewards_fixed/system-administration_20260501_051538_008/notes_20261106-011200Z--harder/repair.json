@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The instruction says sshd and all three internal services are already running, but a fresh sandbox starts none of them.",
+    "evidence": "traces/attempt-04.jsonl turns 11-13 manually starts /app/entrypoint.sh; fresh sandbox inspection likewise found no tunnel user or listeners.",
+    "change": "Run setup through an image entrypoint before executing the harness command, while keeping the existing service setup and task goal.",
+    "kind": "broken_setup"
+  }
+]

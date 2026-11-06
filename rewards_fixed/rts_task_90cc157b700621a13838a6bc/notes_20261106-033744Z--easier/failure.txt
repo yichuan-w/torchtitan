@@ -1,0 +1,80 @@
+f pip is available: [0m[31;49m23.0.1[0m[39;49m -> [0m[32;49m26.0.1[0m
+[1m[[0m[34;49mnotice[0m[1;39;49m][0m[39;49m To update, run: [0m[32;49mpip install --upgrade pip[0m
+Capturing package version...
+Version detected: 0.0.1
+Generating current environment index file...
+Current index written with 3 packages.
+Generating rebuild report by comparing stale and current indexes...
+Rebuild report created.
+All artifacts created and validated successfully.
+
+
+TT_REFERENCE_EXIT_5267910ee14946c88d07981915a4442a=0
+
+[?2004hroot@cbcad5dd-c5c0-4a16-9902-8a57ea4f5acd:/app# 
+
+--- verifier output (exit 0) ---
+Get:1 http://deb.debian.org/debian trixie InRelease [140 kB]
+Get:2 http://deb.debian.org/debian trixie-updates InRelease [47.3 kB]
+Get:3 http://deb.debian.org/debian-security trixie-security InRelease [43.4 kB]
+Get:4 http://deb.debian.org/debian trixie/main amd64 Packages [9678 kB]
+Get:5 http://deb.debian.org/debian trixie-updates/main amd64 Packages [1108 B]
+Get:6 http://deb.debian.org/debian-security trixie-security/main amd64 Packages [298 kB]
+Fetched 10.2 MB in 1s (14.4 MB/s)
+Reading package lists...
+Reading package lists...
+Building dependency tree...
+Reading state information...
+curl is already the newest version (8.14.1-2+deb13u7).
+0 upgraded, 0 newly installed, 0 to remove and 174 not upgraded.
+downloading uv 0.9.7 x86_64-unknown-linux-gnu
+no checksums to verify
+installing to /root/.local/bin
+  uv
+  uvx
+everything's installed!
+============================= test session starts ==============================
+platform linux -- Python 3.9.25, pytest-8.4.1, pluggy-1.6.0
+rootdir: /tests
+plugins: json-ctrf-0.3.5
+collected 9 items
+
+../tests/test_state.py ........F                                         [100%]
+
+=================================== FAILURES ===================================
+___________________________ test_wheel_and_metadata ____________________________
+
+    def test_wheel_and_metadata():
+        """Preserved check: exactly one valid wheel with correct metadata exists."""
+        info = _get_wheel_info()
+        assert info is not None, "No valid wheel found in ~/test/myutil."
+        _, pkg_name, pkg_version = info
+        assert pkg_name == "myutility_internal", (
+            f"Wheel package name is '{pkg_name}', expected 'myutility_internal'"
+        )
+        assert re.match(r"^\d+\.\d+(\.\d+)?", pkg_version), (
+            f"Wheel version '{pkg_version}' is not a semantic version"
+        )
+>       assert os.path.isfile(WHEEL_METADATA), f"Wheel metadata summary missing: {WHEEL_METADATA}"
+E       AssertionError: Wheel metadata summary missing: /root/test/myutil/wheel_metadata.txt
+E       assert False
+E        +  where False = <function isfile at 0x71a9fc62d160>('/root/test/myutil/wheel_metadata.txt')
+E        +    where <function isfile at 0x71a9fc62d160> = <module 'posixpath' from '/usr/local/lib/python3.9/posixpath.py'>.isfile
+E        +      where <module 'posixpath' from '/usr/local/lib/python3.9/posixpath.py'> = os.path
+
+/tests/test_state.py:274: AssertionError
+==================================== PASSES ====================================
+=========================== short test summary info ============================
+PASSED ../tests/test_state.py::test_venv_exists
+PASSED ../tests/test_state.py::test_server_accessible
+PASSED ../tests/test_state.py::test_package_installed_in_venv
+PASSED ../tests/test_state.py::test_result_version_matches_wheel
+PASSED ../tests/test_state.py::test_reward_check_01_required_evidence
+PASSED ../tests/test_state.py::test_reward_check_02_intermediate_artifact
+PASSED ../tests/test_state.py::test_reward_check_03_final_semantics
+PASSED ../tests/test_state.py::test_reward_check_04_no_shortcut
+FAILED ../tests/test_state.py::test_wheel_and_metadata - AssertionError: Whee...
+========================= 1 failed, 8 passed in 0.32s ==========================
+
+
+Fix the task so the reference solution scores 1.0, then check again. The container is still up: ./sandbox exec to look around.

@@ -1,0 +1,152 @@
+{
+  "retained_skill": "Tune an SVD collaborative-filtering model to satisfy a held-out RMSE target while controlling the factor-model size.",
+  "bottleneck": "All measured attempts first lose time installing and reconciling Python environments before repeatedly rewriting complete training scripts; 11 of 12 then use pandas plus Dataset.load_from_df, whose integer raw IDs the seed verifier unfairly evaluates with string IDs and reports as unknown-user predictions. Ten attempts exhaust the time budget, while attempt-08 locally reaches RMSE 0.913968 and 2.72 MB but is graded at RMSE 1.1303.",
+  "change": "Repair the verifier to evaluate the stated prediction behavior independent of whether CSV IDs entered Surprise as integers or strings. Add an environment-supplied starter training script that handles dependency resolution, CSV loading, the stated split, evaluation, and serialization, leaving its deliberately inadequate SVD configuration for the student to tune. This structural help is in the original workspace signal: the student runs and edits the training program, observes its RMSE and size, and still decides how to tune SVD. It removes the package-installation and whole-script-rewrite stage (typically turns 2 through 18, plus later rewrites) rather than adding a document to read.",
+  "restore": "A later hardening can remove the starter script and its two-sentence instruction passage, returning dependency setup, data loading, evaluation, and serialization to the student while leaving the SVD tuning contract unchanged.",
+  "prediction": "The change addresses installing pip/packages and recreating the complete pipeline before tuning. With those mechanics prepared, attempts can immediately run a baseline, vary SVD configuration, and save a loadable model; ID normalization then lets the grader recognize the same held-out quality they measured locally. This is refuted if attempts use the starter yet still spend most turns on setup, or if a locally qualifying starter-produced model still fails grader RMSE.",
+  "expected": "4 of 12",
+  "evidence": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turn": 4,
+      "observation": "First setup failure is `pip: command not found`; the attempt spends turns 4-9 on package setup, starts the full script at turn 10, repeatedly rewrites/tunes through turn 53, and times out. Seed diagnostics fail RMSE (1.1303) and size (3.1 MB)."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turn": 2,
+      "observation": "Package setup begins with missing pip and continues through apt/PEP 668 workarounds; it later compresses model.pkl, so replay evidence is the seed diagnostic: existence and size pass, but loadability and RMSE fail because gzip is not a pickle."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turn": 4,
+      "observation": "Begins failed package setup at turn 4 and later times out after tuning. Seed diagnostics report model existence and size pass but RMSE fails at 1.1303."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turn": 2,
+      "observation": "Begins failed package setup at turn 2, builds a pandas/load_from_df pipeline at turn 11, then times out while tuning. Seed diagnostics fail RMSE 1.1303 and size 3.1 MB."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turn": 3,
+      "observation": "Begins package setup at turn 3 and does not reach its pandas/load_from_df training script until turn 19; it times out during repeated tuning. Seed diagnostics fail RMSE 1.1303 and size 3.1 MB."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turn": 3,
+      "observation": "Begins package setup at turn 3 and reaches its pandas/load_from_df script at turn 18; it times out during tuning. Seed diagnostics fail RMSE 1.1303 and size 3.1 MB."
+    },
+    {
+      "attempt": "attempt-07.jsonl",
+      "turn": 4,
+      "observation": "Begins package setup at turn 4, writes the full pandas/load_from_df pipeline at turn 10, and times out tuning. Seed diagnostics fail RMSE 1.1303 and size 3.1 MB."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turn": 2,
+      "observation": "Replay on a fresh seed container restored its turn-33 approach and ran it with `uv run --with pandas --with scikit-surprise==1.1.5 python /app/train_model.py`; local output reached RMSE 0.913968 and 2.72 MB. `./sandbox grade` then passed existence, loadability, and size but failed only RMSE at 1.1303, demonstrating the integer/string raw-ID verifier defect. The trace had spent turns 2-18 resolving pip, apt, interpreter, pandas, and an initial script error before useful tuning. After editing, a fresh `./sandbox reset` followed by applying the same turn-33 tuning to the supplied starter, running `/app/train_model.py`, and `./sandbox grade` reaches RMSE 0.913968, 2.72 MB, and reward 1.0; setup work is gone and the repaired grader accepts it."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turn": 4,
+      "observation": "Begins package setup at turn 4, writes a pandas/load_from_df pipeline at turn 10, and times out tuning. Seed diagnostics fail RMSE 1.1303 and size 3.1 MB."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turn": 2,
+      "observation": "Starts package setup at turn 2 but never establishes the same usable training path; it times out. Seed diagnostics pass existence but fail loadability and RMSE, confirming mechanics did not lead to a valid model."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turn": 2,
+      "observation": "Begins package setup at turn 2, writes the pandas/load_from_df pipeline at turn 8, and times out tuning. Seed diagnostics fail RMSE 1.1303 and size at approximately 3.0 MB."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turn": 4,
+      "observation": "Replay on a fresh seed container restored the turn-42 script and ran it with `uv run --with pandas --with scikit-surprise==1.1.5 python /app/train_model.py`; it produced RMSE 1.0218 and 4.10 MB. `./sandbox grade` passed existence/loadability and failed RMSE 1.1303 plus size 4.1 MB. It had begun package setup at turn 4, reached its first full script at turn 10, and rewrote/reran configurations through turn 47 before timing out."
+    }
+  ],
+  "budget": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turns": [
+        4,
+        10
+      ],
+      "stage": "Package setup and writing the full pipeline; the starter removes both before tuning."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turns": [
+        4,
+        11
+      ],
+      "stage": "Package setup and full pipeline construction; the starter removes this pre-tuning stage."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turns": [
+        2,
+        11
+      ],
+      "stage": "Package setup and full pipeline construction; the starter removes this pre-tuning stage."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turns": [
+        3,
+        19
+      ],
+      "stage": "Package/interpreter setup before constructing the full pipeline; the starter removes it."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turns": [
+        3,
+        18
+      ],
+      "stage": "Package/interpreter setup before constructing the full pipeline; the starter removes it."
+    },
+    {
+      "attempt": "attempt-07.jsonl",
+      "turns": [
+        4,
+        10
+      ],
+      "stage": "Package setup and full pipeline construction; the starter removes it."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turns": [
+        4,
+        10
+      ],
+      "stage": "Package setup and full pipeline construction; the starter removes it."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turns": [
+        2,
+        40
+      ],
+      "stage": "Package/interpreter troubleshooting that never yields a valid trained model; the starter replaces that mechanics stage."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turns": [
+        2,
+        8
+      ],
+      "stage": "Package setup and full pipeline construction; the starter removes it."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turns": [
+        4,
+        10
+      ],
+      "stage": "Package setup and full pipeline construction; the starter removes it."
+    }
+  ]
+}

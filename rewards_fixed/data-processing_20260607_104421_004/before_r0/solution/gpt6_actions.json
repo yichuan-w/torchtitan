@@ -1,0 +1,79 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "ls -la /app\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "cat /app/normalize.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "head -50 /app/sales_export.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.3,
+    "keystrokes": "tail -n +50 /app/sales_export.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.3,
+    "keystrokes": "wc -l /app/sales_export.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.5,
+    "keystrokes": "cat > /app/normalize.py << 'EOF'\n#!/usr/bin/env python3\n\"\"\"Convert European-format sales CSV to US format.\"\"\"\n\nimport csv\nfrom datetime import datetime\n\n\ndef eur_to_us(s):\n    \"\"\"Convert European number to US format.\"\"\"\n    s = s.strip()\n    s = s.replace('.', '')\n    s = s.replace(',', '.')\n    return s\n\n\ndef parse_date(s):\n    \"\"\"Parse DD/MM/YYYY date.\"\"\"\n    s = s.strip()\n    dt = datetime.strptime(s, '%d/%m/%Y')\n    return dt.strftime('%Y-%m-%d')\n\n\ndef main():\n    records = []\n    with open('/app/sales_export.csv', 'r', newline='') as f:\n        reader = csv.reader(f, delimiter=';', quotechar='\"')\n        next(reader, None)  # skip header\n        for parts in reader:\n            if not parts:\n                continue\n            if parts[0].strip().startswith('#'):\n                continue\n            if len(parts) != 8:\n                continue\n\n            tid, date_str, customer, product, qty_str, up_str, ta_str, region = parts\n\n            tid = tid.strip()\n            if not tid:\n                continue\n\n            try:\n                date_iso = parse_date(date_str)\n                qty = int(float(eur_to_us(qty_str)))\n                up = float(eur_to_us(up_str))\n                ta = float(eur_to_us(ta_str))\n            except ValueError:\n                continue\n\n            records.append({\n                'TransactionID': tid,\n                'Date': date_iso,\n                'CustomerName': customer.strip(),\n                'ProductCode': product.strip(),\n                'Quantity': str(qty),\n                'UnitPrice': f'{up:.2f}',\n                'TotalAmount': f'{ta:.2f}',\n                'Region': region.strip(),\n            })\n\n    with open('/app/output.csv', 'w', newline='') as f:\n        writer = csv.DictWriter(f, fieldnames=[\n            'TransactionID', 'Date', 'CustomerName', 'ProductCode',\n            'Quantity', 'UnitPrice', 'TotalAmount', 'Region'\n        ])\n        writer.writeheader()\n        writer.writerows(records)\n\n\nif __name__ == '__main__':\n    main()\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.5,
+    "keystrokes": "python3 /app/normalize.py\n",
+    "duration": 2.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.5,
+    "keystrokes": "cat /app/output.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.5,
+    "keystrokes": "wc -l /app/output.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 2.8,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 2.8,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

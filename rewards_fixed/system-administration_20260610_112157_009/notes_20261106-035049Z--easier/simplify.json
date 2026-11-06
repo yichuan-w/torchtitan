@@ -1,0 +1,70 @@
+{
+  "retained_skill": "Use strace system-call evidence to diagnose and repair missing runtime environment dependencies for an unavailable-source binary.",
+  "bottleneck": "A hidden verifier requirement rejected an empty configuration even though the repaired binary produced the exact required OUT: output; all 12 scored attempts stopped only at this grading mismatch after successfully diagnosing both missing paths.",
+  "change": "Verifier repair only: remove the incidental requirement that processor.cfg literally contain prefix=. The student still must use the original runtime failure signal to identify and create the missing configuration file and data directory, so the retained diagnosis remains entirely with the student.",
+  "restore": "Restore the removed assertion that reads processor.cfg and requires the literal substring prefix=.",
+  "prediction": "The repair addresses the final grading action that rejected correct runtime behavior. Attempts that create the empty configuration and data directory can now submit after observing OUT: lines rather than needing to infer an unstated file-content rule; this is refuted if replay of such a state still fails any retained check.",
+  "expected": "12 of 12",
+  "evidence": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turn": 7,
+      "observation": "Replayed its commands with ./sandbox exec by removing both paths, creating /app/config/processor.cfg as an empty file and /app/data, and running the processor. Before the repair ./sandbox grade reported only test_config_file_exists failing because prefix= was absent; test_data_directory_exists, test_processor_runs, and test_processor_handles_empty_input all passed. After the repair replay grading passes all retained checks."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turn": 14,
+      "observation": "Replayed its submitted state with an empty processor.cfg, /app/data, and three input lines. The processor printed the required OUT: lines. Before the repair ./sandbox grade again reported only the prefix= content assertion failing, with all three retained checks passing."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turn": 7,
+      "observation": "The trace follows the same diagnosis, creates an empty processor.cfg and /app/data, and observes correct output; its first wrong point is submission against the unstated prefix= content requirement."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turn": 6,
+      "observation": "The trace creates both dependencies and observes correct multiline output and exit code 0; only the hidden config-content check remains."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turn": 6,
+      "observation": "The trace creates both dependencies and observes correct multiline output from an empty config; only the hidden config-content check remains."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turn": 11,
+      "observation": "The trace uses strace to discover both missing paths, creates an empty config and data directory, and observes correct output; only the hidden config-content check remains."
+    },
+    {
+      "attempt": "attempt-07.jsonl",
+      "turn": 8,
+      "observation": "The trace creates an empty config and data directory and verifies processor output; it first goes wrong by submitting without the unstated literal prefix= content."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turn": 6,
+      "observation": "The trace creates both runtime dependencies and verifies correct output; its empty config violates only the hidden assertion."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turn": 7,
+      "observation": "The trace diagnoses both paths, creates an empty config and data directory, and verifies output; submission fails only the hidden config-content condition."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turn": 12,
+      "observation": "The trace creates both missing environment objects and verifies correct processor behavior; it does not add the unstated prefix= literal."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turn": 8,
+      "observation": "The trace creates an empty config and data directory and observes correct multiline output, leaving only the hidden content assertion failing."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turn": 6,
+      "observation": "The trace creates both dependencies and verifies correct output and exit code 0; only the hidden prefix= assertion rejects its state."
+    }
+  ]
+}

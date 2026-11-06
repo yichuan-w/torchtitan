@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The task requires exact SBMF decoding, but the image omits the supplied format definition, leaving scalar semantics such as the negative-fixint encoding unavailable to the solver and checked only by the verifier.",
+    "evidence": "environment/files/format-spec.txt defines the checked format, while environment/Dockerfile copies parser.c, Makefile, and testdata but not that definition; attempts 01, 02, 04-08, and 10-12 consequently accepted semantically wrong scalar outputs as correct.",
+    "change": "Copy format-spec.txt into /app and name it in instruction.md as the format contract.",
+    "kind": "broken_setup"
+  }
+]

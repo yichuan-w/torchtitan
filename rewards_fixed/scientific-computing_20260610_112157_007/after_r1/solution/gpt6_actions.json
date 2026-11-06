@@ -1,0 +1,44 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "cat /app/simulation.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.2,
+    "keystrokes": "cd /app && python3 - <<'EOF'\np='simulation.py'\ns=open(p).read()\ns=s.replace('''        if nodes <= n_nodes:\n            E_right = E_mid\n        else:\n            E_left = E_mid\n''','''        if nodes <= n_nodes:\n            E_left = E_mid\n        else:\n            E_right = E_mid\n''')\nopen(p,'w').write(s)\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.4,
+    "keystrokes": "python3 /app/simulation.py\n",
+    "duration": 8.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 8.5,
+    "keystrokes": "python3 - <<'EOF'\nimport json, numpy as np\nr=json.load(open('/app/results.json'))\nx=np.array(r['x'])\nprint('energies:',r['energies'])\nfor wf in r['wavefunctions']:\n print('norm:',np.trapezoid(np.array(wf)**2,x))\nEOF\n",
+    "duration": 2.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 10.6,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 10.6,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

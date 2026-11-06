@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The public instruction says the application crashes on startup when PostgreSQL and Redis are not ready, but the shipped application performs no dependency access during startup.",
+    "evidence": "traces/attempt-01.jsonl turns 20-26 uses priority ordering and unsupported depends_on keys yet starts successfully; all 12 attempts received reward 1.",
+    "change": "Make the shipped Redis service require authentication and make the application and worker accept a Redis password from their managed environments, so an incomplete dependency configuration produces the stated startup/health failure.",
+    "kind": "broken_setup"
+  }
+]

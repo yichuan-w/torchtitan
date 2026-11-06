@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The verifier requires the saved model to infer on one sample, but the public instruction did not state that deployment behavior.",
+    "evidence": "traces/attempt-04.jsonl turns 19-25 trained, saved, and checked only the checkpoint file while receiving full reward.",
+    "change": "State that the loaded saved model must support one-sample inference in evaluation mode.",
+    "kind": "hidden_requirement"
+  }
+]

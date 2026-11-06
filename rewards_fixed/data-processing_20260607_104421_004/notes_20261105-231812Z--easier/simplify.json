@@ -1,0 +1,70 @@
+{
+  "retained_skill": "Diagnose and repair a CSV normalization program so it robustly parses locale-specific sales data, rejects unusable records, and emits normalized records.",
+  "bottleneck": "The verifier enforced an unstated output contract. Seven attempts (03-08 and 11) produced all correct records in the correct order but used ordinary float strings such as 45.5 instead of fixed two-decimal money; five others also guessed differently about parsing, filtering, or sorting.",
+  "change": "Repair hidden requirements in the instruction, the earliest available help location: state the output semantics and fixed-decimal contract without giving implementation steps or computed output. The student still must diagnose and implement normalization, while the original observable signals in the input (quoted delimiters, malformed rows, locale-formatted values) remain the cues to act on.",
+  "restore": "A later hardening can remove the added contract paragraph once a discoverable specification is supplied elsewhere; it must not restore the original mismatch where grading enforces undocumented semantics.",
+  "prediction": "Attempts currently stop after seeing plausible output and submit str(float) monetary values because no stated requirement tells them that representation is wrong. Stating fixed two-decimal money and the other output semantics enables them to validate and format their output before submission; this is refuted if near-pass approaches still emit 45.5/120.0 or if fewer than three of twelve solve.",
+  "expected": "7 of 12",
+  "evidence": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turn": 5,
+      "observation": "First wrong final rewrite retains rows with missing transaction IDs, does not sort, and writes float strings; grading failed row count, values, sorting, invalid-row exclusion, and number formatting."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turn": 5,
+      "observation": "First wrong final rewrite continues splitting raw lines on semicolons, losing valid quoted-name rows, and writes float strings. Fresh-state replay restored this submitted file and grading failed row count, values, specific values, invalid-row exclusion, and number formatting."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turn": 8,
+      "observation": "Final rewrite correctly uses csv.reader, filters incomplete records, and sorts, but writes monetary float strings. Fresh-state replay restored this submitted file and grading failed only output value equality and number formatting. After the instruction repair, a fresh reset replayed the same approach through the targeted fixed-decimal change; grading passed all eight checks."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turn": 9,
+      "observation": "Final rewrite reaches correct row selection and ordering but first remains wrong at monetary str(float); diagnostics fail only values and number formatting."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turn": 7,
+      "observation": "Final rewrite first remains wrong at monetary str(float); diagnostics fail only values and number formatting."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turn": 5,
+      "observation": "Submitted normalization handles parsing and row selection; diagnostics reject only monetary value representation and number formatting."
+    },
+    {
+      "attempt": "attempt-07.jsonl",
+      "turn": 6,
+      "observation": "Submitted normalization reaches all semantic checks but writes non-fixed float strings; diagnostics fail only values and number formatting."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turn": 5,
+      "observation": "Submitted normalization reaches all semantic checks but writes non-fixed float strings; diagnostics fail only values and number formatting."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turn": 5,
+      "observation": "Final rewrite first remains wrong in incomplete-record filtering and fixed-decimal formatting; diagnostics fail row count, values, and number formatting."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turn": 8,
+      "observation": "Final rewrite still retains extra incomplete records and uses float strings; diagnostics fail row count, values, and number formatting."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turn": 11,
+      "observation": "Final rewrite correctly parses, filters, and orders records but writes monetary float strings; diagnostics fail only values and number formatting."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turn": 4,
+      "observation": "Final rewrite retains empty-date records, does not sort, and writes float strings; diagnostics fail row count, values, sorting, invalid-row exclusion, and number formatting."
+    }
+  ]
+}

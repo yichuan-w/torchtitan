@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The instruction says the VM is run as ./vm program.bin, but the supplied /app/vm has mode 0664 and cannot execute in a fresh image.",
+    "evidence": "environment/files/vm has mode 0664 while instruction.md documents direct execution; all 12 traces manually chmod the VM (attempt-01 turn 13, attempt-02 turn 12, attempt-03 turn 11, attempt-04 turn 13, attempt-05 turn 13, attempt-06 turn 12, attempt-07 turn 3, attempt-08 turn 13, attempt-09 turn 12, attempt-10 turn 12, attempt-11 turn 7, attempt-12 turn 13). A fresh reset reproduced PermissionError in grading.",
+    "change": "Set executable permission on /app/vm in the image after COPY.",
+    "kind": "broken_setup"
+  }
+]

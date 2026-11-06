@@ -1,0 +1,149 @@
+[
+  {
+    "step_id": 3,
+    "offset_sec": 0.0,
+    "keystrokes": "ls -la /app\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.0,
+    "keystrokes": "file /app/disk.img\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.0,
+    "keystrokes": "which fls fsstat icat istat mmls fdisk parted testdisk photorec foremost scalpel 2>/dev/null\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.3,
+    "keystrokes": "xxd -g1 -l 512 /app/disk.img\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.3,
+    "keystrokes": "strings -a -t x /app/disk.img | head -200\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 0.5,
+    "keystrokes": "python3 -c 'b=open(\"/app/disk.img\",\"rb\").read(512); print(\"bytes/sector\", int.from_bytes(b[11:13],\"little\")); print(\"sectors/cluster\", b[13]); print(\"reserved\", int.from_bytes(b[14:16],\"little\")); print(\"fats\", b[16]); print(\"root entries\", int.from_bytes(b[17:19],\"little\")); print(\"total16\", int.from_bytes(b[19:21],\"little\")); print(\"media\", hex(b[21])); print(\"fat size\", int.from_bytes(b[22:24],\"little\")); print(\"sectors/track\", int.from_bytes(b[24:26],\"little\")); print(\"heads\", int.from_bytes(b[26:28],\"little\")); print(\"hidden\", int.from_bytes(b[28:32],\"little\")); print(\"total32\", int.from_bytes(b[32:36],\"little\")); print(\"sig\", b[510:512].hex())'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 0.5,
+    "keystrokes": "od -Ax -tx1z -N512 /app/disk.img\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 0.7,
+    "keystrokes": "python3 -c \"d=open('/app/disk.img','rb').read(); b=68*512; [print(i, hex(e[0]), e[:11], hex(e[11]), int.from_bytes(e[26:28],'little'), int.from_bytes(e[28:32],'little'), e.hex()) for i in range(512) for e in [d[b+i*32:b+i*32+32]] if e[0] or any(e[1:])]\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 13,
+    "offset_sec": 0.8,
+    "keystrokes": "python3 - <<'PY'\nD=open('/app/disk.img','rb').read()\nbs=512; spc=4; reserved=4; fats=2; root_entries=512; fat_secs=32\nfat_off=reserved*bs\nroot_off=(reserved+fats*fat_secs)*bs\ndata_off=(reserved+fats*fat_secs+(root_entries*32+bs-1)//bs)*bs\n\ndef fat(c):\n    off=fat_off+c*2\n    return int.from_bytes(D[off:off+2],'little')\n\ndef chain(c,maxn=1000):\n    out=[]; seen=set()\n    while c in range(2,0xfff8) and c not in seen and len(out)<maxn:\n        out.append(c); seen.add(c)\n        n=fat(c)\n        if n in (0xffff,0xfff7): break\n        c=n\n    return out\n\ndef dump_dir(label,start_cluster=None,root=False):\n    print('\\n===',label,'===')\n    clusters=[None] if root else chain(start_cluster)\n    if not root and not clusters:\n        clusters=[start_cluster]\n    for c in clusters:\n        base=root_off if root else data_off+(c-2)*spc*bs\n        for i in range(spc*bs//32):\n            e=D[base+i*32:base+i*32+32]\n            if len(e)<32 or e[0]==0:\n                continue\n            attr=e[11]\n            if e[0]==0xe5 or e[0]==0x05 or not (attr & 0x08):\n                name=e[:11]\n                clus=int.from_bytes(e[26:28],'little')\n                size=int.from_bytes(e[28:32],'little')\n                nxt=fat(clus) if clus in range(2,0xfff8) and not root else ''\n                print('clu',c if c is not None else 'ROOT','idx',i,'first',format(e[0],'02x'),'attr',format(attr,'02x'),'name',repr(name),'start',clus,'size',size,'fatnext',nxt,'raw',e.hex())\n    return clusters\n\ndump_dir('ROOT',root=True)\nprint('project chain',dump_dir('PROJECT cluster2',2))\nprint('backup chain',dump_dir('BACKUP cluster5',5))\nfor c in range(2,15):\n    print('fat',c,hex(fat(c)))\nPY\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 16,
+    "offset_sec": 0.9,
+    "keystrokes": "python3 - <<'PY'\nD=open('/app/disk.img','rb').read()\nbs=512; spc=4; reserved=4; fats=2; root_entries=512; fat_secs=32\nroot_off=(reserved+fats*fat_secs)*bs\ndata_off=(reserved+fats*fat_secs+(root_entries*32+bs-1)//bs)*bs\n\ndef name(e):\n    a=e[:8].rstrip(b' ').decode('latin1','replace')\n    b=e[8:11].rstrip(b' ').decode('latin1','replace')\n    return a+('.'+b if b else '')\n\ndef walk(base,label,seen):\n    print('=== '+label+' ===')\n    for i in range(512//32 if base==root_off else spc*bs//32):\n        e=D[base+i*32:base+i*32+32]\n        if len(e)!=32 or e[0]==0:\n            continue\n        attr=e[11]\n        if (attr & 0x0f)==0x0f:\n            print('LFN', label, i, e.hex())\n            continue\n        nm=name(e); st=int.from_bytes(e[26:28],'little'); sz=int.from_bytes(e[28:32],'little')\n        kind='DIR' if attr & 0x10 else 'FILE'\n        print(('DEL ' if e[0]==0xe5 else '    ')+kind+' '+repr(nm)+' start='+str(st)+' size='+str(sz)+' attr='+format(attr,'02x'))\n        if (attr & 0x10) and nm not in ('.','..') and e[0]!=0xe5 and st not in seen:\n            seen.add(st)\n            walk(data_off+(st-2)*spc*bs,label+'/'+nm,seen)\n\nwalk(root_off,'ROOT',set())\nPY\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 21,
+    "offset_sec": 1.0,
+    "keystrokes": "python3 -c \"D=open('/app/disk.img','rb').read(); base=51200; items=[('ROOT/?OTES.TXT',7,108),('ROOT/?ONFIG.DAT',8,24),('PROJECT/?ECRET.TXT',11,74),('BUILD/?OG.TXT',13,8500),('DOCS/?EAD_DEV.TXT',18,57),('BACKUP/?OTEBACK.TXT',19,55)]; [print('--- '+n+' cluster='+str(c)+' size='+str(s)+' ---\\n'+repr(D[base+(c-2)*2048:base+(c-2)*2048+min(s,160)])) for n,c,s in items]\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 22,
+    "offset_sec": 1.1,
+    "keystrokes": "mkdir -p /app/recovered\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 22,
+    "offset_sec": 1.1,
+    "keystrokes": "python3 - <<'PY'\nimport os\nD=open('/app/disk.img','rb').read()\nbs=512; spc=4; reserved=4; fats=2; root_entries=512; fat_secs=32\ndata_off=(reserved+fats*fat_secs+(root_entries*32+bs-1)//bs)*bs\nout='/app/recovered'\nitems=[\n ('NOTES.TXT',      7, 108),\n ('CONFIG.DAT',     8,  24),\n ('SECRET.TXT',    11,  74),\n ('LOG.TXT',       13,8500),\n ('READ_DEV.TXT',  18,  57),\n ('NOTEBACK.TXT',  19,  55),\n]\nfor name,cluster,size in items:\n    off=data_off+(cluster-2)*spc*bs\n    data=D[off:off+size]\n    assert len(data)==size, (name,len(data),size)\n    path=os.path.join(out,name)\n    open(path,'wb').write(data)\n    print('wrote',path,size)\nPY\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 22,
+    "offset_sec": 1.1,
+    "keystrokes": "ls -la /app/recovered\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 22,
+    "offset_sec": 1.1,
+    "keystrokes": "python3 -c \"d=open('/app/recovered/LOG.TXT','rb').read(); print('LOG size',len(d)); [print('offset',i,'next',repr(d[i-20:i+20])) for i in (0,2048,4096,6144,8192)]\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 25,
+    "offset_sec": 1.5,
+    "keystrokes": "ls -la /app/recovered\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 25,
+    "offset_sec": 1.6,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 27,
+    "offset_sec": 1.6,
+    "keystrokes": "python3 - <<'PY'\nD=open('/app/disk.img','rb').read()\nbs=512; spc=4; reserved=4; fats=2; root_entries=512; fat_secs=32\nroot_off=(reserved+fats*fat_secs)*bs\ndata_off=(reserved+fats*fat_secs+(root_entries*32+bs-1)//bs)*bs\nmax_cluster=(len(D)-data_off)//(spc*bs)\nprint('data_off',hex(data_off),'max_cluster',max_cluster)\n\ndef plausible(attr,start,size):\n    return ((attr & 0xC0)==0) and attr!=0x0F and attr!=0x08 and (start in range(2,max_cluster+2)) and (size in range(0,20000000))\n\nc=[]\nfor i in range(root_entries):\n    e=D[root_off+i*32:root_off+i*32+32]\n    if len(e)==32 and e[0]==0xE5 and plausible(e[11],int.from_bytes(e[26:28],'little'),int.from_bytes(e[28:32],'little')):\n        c.append(('ROOT',i,e,int.from_bytes(e[26:28],'little'),int.from_bytes(e[28:32],'little')))\nfor clu in range(2,max_cluster+2):\n    base=data_off+(clu-2)*spc*bs\n    for i in range((spc*bs)//32):\n        e=D[base+i*32:base+i*32+32]\n        if e[0]==0xE5 and plausible(e[11],int.from_bytes(e[26:28],'little'),int.from_bytes(e[28:32],'little')):\n            c.append((str(clu),i,e,int.from_bytes(e[26:28],'little'),int.from_bytes(e[28:32],'little')))\nprint('plausible deleted entry candidates:',len(c))\nfor loc,i,e,start,size in c:\n    print('loc',loc,'idx',i,'name',e[:11],'attr',hex(e[11]),'start',start,'size',size,'raw',e.hex())\nPY\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 28,
+    "offset_sec": 1.7,
+    "keystrokes": "ls -la /app/recovered\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 28,
+    "offset_sec": 1.8,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 29,
+    "offset_sec": 1.8,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

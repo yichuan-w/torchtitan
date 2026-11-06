@@ -1,0 +1,70 @@
+{
+  "retained_skill": "Designing a frame-level anomaly detector that distinguishes corrupted frames from intact animation frames, then using those detections to drive temporal interpolation.",
+  "bottleneck": "The public description emphasizes random noise, color blocks, and horizontal streaks, but the supplied video corruption instead preserves broad frame statistics while disrupting local spatial continuity. All 12 scored attempts first choose ineffective frame-level features or thresholds: nine initially detect no corruption and three initially overflag 50-102 frames. Several later converge on the obvious high-frequency cases but still miss the subtle corrupted frame 265.",
+  "change": "Repair the task description in the instruction, the earliest help location, by replacing the misleading visual-garbage examples with a vague direction to focus detection on disrupted local spatial continuity rather than broad color statistics. This changes no fixture, output, or workflow and leaves the student responsible for selecting and implementing the detector. The original signal retained is the anomalous local structure in corrupted video frames.",
+  "restore": "For a later hardening, restore the original first-paragraph description and remove the standalone sentence directing attention from broad statistics to local spatial continuity; no code, fixture, or verifier change is needed.",
+  "prediction": "Attempts that currently stop after global statistics, temporal difference, or a coarse Laplacian-variance cutoff will instead inspect local spatial discontinuities and include subtle corruption such as the case their current detectors miss, while some attempts will still choose weak thresholds or overflag normal motion. This is refuted if the next group still reports zero detections or the same 13-frame near miss despite using the repaired description.",
+  "expected": "4 of 12",
+  "evidence": [
+    {
+      "attempt": "attempt-01.jsonl",
+      "turn": 5,
+      "observation": "First run found 0 frames; after diagnostics it used a coarse Laplacian-variance cutoff and submitted 13. Replayed final turn-10 script with `./sandbox reset`, restored its heredoc, ran it, then ran `./sandbox grade`: failed corrupted JSON content and corrupted-frame repair, both because frame 265 was omitted; the other six checks passed. After editing, repeated this approach from a fresh `./sandbox reset`: it now meets the clarified local-continuity cue but unchanged code still fails those same two checks at frame 265, confirming the rewrite targets its failing detector decision rather than mechanically making the old submission pass."
+    },
+    {
+      "attempt": "attempt-02.jsonl",
+      "turn": 5,
+      "observation": "First run found 0; repeated global-statistic and reconstruction experiments reached inconsistent 0-79-frame sets and the attempt hit the time budget before submission."
+    },
+    {
+      "attempt": "attempt-03.jsonl",
+      "turn": 5,
+      "observation": "First detector found 0; later Laplacian-based revisions reached only 13 candidates and the submitted detector remained centered on coarse edge statistics."
+    },
+    {
+      "attempt": "attempt-04.jsonl",
+      "turn": 11,
+      "observation": "First run detected 0; after many feature experiments the final run found 12 obvious frames, still omitting subtle corruption."
+    },
+    {
+      "attempt": "attempt-05.jsonl",
+      "turn": 5,
+      "observation": "First run detected 0; later broad anomaly combinations overflagged 32 frames."
+    },
+    {
+      "attempt": "attempt-06.jsonl",
+      "turn": 5,
+      "observation": "First run produced an empty corrupted list; later thresholds overflagged 48 frames."
+    },
+    {
+      "attempt": "attempt-07.jsonl",
+      "turn": 4,
+      "observation": "Its first completed detector overflagged 50 frames, showing feature discrimination rather than output mechanics was the first failure."
+    },
+    {
+      "attempt": "attempt-08.jsonl",
+      "turn": 6,
+      "observation": "Its first completed detector overflagged 102 frames and it submitted that result."
+    },
+    {
+      "attempt": "attempt-09.jsonl",
+      "turn": 9,
+      "observation": "Initial detector found 0; extensive retries ranged from 0 to 112 and the final script overflagged 66."
+    },
+    {
+      "attempt": "attempt-10.jsonl",
+      "turn": 5,
+      "observation": "Initial detector found 0; it briefly isolated frame 265's neighborhood but failed to combine that local clue with the other corruption and ended sandbox_failed."
+    },
+    {
+      "attempt": "attempt-11.jsonl",
+      "turn": 5,
+      "observation": "Initial detector found 0; it spent the remaining run tuning broad metrics and hit the time budget after identifying only 11 candidates."
+    },
+    {
+      "attempt": "attempt-12.jsonl",
+      "turn": 4,
+      "observation": "First detector overflagged 64 frames. Replayed final turn-5 script after a fresh reset and ran `./sandbox grade`: failed corrupted JSON content and corrupted-frame repair due to 13 missed corruptions plus many false positives; six artifact/shape/playability checks passed."
+    }
+  ]
+}
