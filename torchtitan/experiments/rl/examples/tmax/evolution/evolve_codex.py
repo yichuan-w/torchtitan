@@ -2639,6 +2639,32 @@ specifies. The caller replays every script in a fresh Daytona environment before
 accepting your verifier; each wrong script must execute successfully and then
 fail grading."""
 
+# EVOLVE_INHERITED_TESTS_DIR=1 (default off), for every blind verifier, easier
+# and harder: in 3 of 1030c's 28 easier regressions the author, told only of
+# `tests/test.sh`, looked for the test module test.sh runs at the container's
+# /tests (empty until grade uploads tests/), never read the package's
+# tests/test_outputs.py, and wrote the verifier from scratch. Its own flag, so
+# EVOLVE_EASIER_KEEP_CHECKS stays attributed to the easier-only wording.
+_JOB_VERIFIER_AT = """the previous revision's
+verifier at `{verifier_rel}` -- the one the task had before this change, not a
+draft by whoever changed the task."""
+_JOB_VERIFIER_AT_DIR = """the previous revision's
+verifier -- the one the task had before this change, not a draft by whoever
+changed the task: every file under this package's `tests/`, `{verifier_rel}`
+and what it runs or reads there (such as `tests/test_outputs.py`). Read them
+here in the package; the container's `/tests` is empty until `./sandbox grade`
+copies `tests/` in."""
+
+
+def _verifier_job() -> str:
+    """_VERIFIER_JOB, with EVOLVE_INHERITED_TESTS_DIR's statement of where the
+    inherited verifier lives."""
+    if os.environ.get("EVOLVE_INHERITED_TESTS_DIR", "0") != "1":
+        return _VERIFIER_JOB
+    assert _VERIFIER_JOB.count(_JOB_VERIFIER_AT) == 1
+    return _VERIFIER_JOB.replace(_JOB_VERIFIER_AT, _JOB_VERIFIER_AT_DIR)
+
+
 _VERIFIER_REPAIR_JOB = """The verifier you wrote does not agree with the task's reference solution, which
 you cannot see: the caller ran that solution in a fresh container (exit
 {exit_code}) and graded it with your verifier, and it failed. The run's output
@@ -3369,14 +3395,27 @@ _CHANGE_NOTE_SCOPE = (
 )
 _CHANGE_NOTE_SCOPE_KEEP = (
     _CHANGE_NOTE_SCOPE
-    + "A removed or reworded sentence removes a requirement only when the "
-    "revised instruction no longer states it anywhere. Work the revision now "
+    + "A requirement counts as removed only where this diff removes or narrows "
+    "it and no unchanged sentence still states it. Work the revision now "
     "supplies -- a starter, a finished stage, an installed dependency -- is still "
     "graded wherever the instruction asks for the result it produces or says to "
     "keep, preserve or leave it working: the student can still break it, so its "
     "inherited checks stay at their strictness. Where an inherited check of work "
     "the revision removed also rejects a shortcut to a requirement that remains, "
     "keep that part of it. "
+)
+
+# The sentence 1030c's easier regressions cite most (10 of 28): it let a changed
+# sentence override an unchanged one that still states the requirement.
+_CHANGE_NOTE_CONFLICT = (
+    "Where an unchanged sentence still reads the old way, "
+    "the changed sentence states the narrowed scope; check that scope, and name "
+    "the conflict in run/verifier-changes.md. "
+)
+_CHANGE_NOTE_CONFLICT_KEEP = (
+    "Where an unchanged sentence still states a requirement, that requirement "
+    "stands and its inherited check stays; name the conflict with the changed "
+    "sentence in run/verifier-changes.md instead of narrowing the check. "
 )
 
 
@@ -3404,10 +3443,12 @@ def _instruction_change_note(
         "\nThe public instruction changed in this revision:\n\n```diff\n"
         + diff
         + "```\n\n"
-        + (_CHANGE_NOTE_SCOPE_KEEP if keep_checks else _CHANGE_NOTE_SCOPE)
-        + "Where an unchanged sentence still reads the old way, "
-        "the changed sentence states the narrowed scope; check that scope, and name "
-        "the conflict in run/verifier-changes.md. A removed sentence that only fixed "
+        + (
+            _CHANGE_NOTE_SCOPE_KEEP + _CHANGE_NOTE_CONFLICT_KEEP
+            if keep_checks
+            else _CHANGE_NOTE_SCOPE + _CHANGE_NOTE_CONFLICT
+        )
+        + "A removed sentence that only fixed "
         "how the expected values are computed (a window, a convention) removes no "
         "requirement, and its inherited bounds stay as they are.\n"
     )
@@ -3461,7 +3502,7 @@ def _blind_verifier(
             if keep_checks:
                 (vpkg / "AGENTS.md").write_text(_keep_checks_spec())
             _restore_seed_tests(vpkg, seed_tests)
-            prompt = _VERIFIER_JOB.format(
+            prompt = _verifier_job().format(
                 verifier_rel=seed_rel,
                 seed_asserts=seed_size["verifier_asserts"],
                 max_asserts=ts.MAX_ADDED_ASSERTS,
@@ -3937,19 +3978,27 @@ def _reported_defects(pkg: Path, vpkg: Path) -> str:
         "\n\nREPORTED DEFECTS. `run/reported-defects.json` lists defects the "
         "task's author found in the inherited task, each with evidence from the "
         "student's attempts. Where one says an inherited check rejects an answer "
-        "the instruction permits, judge that against the instruction yourself: if "
-        "the instruction permits the answer, correct the check so it accepts it "
-        "while still checking the required content -- "
+        "the instruction permits, judge that against the instruction yourself: "
         + (_REPORTED_KEEP if _keeps_checks(vpkg) else _REPORTED_WIDENING)
-        + "; if it does not, keep the check. Either "
+        + " Either "
         "way, record your decision on each in `run/verifier-changes.md`.\n"
     )
 
 
-_REPORTED_WIDENING = "the bound was never the task's, so this is not widening"
+_REPORTED_WIDENING = (
+    "if the instruction permits the answer, correct the check so it accepts it "
+    "while still checking the required content -- the bound was never the "
+    "task's, so this is not widening; if it does not, keep the check."
+)
+# 1030c: all 7 easier regressions this note drove deleted the check, or swapped
+# in one that no longer tells the required content apart.
 _REPORTED_KEEP = (
-    "change only what rejects that answer, so every answer the inherited check "
-    "rejected that the instruction still does not permit stays rejected"
+    "if the instruction does not permit the answer, keep the check. If it does, "
+    "change only the part of the check that rejects that answer. Deleting the "
+    "check, or replacing it with one that no longer tells the required content "
+    "apart (a process still alive after 2 s, a few pixels), does not fix the "
+    "defect; where no check that tells it apart can be written, keep the "
+    "original check and say why."
 )
 
 
