@@ -11,10 +11,10 @@
     "groups": 3
    },
    "expect": {
-    "worth": true,
-    "category": "meaningful"
+    "worth": false,
+    "category": "unstated_requirement"
    },
-   "source": "#324 item 5: the new revision's successes check SAN and test with --cacert"
+   "source": "#324 item 5: the new revision's successes check SAN and test with --cacert; label per EVOLVE_BENCH.md Standard (3e94bc50): not worth it, the grader's pinned urllib3 is not stated"
   },
   {
    "name": "lz4",
@@ -26,10 +26,10 @@
     "groups": 3
    },
    "expect": {
-    "worth": true,
-    "category": "meaningful"
+    "worth": false,
+    "category": "off_target"
    },
-   "source": "#324: 35 of 39 successes use rpath or LD_LIBRARY_PATH; 3 replace the system library"
+   "source": "#324: 35 of 39 successes use rpath or LD_LIBRARY_PATH; 3 replace the system library; label per EVOLVE_BENCH.md Standard (3e94bc50): not worth it, failures already load 1.10.0 at runtime"
   },
   {
    "name": "task_001320-rev2",
@@ -561,6 +561,192 @@
     "category": null
    },
    "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud"
+  },
+  {
+   "name": "A1-scientific-computing_20260508_180627_004-cand",
+   "group": "candidate13",
+   "root": "bench/arms/evb122b-h50--b50c-A1-r1",
+   "task": "scientific-computing_20260508_180627_004",
+   "rewrite": "20261105-193218Z--harder",
+   "after": {
+    "evals": [
+     "bench/combo/evals/20261105-200219Z--base-Qwen3.5-122B-A10B-step0-combo1",
+     "bench/combo/evals/20261105-222043Z--base-Qwen3.5-122B-A10B-step0-combo2"
+    ],
+    "label": "A1__{task}"
+   },
+   "expect": {
+    "worth": true,
+    "category": "meaningful"
+   },
+   "source": "#319 6694518301 (Andy's labels on the 13 candidates of 6694392442): 4 failures only on the overlapping-CDS check (11..13 N->S); 5 of 7 successes check 11..13 explicitly; audit clean"
+  },
+  {
+   "name": "A2-machine-learning_20260508_045740_002-cand",
+   "group": "candidate13",
+   "root": "bench/arms/evb122b-h50--b50c-A2-r1",
+   "task": "machine-learning_20260508_045740_002",
+   "rewrite": "20261105-191751Z--harder",
+   "after": {
+    "evals": [
+     "bench/combo/evals/20261105-200219Z--base-Qwen3.5-122B-A10B-step0-combo1",
+     "bench/combo/evals/20261105-222043Z--base-Qwen3.5-122B-A10B-step0-combo2"
+    ],
+    "label": "A2__{task}"
+   },
+   "expect": {
+    "worth": true,
+    "category": "meaningful"
+   },
+   "source": "#319 6694518301 (Andy's labels on the 13 candidates of 6694392442): 5 failures all on test_expected_utility; all 7 successes use exponential tilting (~0.430687); audit clean"
+  },
+  {
+   "name": "PC-conan-io__conan.86f29e13.func_pm_remove_assign__vt2zl5s6-cand",
+   "group": "candidate13",
+   "root": "bench/arms/evb122b-h50--b50c-PC-r1",
+   "task": "conan-io__conan.86f29e13.func_pm_remove_assign__vt2zl5s6",
+   "rewrite": "20261105-191804Z--harder",
+   "after": {
+    "evals": [
+     "bench/combo/evals/20261105-200219Z--base-Qwen3.5-122B-A10B-step0-combo1",
+     "bench/combo/evals/20261105-222043Z--base-Qwen3.5-122B-A10B-step0-combo2"
+    ],
+    "label": "PC__{task}"
+   },
+   "expect": {
+    "worth": true,
+    "category": "meaningful"
+   },
+   "source": "#319 6694518301 (Andy's labels on the 13 candidates of 6694392442): 8 failures all on the new m4 check; 4 successes switch to i686; audit clean"
+  },
+  {
+   "name": "PC-burnash__gspread.a8be3b96.func_pm_ctrl_shuffle__o621cgb3-cand",
+   "group": "candidate13",
+   "root": "bench/arms/evb122b-h50--b50c-PC-r1",
+   "task": "burnash__gspread.a8be3b96.func_pm_ctrl_shuffle__o621cgb3",
+   "rewrite": "20261105-191804Z--harder",
+   "after": {
+    "evals": [
+     "bench/combo/evals/20261105-200219Z--base-Qwen3.5-122B-A10B-step0-combo1",
+     "bench/combo/evals/20261105-222043Z--base-Qwen3.5-122B-A10B-step0-combo2"
+    ],
+    "label": "PC__{task}"
+   },
+   "expect": {
+    "worth": true,
+    "category": "meaningful"
+   },
+   "source": "#319 6694518301 (Andy's labels on the 13 candidates of 6694392442): 9 failures all on the new test; 3 successes use fullmatch; audit WEAK with no defects (instruction states the property, not the function or method)"
+  },
+  {
+   "name": "A1-model-training_20260413_174325_003-cand",
+   "group": "candidate13",
+   "root": "bench/arms/evb122b-h50--b50c-A1-r1",
+   "task": "model-training_20260413_174325_003",
+   "rewrite": "20261105-191751Z--harder",
+   "after": {
+    "evals": [
+     "bench/combo/evals/20261105-200219Z--base-Qwen3.5-122B-A10B-step0-combo1",
+     "bench/combo/evals/20261105-222043Z--base-Qwen3.5-122B-A10B-step0-combo2"
+    ],
+    "label": "A1__{task}"
+   },
+   "expect": {
+    "worth": false,
+    "category": null
+   },
+   "source": "#319 6694518301 (Andy's labels on the 13 candidates of 6694392442): most successes bypass the precision judgement (4 of 6 use squared distance or pairwise_distance)"
+  },
+  {
+   "name": "A2-rts_task_273506dfe1d5bfc5c2b4f83c-cand",
+   "group": "candidate13",
+   "root": "bench/arms/evb122b-h50--b50c-A2-r1",
+   "task": "rts_task_273506dfe1d5bfc5c2b4f83c",
+   "rewrite": "20261105-191751Z--harder",
+   "after": {
+    "evals": [
+     "bench/combo/evals/20261105-200219Z--base-Qwen3.5-122B-A10B-step0-combo1",
+     "bench/combo/evals/20261105-222043Z--base-Qwen3.5-122B-A10B-step0-combo2"
+    ],
+    "label": "A2__{task}"
+   },
+   "expect": {
+    "worth": false,
+    "category": null
+   },
+   "source": "#319 6694518301 (Andy's labels on the 13 candidates of 6694392442): most failures are not on the v1/v2 port, as with LZ4"
+  },
+  {
+   "name": "PC-data-processing_20260418_044216_004-cand",
+   "group": "candidate13",
+   "root": "bench/arms/evb122b-h50--b50c-PC-r1",
+   "task": "data-processing_20260418_044216_004",
+   "rewrite": "20261105-191804Z--harder",
+   "after": {
+    "evals": [
+     "bench/combo/evals/20261105-200219Z--base-Qwen3.5-122B-A10B-step0-combo1",
+     "bench/combo/evals/20261105-222043Z--base-Qwen3.5-122B-A10B-step0-combo2"
+    ],
+    "label": "PC__{task}"
+   },
+   "expect": {
+    "worth": false,
+    "category": null
+   },
+   "source": "#319 6694518301 (Andy's labels on the 13 candidates of 6694392442): no success makes the multi-frame judgement; which API was picked separates pass from fail"
+  },
+  {
+   "name": "PC-security_20260616_094815_004-cand",
+   "group": "candidate13",
+   "root": "bench/arms/evb122b-h50--b50c-PC-r1",
+   "task": "security_20260616_094815_004",
+   "rewrite": "20261105-194834Z--harder",
+   "after": {
+    "evals": [
+     "bench/combo/evals/20261105-200219Z--base-Qwen3.5-122B-A10B-step0-combo1",
+     "bench/combo/evals/20261105-222043Z--base-Qwen3.5-122B-A10B-step0-combo2"
+    ],
+    "label": "PC__{task}"
+   },
+   "expect": {
+    "worth": false,
+    "category": null
+   },
+   "source": "#319 6694518301 (Andy's labels on the 13 candidates of 6694392442): claims no new judgement, only tightens grading"
+  },
+  {
+   "name": "A2-scientific-computing_20260508_180627_004-cand",
+   "group": "candidate13",
+   "root": "bench/arms/evb122b-h50--b50c-A2-r1",
+   "task": "scientific-computing_20260508_180627_004",
+   "rewrite": "20261105-193508Z--harder",
+   "after": {
+    "evals": [
+     "bench/combo/evals/20261105-200219Z--base-Qwen3.5-122B-A10B-step0-combo1",
+     "bench/combo/evals/20261105-222043Z--base-Qwen3.5-122B-A10B-step0-combo2"
+    ],
+    "label": "A2__{task}"
+   },
+   "expect": {
+    "worth": false,
+    "category": null
+   },
+   "source": "#319 6694518301 (Andy's labels on the 13 candidates of 6694392442): 4 of 5 successes bypass dnachisel greedily; instruction does not ask for the exact optimum (audit refused)"
+  },
+  {
+   "name": "encoding",
+   "group": "candidate13",
+   "root": "run1030c",
+   "task": "task_002307_b945c419",
+   "rewrite": "20261031-055230Z--harder",
+   "after": {
+    "groups": 3
+   },
+   "expect": {
+    "worth": false,
+    "category": null
+   },
+   "source": "#319 6694518301 (Andy's labels on the 13 candidates of 6694392442): 4 of 5 successes only reorder the encoding fallback, no per-file judgement"
   }
  ]
 }
