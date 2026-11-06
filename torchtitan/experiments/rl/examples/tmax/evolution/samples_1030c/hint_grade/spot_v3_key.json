@@ -1,0 +1,152 @@
+{
+ "task_000323_88f28a61@20261031-152800Z--easier": {
+  "id": "task_000323_88f28a61@20261031-152800Z--easier",
+  "level": "1",
+  "reason": "Hints at compile-time vs runtime format strings and keeping fmt; no API named"
+ },
+ "rts_task_08b107d941826dce48b6a75d@20261101-061700Z--easier": {
+  "id": "rts_task_08b107d941826dce48b6a75d@20261101-061700Z--easier",
+  "level": "3a",
+  "reason": "Environment pre-clones compatible source checkout; verifier prose repairs; only pointer is start with build configuration."
+ },
+ "software-engineering_20260604_002443_015@20261031-222941Z--easier": {
+  "id": "software-engineering_20260604_002443_015@20261031-222941Z--easier",
+  "level": "2",
+  "reason": "Tells student to use parser's public properties and machine-architecture accessor; names the API."
+ },
+ "pallets__markupsafe.620c06c9.func_basic__09grfhrm@20261101-020206Z--easier": {
+  "id": "pallets__markupsafe.620c06c9.func_basic__09grfhrm@20261101-020206Z--easier",
+  "level": "0",
+  "reason": "Fixes supplied diagnostic to re-exec under Python 3.12 so it stops printing misleading success; tool defect repair"
+ },
+ "system-administration_20260617_210354_003@20261031-225636Z--easier": {
+  "id": "system-administration_20260617_210354_003@20261031-225636Z--easier",
+  "level": "3b",
+  "reason": "Stages Postfix virtual maps, databases and submission service definition"
+ },
+ "data-science_20260615_143956_006@20261031-094924Z--easier": {
+  "id": "data-science_20260615_143956_006@20261031-094924Z--easier",
+  "level": "3b",
+  "reason": "Rounds truncated .npy fixtures to complete float64 boundaries, removing partial-element reconstruction."
+ },
+ "rts_task_afd60c089eb038e4ad5ef336@20261031-195253Z--easier": {
+  "id": "rts_task_afd60c089eb038e4ad5ef336@20261031-195253Z--easier",
+  "level": "3a",
+  "reason": "Environment builds and installs PostgreSQL and libxml2 compatibility; student still fixes xml2 namespace crash; vague pointer."
+ },
+ "task_009249_b7441772@20261101-074917Z--easier": {
+  "id": "task_009249_b7441772@20261101-074917Z--easier",
+  "level": "1",
+  "reason": "Lowers offset and tick scale so precision discrepancy is more visible; data tweak"
+ },
+ "system-administration_20260611_205750_006@20261031-092658Z--easier": {
+  "id": "system-administration_20260611_205750_006@20261031-092658Z--easier",
+  "level": "3a",
+  "reason": "Preinstalls PowerDNS/sqlite/dig and completes missing ancillary schema; setup plumbing"
+ },
+ "software-engineering_20260606_172554_017@20261031-132733Z--easier": {
+  "id": "software-engineering_20260606_172554_017@20261031-132733Z--easier",
+  "level": "0",
+  "reason": "Test target rewritten to direct syscalls so trace lacks loader noise; incidental fixture cleanup."
+ },
+ "file-operations_20260611_210349_002@20261101-065636Z--easier": {
+  "id": "file-operations_20260611_210349_002@20261101-065636Z--easier",
+  "level": "3a",
+  "reason": "Adds report-construction helper owning mandatory keys and conditional schema; output plumbing, integrity analysis untouched."
+ },
+ "tw_713358@20261031-205508Z--easier": {
+  "id": "tw_713358@20261031-205508Z--easier",
+  "level": "2",
+  "reason": "Ships working ARM64 write/exit syscall example to learn ABI from"
+ },
+ "software-engineering_20260606_172554_006@20261031-103854Z--easier": {
+  "id": "software-engineering_20260606_172554_006@20261031-103854Z--easier",
+  "level": "2",
+  "reason": "make diagnose reproduces mismatch; instruction says check whether hash numeric constants match standard values."
+ },
+ "debugging_20260502_090008_003@20261101-162220Z--easier": {
+  "id": "debugging_20260502_090008_003@20261101-162220Z--easier",
+  "level": "1",
+  "reason": "Adds deployment probe running the executable in an empty root with TERM=xterm; no fix hint."
+ },
+ "software-engineering_20260508_180627_010@20261101-102016Z--easier": {
+  "id": "software-engineering_20260508_180627_010@20261101-102016Z--easier",
+  "level": "0",
+  "reason": "Regenerates defective CVE test archive so it actually exercises PAX size; feedback signal repair."
+ },
+ "machine-learning_20260614_141608_002@20261031-192021Z--easier": {
+  "id": "machine-learning_20260614_141608_002@20261031-192021Z--easier",
+  "level": "2",
+  "reason": "Instructs numerically stable Sinkhorn formulation and names exponential-kernel underflow as the obstacle; fix handed over"
+ },
+ "machine-learning_20260620_171154_003@20261031-103840Z--easier": {
+  "id": "machine-learning_20260620_171154_003@20261031-103840Z--easier",
+  "level": "1",
+  "reason": "Relaxes required compression ratio from 4.0x to 3.8x, giving packaging slack; requirement reduction"
+ },
+ "system-administration_20260617_104707_007@20261031-142308Z--easier": {
+  "id": "system-administration_20260617_104707_007@20261031-142308Z--easier",
+  "level": "3b",
+  "reason": "Supplies working Postfix domain, listeners and TLS configuration"
+ },
+ "file-operations_20260416_172928_002@20261031-215229Z--easier": {
+  "id": "file-operations_20260416_172928_002@20261031-215229Z--easier",
+  "level": "1",
+  "reason": "Reworks diagnostic into staged low-value cases and says establish one running sum at a time; no equations."
+ },
+ "software-engineering_20260508_180627_010@20261031-221403Z--easier": {
+  "id": "software-engineering_20260508_180627_010@20261031-221403Z--easier",
+  "level": "3b",
+  "reason": "Starter reads and validates PAX records and exposes key and value; only state logic left."
+ },
+ "personal-assistant_20260421_155939_001@20261031-150224Z--easier": {
+  "id": "personal-assistant_20260421_155939_001@20261031-150224Z--easier",
+  "level": "3b",
+  "reason": "vcard_io.py supplies vCard parsing, quoted-printable decoding and serialization, core I/O the original task required"
+ },
+ "data-science_20260615_143301_001@20261031-092830Z--easier": {
+  "id": "data-science_20260615_143301_001@20261031-092830Z--easier",
+  "level": "3a",
+  "reason": "Makes pinned pandas and DuckDB available to default python3 and aligns grader runtime."
+ },
+ "system-administration_20260613_152233_001@20261031-053546Z--easier": {
+  "id": "system-administration_20260613_152233_001@20261031-053546Z--easier",
+  "level": "0",
+  "reason": "States required install prefix and data directory the grader hid; spec clarification"
+ },
+ "system-administration_20260610_111702_005@20261031-101126Z--easier": {
+  "id": "system-administration_20260610_111702_005@20261031-101126Z--easier",
+  "level": "3b",
+  "reason": "Pre-provisions Kerberos realm, database, principals; relaxes SHA-384 enctype constraint"
+ },
+ "data-science_20260612_191200_002@20261031-203930Z--easier": {
+  "id": "data-science_20260612_191200_002@20261031-203930Z--easier",
+  "level": "3b",
+  "reason": "Starter handles I/O and optimization, drops smoothing deliverables; only exact diffuse likelihood left."
+ },
+ "task_002422_ccc838ee@20261031-075536Z--easier": {
+  "id": "task_002422_ccc838ee@20261031-075536Z--easier",
+  "level": "2",
+  "reason": "Instructs to use OCR-capable image reading, naming method for seed extraction"
+ },
+ "model-training_20260508_045740_003@20261101-140814Z--easier": {
+  "id": "model-training_20260508_045740_003@20261101-140814Z--easier",
+  "level": "1",
+  "reason": "Seed script now prints per-group learning rates after CyclicLR construction, exposing flattening; diagnostic output only"
+ },
+ "task_001093_ed3a1a04@20261031-103529Z--easier": {
+  "id": "task_001093_ed3a1a04@20261031-103529Z--easier",
+  "level": "0",
+  "reason": "Verifier accepts float32 or float64 scipy Gamma fit; hidden precision requirement"
+ },
+ "system-administration_20260611_205750_004@20261031-112559Z--easier": {
+  "id": "system-administration_20260611_205750_004@20261031-112559Z--easier",
+  "level": "3b",
+  "reason": "Pre-builds lighttpd, imports repos, hooks, TLS, git-daemon, and listener baseline"
+ },
+ "system-administration_20260606_172606_004@20261031-101124Z--easier": {
+  "id": "system-administration_20260606_172606_004@20261031-101124Z--easier",
+  "level": "3a",
+  "reason": "Starts fcgiwrap on prepared socket at boot; process-launch mechanics only"
+ }
+}
