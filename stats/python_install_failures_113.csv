@@ -1,0 +1,887 @@
+task_id,source,rollouts,fail_rollouts,no_pip,externally_managed,opt_verifier_cmd,module_not_found,python_is_opt_verifier_seen,wasted_turns,wasted_turns_per_fail,turns_per_fail,pass_fail,pass_other,top_missing
+software-engineering_20260603_181444_020,agentpick-calibforge-clean-fast,96,96,96,87,80,89,96,1485,15.5,61.0,77/96,0/0,calc setuptools path pkg_resources
+data-science_20260606_172554_008,agentpick-calibforge-clean-fast,96,96,96,32,72,63,96,1027,10.7,76.5,33/96,0/0,numpy scipy geopandas pandas
+security_20260618_093107_003,calibforge-clean-v2,96,96,75,96,85,96,92,1012,10.5,57.4,53/96,0/0,cryptography _cffi_backend Crypto bytes
+optimization_20260617_051646_001,calibforge-clean-v2,96,96,96,21,79,96,96,916,9.5,49.4,75/96,0/0,setuptools numpy np pip
+machine-learning_20260604_193056_001,calibforge-clean-v2,96,96,59,91,48,93,96,879,9.2,48.4,85/96,0/0,numpy xgboost sklearn pip
+games_20260606_172554_001,agentpick-calibforge-clean-fast,96,96,96,52,50,0,95,873,9.1,59.6,43/96,0/0,
+software-engineering_20260508_045740_001,calibforge-clean-v2,96,96,0,96,0,0,0,792,8.2,63.0,86/96,0/0,
+software-engineering_20260607_104421_003,calibforge-clean-v2,96,96,96,12,59,96,93,756,7.9,68.1,27/96,0/0,setuptools pip distutils
+software-engineering_20260617_104707_018,calibforge-clean-v2,96,96,96,15,72,96,90,751,7.8,63.7,40/96,0/0,setuptools distutils cloudpickle
+debugging_20260503_182123_003,calibforge-clean-v2,96,96,0,96,0,0,0,723,7.5,58.6,70/96,0/0,
+machine-learning_20260618_093107_002,calibforge-clean-v2,96,96,96,14,51,96,96,716,7.5,35.9,70/96,0/0,numpy scipy
+data-science_20260413_173854_002,calibforge-clean-v2,96,96,0,96,0,80,0,712,7.4,50.1,54/96,0/0,matplotlib pkg_resources statsmodels numpy
+scientific-computing_20260615_143956_002,calibforge-clean-v2,96,96,96,14,54,96,96,705,7.3,46.7,71/96,0/0,numpy pandas scipy statsmodels
+software-engineering_20260617_104707_017,calibforge-clean-v2,96,96,96,24,65,96,95,675,7.0,41.0,80/96,0/0,setuptools distutils
+games_20260611_112034_001,agentpick-calibforge-clean-fast,96,96,73,27,28,96,88,625,6.5,65.5,49/96,0/0,PIL numpy image pexpect
+data-science_20260611_112034_007,calibforge-clean-v2,96,96,0,96,0,10,0,180,1.9,16.9,79/96,0/0,numpy
+scientific-computing_20260604_144210_001,agentpick-calibforge-clean-fast,96,95,95,12,62,95,95,722,7.6,56.2,21/95,0/1,numpy scipy pandas
+games_20260604_004411_001,agentpick-calibforge-clean-fast,96,93,70,13,29,93,81,504,5.4,27.8,75/93,3/3,PIL numpy Image _imaging
+video-processing_20260604_193356_001,agentpick-calibforge-clean-fast,96,93,0,56,0,92,0,283,3.0,45.4,64/93,3/3,scipy matplotlib tomli_w tomli
+debugging_20260414_211453_005,calibforge-clean-v2,96,92,0,0,0,92,0,184,2.0,44.4,51/92,1/4,numpy xz h5py dill
+software-engineering_20260602_105139_020,calibforge-clean-v2,96,90,86,26,37,83,84,763,8.5,60.7,28/90,2/6,setuptools numpy distutils
+security_20260603_181444_007,agentpick-calibforge-clean-fast,96,90,69,10,33,88,74,479,5.3,72.3,20/90,1/6,Crypto cryptography Cryptodome numpy
+personal-assistant_20260419_023954_001,agentpick-calibforge-clean-fast,96,89,0,83,0,59,0,247,2.8,39.3,75/89,5/7,icalendar dateutil pytz tzdata
+software-engineering_20260614_141608_007,calibforge-clean-v2,96,87,35,1,31,84,50,275,3.2,39.3,72/87,7/9,PIL zstandard img png
+mathematics_20260413_174325_002,calibforge-clean-v2,96,87,0,0,0,87,0,190,2.2,25.9,85/87,6/9,Crypto gmpy2 sympy pycryptodome
+debugging_20260604_144210_004,calibforge-clean-v2,96,86,65,8,28,84,76,400,4.7,60.2,38/86,3/10,PIL png crc32 pypng
+software-engineering_20260508_204815_021,calibforge-clean-v2,96,86,0,0,0,86,0,299,3.5,87.5,23/86,1/10,setuptools multiprocess importlib _cffi_backend
+mathematics_20260501_051538_003,calibforge-clean-v2,96,86,0,47,0,83,0,271,3.2,57.0,20/86,7/10,scipy mpmath numpy sympy
+software-engineering_20260513_204536_002,agentpick-calibforge-clean-fast,84,84,0,84,0,4,0,1534,18.3,72.1,22/84,0/0,scipy numpy Cython setuptools
+model-training_20260604_002443_002,agentpick-calibforge-clean-fast,84,84,61,80,68,84,81,1211,14.4,69.2,43/84,0/0,torch PIL numpy torchvision
+mathematics_20260616_094815_004,agentpick-calibforge-clean-fast,84,84,83,45,51,84,84,1110,13.2,61.0,12/84,0/0,fpylll cysignals sympy numpy
+scientific-computing_20260613_152233_006,calibforge-clean-v2,84,84,84,43,52,84,84,1084,12.9,80.3,18/84,0/0,rdkit requests pandas dir
+data-science_20260617_210354_002,calibforge-clean-v2,84,84,84,50,76,82,84,1077,12.8,63.0,60/84,0/0,geopandas numpy pandas sklearn
+data-science_20260604_003113_003,agentpick-calibforge-clean-fast,84,84,84,39,36,84,83,953,11.3,33.5,58/84,0/0,pandas pyarrow pkg_resources duckdb
+model-training_20260604_194036_001,calibforge-clean-v2,84,84,84,51,47,80,84,915,10.9,39.3,56/84,0/0,numpy torch typing_extensions
+games_20260601_053159_001,agentpick-calibforge-clean-fast,84,84,76,32,40,82,84,854,10.2,71.7,17/84,0/0,PIL numpy cv2 pytesseract
+model-training_20260605_015435_001,calibforge-clean-v2,84,84,83,29,53,84,84,789,9.4,41.5,35/84,0/0,torch transformers huggingface_hub
+model-training_20260610_112157_003,agentpick-calibforge-clean-fast,84,84,45,81,49,84,83,692,8.2,65.9,18/84,0/0,torch numpy typing_extensions torchvision
+data-science_20260617_210354_003,agentpick-calibforge-clean-fast,84,84,83,17,0,84,2,692,8.2,59.7,23/84,0/0,statsmodels sklearn numpy
+data-science_20260612_191200_002,agentpick-calibforge-clean-fast,84,84,84,16,46,84,84,663,7.9,55.5,29/84,0/0,numpy pandas
+data-science_20260602_105139_002,calibforge-clean-v2,84,84,40,83,38,84,83,620,7.4,55.9,31/84,0/0,pandas xgboost numpy sklearn
+software-engineering_20260615_143301_003,calibforge-clean-v2,84,84,83,14,48,82,80,615,7.3,44.6,62/84,0/0,setuptools distutils ctypes
+data-science_20260604_194036_002,agentpick-calibforge-clean-fast,84,84,84,21,41,84,84,602,7.2,54.6,38/84,0/0,numpy scipy
+data-science_20260604_194036_004,calibforge-clean-v2,84,84,68,42,28,84,84,595,7.1,35.0,49/84,0/0,pandas statsmodels scipy numpy
+data-science_20260604_193056_007,agentpick-calibforge-clean-fast,84,84,84,15,33,84,84,555,6.6,31.4,58/84,0/0,numpy scipy
+games_20260612_191200_001,agentpick-calibforge-clean-fast,84,84,66,15,25,84,82,551,6.6,68.0,26/84,0/0,PIL numpy cv2 scipy
+scientific-computing_20260615_143956_007,calibforge-clean-v2,84,84,84,5,22,84,84,543,6.5,35.7,16/84,0/0,numpy pandas scipy matplotlib
+data-science_20260607_104421_002,calibforge-clean-v2,84,84,56,83,50,82,78,540,6.4,31.0,35/84,0/0,pandas pyarrow duckdb numpy
+data-science_20260610_111012_005,calibforge-clean-v2,84,84,3,84,6,84,14,539,6.4,49.1,55/84,0/0,pandas numpy
+software-engineering_20260417_112147_020,agentpick-calibforge-clean-fast,84,84,0,84,0,0,0,522,6.2,51.1,67/84,0/0,
+games_20260611_205750_001,agentpick-calibforge-clean-fast,84,84,82,65,0,82,1,515,6.1,35.1,45/84,0/0,PIL numpy Image imageio
+data-science_20260417_112147_007,agentpick-calibforge-clean-fast,84,84,0,83,0,42,0,453,5.4,35.3,62/84,0/0,matplotlib numpy pkg_resources jax
+scientific-computing_20260617_210354_002,calibforge-clean-v2,84,84,39,78,46,84,77,446,5.3,34.7,62/84,0/0,numpy scipy
+model-training_20260507_170334_001,calibforge-clean-v2,84,84,0,84,0,84,0,430,5.1,74.9,28/84,0/0,transformers tokenizers scipy encoding
+model-training_20260510_125534_001,agentpick-calibforge-clean-fast,84,84,0,84,0,75,0,422,5.0,43.6,42/84,0/0,transformers torch requests
+file-operations_20260610_111012_004,agentpick-calibforge-clean-fast,90,84,67,4,39,81,80,356,4.2,52.5,51/84,3/6,PIL numpy png cv2
+data-processing_20260414_080620_003,calibforge-clean-v2,84,84,0,83,0,76,0,336,4.0,62.1,31/84,0/0,pandas pyarrow fuzzywuzzy
+scientific-computing_20260416_172928_004,calibforge-clean-v2,84,84,0,68,0,84,0,271,3.2,46.2,64/84,0/0,scipy pandas dateutil np
+scientific-computing_20260416_031414_007,agentpick-calibforge-clean-fast,84,84,0,82,0,84,0,224,2.7,41.4,73/84,0/0,numpy pandas matplotlib scipy
+scientific-computing_20260510_005520_007,calibforge-clean-v2,84,84,0,0,0,84,0,214,2.5,48.5,41/84,0/0,numpy matplotlib pandas scipy
+scientific-computing_20260508_045920_007,calibforge-clean-v2,84,84,0,77,0,84,0,187,2.2,33.1,42/84,0/0,scipy matplotlib astropy sklearn
+model-training_20260606_172606_001,calibforge-clean-v2,84,83,49,10,19,83,44,406,4.9,23.0,79/83,1/1,torch numpy scipy
+system-administration_20260614_141608_008,agentpick-calibforge-clean-fast,84,83,82,12,19,71,68,367,4.4,53.0,54/83,0/1,flask app gunicorn pkg_resources
+data-processing_20260416_172928_003,calibforge-clean-v2,84,83,0,83,0,81,0,345,4.2,50.7,28/83,0/1,pandas pyarrow dateutil pkg_resources
+scientific-computing_20260604_003113_004,calibforge-clean-v2,84,82,79,18,45,80,71,780,9.5,97.4,40/82,0/2,rdkit openbabel pip pkg_resources
+machine-learning_20260607_104421_001,agentpick-calibforge-clean-fast,84,82,0,81,25,69,71,668,8.1,57.9,16/82,1/2,xgboost sklearn numpy setuptools
+games_20260606_172606_001,agentpick-calibforge-clean-fast,84,82,2,77,0,82,8,581,7.1,49.3,28/82,2/2,PIL numpy scipy sklearn
+security_20260606_153537_002,calibforge-clean-v2,84,82,67,13,16,81,57,508,6.2,48.9,14/82,0/2,Crypto Cryptodome cryptography pycryptodome
+system-administration_20260510_142854_004,calibforge-clean-v2,84,81,0,3,0,81,0,187,2.3,54.0,57/81,3/3,redis
+mathematics_20260510_005520_002,agentpick-calibforge-clean-fast,84,80,69,15,0,67,0,370,4.6,45.4,65/80,2/4,sympy gmpy2 Crypto cryptography
+mathematics_20260604_004411_002,calibforge-clean-v2,84,79,69,22,22,72,66,714,9.0,65.3,13/79,2/5,sympy fpylll cysignals numpy
+file-operations_20260606_172554_005,calibforge-clean-v2,84,79,76,13,33,73,70,471,6.0,58.7,16/79,0/5,PIL numpy Image pypng
+games_20260615_143956_001,agentpick-calibforge-clean-fast,84,79,1,78,1,3,7,438,5.5,75.4,15/79,0/5,pexpect system
+security_20260601_053159_001,agentpick-calibforge-clean-fast,84,79,55,7,20,78,53,413,5.2,70.7,15/79,0/5,Crypto cryptography Cryptodome _cffi_backend
+data-science_20260615_143301_006,calibforge-clean-v2,84,79,78,0,0,79,69,238,3.0,39.9,29/79,2/5,statsmodels sklearn
+personal-assistant_20260419_182351_001,agentpick-calibforge-clean-fast,84,79,0,75,0,45,0,200,2.5,61.3,28/79,1/5,icalendar dateutil pytz tzdata
+debugging_20260610_112157_005,agentpick-calibforge-clean-fast,96,78,61,38,31,69,86,523,6.7,47.1,61/78,8/18,google grpc_tools
+tw_12315,agentpick-clean-fast,84,78,72,0,0,78,0,245,3.1,96.3,12/78,0/6,msgpack
+scientific-computing_20260606_172554_002,calibforge-clean-v2,84,78,71,0,0,78,81,229,2.9,46.7,19/78,2/6,pandas sklearn
+data-science_20260606_153537_005,calibforge-clean-v2,84,78,28,0,0,77,20,148,1.9,24.1,52/78,6/6,scipy stats mpmath
+mathematics_20260415_182321_001,calibforge-clean-v2,101,77,51,22,0,71,0,321,4.2,32.6,63/77,18/24,ecdsa cryptography Crypto Cryptodome
+debugging_20260602_105139_005,calibforge-clean-v2,96,77,70,9,25,66,71,319,4.1,42.2,55/77,16/19,msgpack
+software-engineering_20260425_072438_007,agentpick-calibforge-clean-fast,84,76,0,75,0,1,0,1113,14.6,72.2,26/76,3/8,click
+security_20260606_172606_006,agentpick-calibforge-clean-fast,84,76,62,7,24,74,68,495,6.5,79.2,12/76,0/8,Crypto cryptography Cryptodome pycryptodome
+security_20260604_144210_005,calibforge-clean-v2,84,76,61,11,23,76,68,487,6.4,70.1,20/76,1/8,cryptography Crypto Cryptodome _cffi_backend
+data-science_20260617_210354_006,calibforge-clean-v2,84,76,69,5,25,76,61,446,5.9,57.9,48/76,7/8,pandas sklearn numpy path
+system-administration_20260606_172622_002,calibforge-clean-v2,84,76,5,75,10,23,33,219,2.9,75.7,37/76,6/8,gunicorn flask webapp app
+games_20260610_111702_001,calibforge-clean-v2,96,75,68,20,40,10,74,523,7.0,85.0,18/75,14/21,pip numpy requests pkg_resources
+scientific-computing_20260611_205750_002,calibforge-clean-v2,84,74,68,10,22,71,66,453,6.1,60.3,10/74,1/10,Bio numpy scipy biopython
+file-operations_20260610_111702_003,agentpick-calibforge-clean-fast,84,73,59,23,35,68,63,493,6.8,89.3,57/73,9/11,PIL pytesseract cv2 scipy
+file-operations_20260604_002443_004,agentpick-calibforge-clean-fast,96,73,67,11,37,1,75,315,4.3,47.1,16/73,5/23,cryptography
+model-training_20260617_104707_001,agentpick-calibforge-clean-fast,84,73,73,0,1,57,79,238,3.3,44.3,59/73,8/11,datasets scipy
+personal-assistant_20260514_134238_001,agentpick-calibforge-clean-fast,84,73,0,68,0,50,0,176,2.4,54.1,30/73,2/11,icalendar dateutil tzdata pytz
+data-science_20260617_104707_001,calibforge-clean-v2,96,72,72,71,1,72,1,396,5.5,34.9,46/72,21/24,pandas chardet
+mathematics_20260422_235114_002,agentpick-calibforge-clean-fast,84,72,0,56,0,67,0,358,5.0,52.9,34/72,11/12,cysignals sympy fpylll numpy
+model-training_20260509_020109_001,agentpick-calibforge-clean-fast,84,72,0,0,0,72,0,243,3.4,42.4,51/72,9/12,transformers tiktoken numpy tokenizers
+debugging_20260610_111702_004,calibforge-clean-v2,96,72,31,3,16,66,57,197,2.7,47.7,21/72,8/24,PIL bytes png img
+security_20260514_011125_002,calibforge-clean-v2,84,72,0,12,0,71,0,167,2.3,46.2,40/72,8/12,Crypto sympy cryptography gmpy2
+scientific-computing_20260503_030115_007,calibforge-clean-v2,84,72,0,72,0,72,0,165,2.3,29.7,60/72,0/12,numpy pandas scipy
+system-administration_20260511_150433_007,calibforge-clean-v2,84,72,0,0,0,72,0,149,2.1,33.6,51/72,5/12,flask
+games_20260604_002443_001,agentpick-calibforge-clean-fast,84,71,65,12,30,69,60,497,7.0,43.6,33/71,7/13,PIL numpy z3 Image
+scientific-computing_20260604_003113_007,calibforge-clean-v2,96,71,42,1,3,70,18,219,3.1,40.4,42/71,19/25,scipy numpy numba
+software-engineering_20260414_211453_020,agentpick-calibforge-clean-fast,96,70,0,68,0,5,0,789,11.3,67.5,53/70,16/26,setuptools distutils
+mathematics_20260507_170244_001,calibforge-clean-v2,84,70,0,47,0,63,0,282,4.0,43.1,34/70,12/14,sympy gmpy2 Crypto requests
+software-engineering_20260604_004411_020,calibforge-clean-v2,84,69,45,68,46,26,60,1093,15.8,111.9,26/69,0/15,setuptools cffi _cffi_backend pip
+software-engineering_20260414_080620_009,agentpick-calibforge-clean-fast,84,69,0,0,0,69,0,960,13.9,72.4,51/69,14/15,pkg_resources setuptools toml tomli
+mathematics_20260419_065313_004,calibforge-clean-v2,84,69,0,0,0,69,0,131,1.9,42.1,65/69,12/15,sympy numpy scipy
+data-science_20260614_141608_006,calibforge-clean-v2,84,68,0,0,0,68,1,92,1.4,56.2,21/68,10/16,pandas pyarrow
+data-science_20260615_143956_002,calibforge-clean-v2,84,67,13,0,0,67,19,100,1.5,30.3,9/67,1/17,pandas sklearn statsmodels
+scientific-computing_20260604_194036_003,agentpick-calibforge-clean-fast,84,66,28,3,2,64,29,190,2.9,82.0,18/66,6/18,Bio numpy scipy bio
+data-processing_20260510_005520_004,calibforge-clean-v2,96,66,0,64,0,8,0,174,2.6,30.1,62/66,19/30,fuzzywuzzy
+data-science_20260615_143956_006,calibforge-clean-v2,96,66,1,0,1,65,2,75,1.1,52.1,31/66,13/30,numpy
+scientific-computing_20260604_002443_003,agentpick-calibforge-clean-fast,84,65,60,6,37,65,71,473,7.3,40.0,47/65,10/19,numpy pandas matplotlib lmfit
+model-training_20260604_194036_004,calibforge-clean-v2,84,65,42,6,14,65,74,337,5.2,55.8,10/65,0/19,sklearn pandas numpy
+scientific-computing_20260510_053611_003,calibforge-clean-v2,84,65,0,63,0,17,0,255,3.9,58.9,20/65,6/19,scipy pkg_resources dask pandas
+mathematics_20260615_143301_001,calibforge-clean-v2,96,63,40,4,13,61,37,261,4.1,30.8,28/63,9/33,sympy gmpy2 mpmath
+debugging_20260615_105532_001,calibforge-clean-v2,84,63,18,3,7,61,18,177,2.8,39.2,45/63,14/21,numpy
+mathematics_20260419_065313_002,calibforge-clean-v2,84,62,50,8,0,55,0,275,4.4,46.5,28/62,17/22,sympy gmpy2 Crypto numpy
+scientific-computing_20260606_153537_002,calibforge-clean-v2,96,60,47,3,17,60,45,335,5.6,51.1,13/60,25/36,numpy matplotlib pandas scipy
+software-engineering_20260414_091921_020,agentpick-calibforge-clean-fast,84,59,0,0,0,59,0,405,6.9,66.2,41/59,16/25,pkg_resources importlib tomli jsonschema
+software-engineering_20260509_205636_024,calibforge-clean-v2,84,59,8,48,0,17,0,269,4.6,53.9,33/59,14/25,torch numpy
+data-querying_20260427_204204_001,calibforge-clean-v2,84,59,35,32,0,25,0,226,3.8,77.8,16/59,15/25,numpy duckdb pyarrow
+mathematics_20260508_180627_002,calibforge-clean-v2,84,59,39,8,0,47,0,204,3.5,58.1,11/59,4/25,sympy gmpy2 Crypto Cryptodome
+machine-learning_20260514_010833_002,calibforge-clean-v2,84,59,0,19,0,59,0,87,1.5,43.7,38/59,18/25,scipy print
+data-science_20260607_104421_004,agentpick-calibforge-clean-fast,96,58,50,26,45,56,73,538,9.3,43.2,49/58,32/38,rdkit pip torch rdMolDescriptors
+scientific-computing_20260606_172622_002,agentpick-calibforge-clean-fast,84,58,48,42,1,58,3,306,5.3,55.4,9/58,3/26,numpy matplotlib scipy lmfit
+mathematics_20260413_173854_002,calibforge-clean-v2,84,58,0,38,0,53,0,157,2.7,28.0,43/58,26/26,ecdsa cryptography Crypto sympy
+security_20260610_111012_006,calibforge-clean-v2,84,57,29,3,14,56,67,264,4.6,68.0,12/57,11/27,ecdsa cryptography Crypto base32
+mathematics_20260414_091921_001,calibforge-clean-v2,84,57,2,38,0,55,0,226,4.0,42.8,39/57,25/27,sympy Crypto gmpy2 Cryptodome
+mathematics_20260413_173854_003,calibforge-clean-v2,84,57,0,52,0,33,0,213,3.7,51.8,41/57,7/27,ortools pulp numpy scipy
+software-engineering_20260414_091921_007,calibforge-clean-v2,84,54,0,0,0,54,0,289,5.4,60.6,50/54,30/30,setuptools distutils Cython numpy
+debugging_20260510_142854_005,calibforge-clean-v2,84,54,35,1,0,42,0,126,2.3,34.9,33/54,23/30,scapy dpkt Cython
+file-operations_20260614_141608_003,agentpick-calibforge-clean-fast,84,53,40,7,37,27,67,261,4.9,42.8,15/53,8/31,PIL fitz pytesseract PyPDF2
+scientific-computing_20260510_142854_008,calibforge-clean-v2,96,53,0,0,0,53,0,57,1.1,28.4,41/53,30/43,matplotlib sklearn
+scientific-computing_20260616_102700_003,calibforge-clean-v2,84,52,37,18,19,52,81,326,6.3,64.0,10/52,20/32,rdkit openbabel pandas
+data-processing_20260511_015840_002,calibforge-clean-v2,84,52,0,0,0,52,0,88,1.7,39.4,44/52,26/32,pandas numpy scipy sklearn
+mathematics_20260610_112157_004,calibforge-clean-v2,84,51,31,0,4,47,15,238,4.7,54.8,14/51,19/33,numba scipy sympy gmpy2
+mathematics_20260503_030115_001,agentpick-calibforge-clean-fast,96,51,32,4,0,44,0,165,3.2,41.3,37/51,41/45,sympy gmpy2 Crypto attack
+data-science_20260602_105139_001,calibforge-clean-v2,84,50,41,3,9,21,71,270,5.4,43.3,10/50,11/34,pandas sklearn scipy statsmodels
+task_001480_4c46ce75,agentpick-clean-fast,96,50,0,0,0,50,0,191,3.8,69.1,19/50,29/46,numpy PIL scipy skimage
+mathematics_20260510_130518_002,calibforge-clean-v2,96,50,10,1,0,48,0,83,1.7,41.6,35/50,30/46,sympy Crypto gmpy2 cryptography
+scientific-computing_20260615_143956_006,calibforge-clean-v2,84,49,0,0,0,49,0,95,1.9,34.9,30/49,17/35,pandas matplotlib scipy
+data-science_20260606_172622_006,agentpick-calibforge-clean-fast,84,49,0,0,1,49,1,82,1.7,67.3,10/49,2/35,pandas pyarrow arrow process
+data-querying_20260602_105139_001,calibforge-clean-v2,96,49,5,1,0,44,62,70,1.4,44.2,41/49,37/47,numpy pyarrow pandas
+scientific-computing_20260606_153537_007,calibforge-clean-v2,84,48,37,2,8,48,33,213,4.4,38.2,38/48,24/36,numpy matplotlib pandas scipy
+mathematics_20260509_065529_002,calibforge-clean-v2,84,48,0,8,0,48,0,83,1.7,34.2,20/48,24/36,sympy gmpy2 cryptography sageall
+security_20260509_205636_006,agentpick-calibforge-clean-fast,84,47,0,20,0,46,0,156,3.3,96.2,5/47,12/37,Crypto cryptography Cryptodome OpenSSL
+mathematics_20260416_172928_002,calibforge-clean-v2,84,47,0,0,0,47,0,133,2.8,46.7,15/47,17/37,sympy gmpy2 Crypto Cryptodome
+mathematics_20260422_235114_001,calibforge-clean-v2,84,47,0,8,0,45,0,114,2.4,52.7,6/47,8/37,sympy gmpy2 Crypto crypto
+data-processing_20260511_150433_002,calibforge-clean-v2,96,47,0,0,0,47,0,93,2.0,57.5,41/47,38/49,pandas
+model-training_20260606_172554_002,agentpick-calibforge-clean-fast,84,47,3,0,0,47,18,86,1.8,54.7,11/47,12/37,scipy sklearn pandas
+mathematics_20260601_053159_004,calibforge-clean-v2,84,46,28,2,8,43,23,222,4.8,56.7,16/46,22/38,numpy sympy scipy gmpy2
+scientific-computing_20260604_144210_006,calibforge-clean-v2,84,46,29,1,3,42,72,142,3.1,62.4,14/46,26/38,rdkit requests pandas DataStructs
+file-operations_20260501_172213_002,calibforge-clean-v2,96,46,0,6,0,46,0,62,1.3,53.2,30/46,32/50,PIL
+huggingface__transformers-36497,agentpick-clean-fast,84,45,0,0,0,45,0,110,2.4,89.5,16/45,14/39,torch tensorflow datasets
+data-querying_20260604_003113_001,agentpick-calibforge-clean-fast,84,44,22,9,5,43,24,186,4.2,67.6,27/44,23/40,duckdb pip numpy
+data-processing_20260510_005520_002,calibforge-clean-v2,84,44,0,0,0,44,0,132,3.0,53.8,20/44,26/40,pandas
+security_20260508_045800_003,calibforge-clean-v2,84,44,0,41,0,5,0,85,1.9,44.0,32/44,31/40,requests app
+scientific-computing_20260419_182351_001,calibforge-clean-v2,84,44,0,0,0,44,0,82,1.9,40.6,27/44,21/40,pandas
+scientific-computing_20260604_193356_006,calibforge-clean-v2,96,43,27,16,12,40,23,281,6.5,65.3,4/43,7/53,rdkit scipy numpy openbabel
+data-science_20260610_112157_004,agentpick-calibforge-clean-fast,84,43,2,0,0,43,71,50,1.2,44.6,35/43,25/41,matplotlib pandas sklearn
+security_20260612_191200_006,calibforge-clean-v2,84,42,33,12,10,20,19,273,6.5,91.5,4/42,21/42,pyzipper Crypto requests PIL
+scientific-computing_20260617_051646_006,calibforge-clean-v2,84,42,0,17,0,42,2,123,2.9,65.8,10/42,10/42,rdkit pandas dir
+personal-assistant_20260419_065313_001,calibforge-clean-v2,84,42,0,40,0,21,0,105,2.5,48.7,34/42,25/42,regex
+optimization_20260424_090344_001,calibforge-clean-v2,84,42,0,0,0,42,0,83,2.0,84.3,2/42,12/42,scipy networkx pandas
+task_001330_31f79b9a,agentpick-clean-fast,96,42,0,0,0,42,0,75,1.8,25.8,40/42,51/54,crc32c crcmod google zstandard
+scientific-computing_20260504_125558_005,calibforge-clean-v2,84,42,1,0,0,42,0,53,1.3,46.0,21/42,22/42,matplotlib astropy scipy sklearn
+system-administration_20260416_031414_001,calibforge-clean-v2,84,41,0,0,0,41,0,101,2.5,49.7,33/41,22/43,test bzip2
+security_20260508_161717_005,agentpick-calibforge-clean-fast,84,40,31,0,0,38,0,100,2.5,40.1,13/40,33/44,cryptography dateutil openssl pytz
+data-querying_20260612_191200_001,calibforge-clean-v2,98,40,0,3,0,40,6,59,1.5,35.5,22/40,26/58,duckdb numpy pandas
+security_20260513_204848_002,agentpick-calibforge-clean-fast,84,39,34,7,0,17,0,186,4.8,105.0,17/39,16/45,Crypto passlib pycryptodome pip
+software-engineering_20260416_031414_012,agentpick-calibforge-clean-fast,84,39,0,35,0,27,0,97,2.5,49.7,32/39,37/45,aiohttp
+file-operations_20260616_094815_004,agentpick-calibforge-clean-fast,84,39,10,1,7,39,10,97,2.5,48.6,5/39,10/45,numpy scipy soundfile
+video-processing_20260612_191200_001,agentpick-calibforge-clean-fast,84,39,0,0,0,39,0,43,1.1,51.3,7/39,8/45,PIL np scipy matplotlib
+security_20260501_172213_002,agentpick-calibforge-clean-fast,96,38,19,9,0,16,0,126,3.3,85.6,24/38,43/58,distutils requests PIL
+scientific-computing_20260606_172554_006,calibforge-clean-v2,84,38,7,0,0,37,0,74,1.9,74.3,3/38,11/46,rdkit pandas Bio dir
+mathematics_20260415_094424_002,calibforge-clean-v2,84,38,0,6,0,37,0,63,1.7,45.3,28/38,37/46,gmpy2 sympy Crypto werkzeug
+data-processing_20260514_010833_001,agentpick-calibforge-clean-fast,84,37,0,19,0,33,0,91,2.5,63.0,5/37,10/47,geopandas numpy
+machine-learning_20260418_044216_001,calibforge-clean-v2,84,36,0,0,0,36,0,66,1.8,64.0,24/36,35/48,onnxruntime tqdm sklearn onnx
+security_20260610_111012_002,agentpick-calibforge-clean-fast,84,35,24,3,7,35,19,173,4.9,106.3,4/35,38/49,Crypto cryptography Cryptodome hash
+security_20260605_015435_002,calibforge-clean-v2,96,35,10,0,13,29,46,105,3.0,78.0,6/35,25/61,scapy dpkt base32 _cffi_backend
+scientific-computing_20260508_180627_004,agentpick-calibforge-clean-fast,84,35,3,24,0,15,0,69,2.0,47.5,19/35,34/49,Bio biopython bio
+security_20260601_053159_007,calibforge-clean-v2,84,34,2,0,34,2,41,79,2.3,80.2,27/34,45/50,repr distutils
+system-administration_20260503_030115_007,calibforge-clean-v2,84,34,0,2,0,33,0,78,2.3,98.9,18/34,31/50,app flask redis packaging
+d0c-s4vage__pfp-112,agentpick-clean-fast,96,34,0,0,0,34,0,71,2.1,80.7,28/34,48/62,pfp bytes utils
+file-operations_20260604_193356_003,calibforge-clean-v2,84,34,8,1,9,32,20,70,2.1,45.4,23/34,23/50,PIL
+mathematics_20260503_182123_002,calibforge-clean-v2,84,34,0,9,0,33,0,67,2.0,45.7,18/34,38/50,gmpy2 sympy Crypto mpmath
+mathematics_20260615_143301_004,calibforge-clean-v2,84,34,1,0,1,34,3,44,1.3,48.1,8/34,13/50,numpy sympy sklearn mpmath
+mathematics_20260418_044216_001,agentpick-calibforge-clean-fast,84,33,1,12,0,29,0,92,2.8,43.0,10/33,22/51,fpylll sympy numpy fplll
+file-operations_20260615_143956_003,calibforge-clean-v2,96,33,11,0,8,30,66,79,2.4,52.9,20/33,44/63,PIL png zstandard pkg_resources
+security_20260604_193056_002,calibforge-clean-v2,84,33,4,2,9,26,74,69,2.1,67.0,9/33,22/51,Crypto cryptography Cryptodome
+debugging_20260419_182351_001,agentpick-calibforge-clean-fast,84,32,0,29,0,3,0,229,7.2,62.2,31/32,43/52,numpy __import__
+machine-learning_20260610_111702_001,calibforge-clean-v2,96,32,0,32,0,1,2,101,3.2,81.5,11/32,24/64,requests
+scientific-computing_20260508_045740_005,calibforge-clean-v2,84,32,0,17,0,26,0,64,2.0,59.5,14/32,40/52,astropy scipy statsmodels
+model-training_20260415_002933_002,agentpick-calibforge-clean-fast,84,32,0,0,0,32,0,59,1.8,69.5,14/32,27/52,onnxruntime torch onnx onnxmltools
+security_20260508_153434_006,calibforge-clean-v2,84,32,0,8,0,31,0,55,1.7,60.3,7/32,11/52,cryptography Cryptodome bitstring cffi
+mathematics_20260505_093950_001,calibforge-clean-v2,96,32,0,0,0,32,0,47,1.5,35.5,16/32,45/64,sympy fpylll scipy data
+file-operations_20260615_143301_003,calibforge-clean-v2,96,31,10,0,7,22,37,113,3.6,65.5,15/31,32/65,brotli _cffi_backend bzip2 zlib
+task_004682_ee4637e7,agentpick-clean-fast,96,31,0,0,0,31,0,48,1.5,73.3,10/31,25/65,matplotlib PIL skimage av
+data-querying_20260419_065313_001,agentpick-calibforge-clean-fast,84,31,0,1,0,31,0,36,1.2,43.7,27/31,36/53,numpy dask pandas
+security_20260604_193356_002,agentpick-calibforge-clean-fast,96,30,22,5,9,10,21,159,5.3,96.5,5/30,16/66,pyzipper requests Crypto Cryptodome
+mathematics_20260508_045740_003,calibforge-clean-v2,84,30,0,25,0,7,0,101,3.4,64.9,7/30,21/54,scipy matplotlib
+scientific-computing_20260503_182123_003,calibforge-clean-v2,96,30,0,24,0,30,0,71,2.4,60.2,3/30,22/66,numpy matplotlib pandas scipy
+video-processing_20260414_211453_001,calibforge-clean-v2,84,30,11,0,0,22,0,68,2.3,36.2,25/30,41/54,cv2 av moviepy numpy
+security_20260511_015840_001,calibforge-clean-v2,84,30,0,0,0,30,0,49,1.6,53.3,22/30,48/54,requests cryptography httpx
+personal-assistant_20260510_125534_001,agentpick-calibforge-clean-fast,84,30,0,18,0,22,0,49,1.6,37.2,23/30,34/54,icalendar pytz dateutil
+d0c-s4vage__pfp-126,agentpick-clean-fast,84,30,0,0,0,30,0,48,1.6,101.4,10/30,34/54,pfp utils tests
+software-engineering_20260505_093950_025,calibforge-clean-v2,96,29,0,0,0,29,0,294,10.1,75.4,16/29,51/67,click setuptools
+tw_18271,agentpick-clean-fast,84,29,21,0,0,25,0,94,3.2,48.4,22/29,50/55,sklearn numpy pandas huggingface_hub
+scientific-computing_20260606_172622_003,calibforge-clean-v2,96,29,10,0,2,29,5,57,2.0,42.8,8/29,26/67,numpy scipy
+data-science_20260414_211453_006,agentpick-calibforge-clean-fast,84,29,0,29,0,0,0,50,1.7,73.2,6/29,23/55,
+axelrod-python__axelrod-1152,agentpick-clean-fast,84,29,0,0,0,29,0,42,1.4,88.9,23/29,43/55,axelrod
+mathematics_20260513_204536_002,calibforge-clean-v2,84,28,0,18,0,23,0,89,3.2,33.2,22/28,37/56,sympy cysignals numpy gmpy2
+security_20260604_003113_002,calibforge-clean-v2,84,28,8,0,2,26,17,75,2.7,90.1,6/28,34/56,PIL Crypto cryptography Cryptodome
+data-querying_20260604_003814_001,calibforge-clean-v2,84,28,0,0,0,28,1,35,1.2,42.0,16/28,30/56,numpy pandas
+task_002953_da753887,agentpick-clean-fast,84,27,0,0,0,27,0,281,10.4,72.8,21/27,43/57,google grpc_tools pkg_resources grpc
+model-training_20260618_093107_004,calibforge-clean-v2,96,27,27,14,15,24,81,262,9.7,58.5,1/27,26/69,pandas sklearn numpy pkg_resources
+system-administration_20260610_111702_002,agentpick-calibforge-clean-fast,96,27,4,7,5,27,21,112,4.1,74.6,16/27,39/69,flask werkzeug gunicorn magic
+task_004918_680dc94a,agentpick-clean-fast,84,27,0,0,0,27,0,76,2.8,70.7,17/27,44/57,PIL imageio sklearn matplotlib
+security_20260510_125534_002,calibforge-clean-v2,96,27,0,12,0,25,0,52,1.9,55.9,4/27,10/69,cryptography Cryptodome crypto
+scientific-computing_20260610_111702_001,calibforge-clean-v2,84,27,8,0,0,27,29,49,1.8,62.1,2/27,10/57,scipy pandas models numpy
+file-operations_20260510_005520_004,calibforge-clean-v2,84,26,18,0,0,10,0,64,2.5,79.8,6/26,11/58,redis crc32
+software-engineering_20260605_015435_021,calibforge-clean-v2,84,26,8,0,1,25,14,58,2.2,46.5,18/26,31/58,PIL png
+scientific-computing_20260508_045557_007,agentpick-calibforge-clean-fast,84,26,1,7,0,20,0,57,2.2,54.3,16/26,24/58,matplotlib scipy numpy lmfit
+scientific-computing_20260425_072438_007,calibforge-clean-v2,84,25,3,12,0,19,0,61,2.4,33.0,13/25,40/59,matplotlib pandas numpy sklearn
+data-processing_20260510_125534_003,calibforge-clean-v2,84,25,0,23,0,10,0,61,2.4,41.0,14/25,47/59,fuzzywuzzy fsspec pandas
+security_20260501_000112_003,calibforge-clean-v2,84,25,0,0,0,25,0,37,1.5,36.2,6/25,22/59,requests werkzeug
+software-engineering_20260510_130518_003,calibforge-clean-v2,96,24,0,0,0,24,0,46,1.9,60.5,9/24,29/72,pool
+scientific-computing_20260510_005520_006,agentpick-calibforge-clean-fast,84,24,0,23,0,15,0,43,1.8,29.8,22/24,19/60,Bio
+task_000037_6b3061e0,agentpick-clean-fast,84,22,0,0,0,22,0,322,14.6,85.6,2/22,19/62,torch numba tiktoken soundfile
+data-processing_20260611_112034_001,calibforge-clean-v2,84,22,13,4,7,21,10,105,4.8,57.4,12/22,39/62,networkx pulp scipy numpy
+data-science_20260606_172606_006,agentpick-calibforge-clean-fast,96,22,4,3,4,22,9,92,4.2,77.4,7/22,27/74,chardet dateutil pandas numpy
+model-training_20260419_112101_001,agentpick-calibforge-clean-fast,84,22,0,17,0,7,0,71,3.2,17.0,17/22,44/62,datasets transformers torch
+mozilla__bleach.73871d76.lm_rewrite__elrad8s4,agentpick-clean-fast,84,22,0,0,0,22,0,42,1.9,88.8,19/22,56/62,html5lib
+scientific-computing_20260611_210349_006,agentpick-calibforge-clean-fast,84,22,4,0,0,20,37,40,1.8,51.5,13/22,35/62,pandas rdkit dir DataStructs
+scientific-computing_20260617_051646_007,calibforge-clean-v2,84,22,3,0,0,22,7,28,1.3,16.3,18/22,25/62,numpy pandas
+file-operations_20260601_053159_003,calibforge-clean-v2,96,21,12,1,2,12,10,71,3.4,63.3,4/21,40/75,Crypto pyzipper cryptography bitarray
+software-engineering_20260509_202829_003,calibforge-clean-v2,96,21,0,0,0,21,0,44,2.1,69.6,6/21,15/75,worker_pool psutil signals pandas
+model-training_20260418_190236_001,agentpick-calibforge-clean-fast,84,21,0,0,0,21,0,42,2.0,30.9,15/21,27/63,datasets torch transformers
+d0c-s4vage__pfp-128,agentpick-clean-fast,84,21,0,0,0,21,0,39,1.9,65.8,21/21,61/63,pfp utils tests
+data-processing_20260414_211453_001,calibforge-clean-v2,84,21,1,7,0,18,0,33,1.6,39.4,9/21,19/63,tzdata pytz
+machine-learning_20260620_171154_003,calibforge-clean-v2,84,21,0,0,0,21,20,31,1.5,67.0,11/21,48/63,sklearn scipy tqdm app
+software-engineering_20260507_173144_012,calibforge-clean-v2,84,21,0,0,0,21,0,25,1.2,99.3,8/21,31/63,aiohttp httpx psutil
+video-processing_20260603_181444_001,agentpick-calibforge-clean-fast,96,21,3,0,0,18,24,25,1.2,51.3,6/21,13/75,scipy matplotlib sklearn skimage
+machine-learning_20260614_141608_002,calibforge-clean-v2,84,21,0,0,0,21,55,22,1.0,42.6,3/21,17/63,scipy
+task_006441_caacf65d,agentpick-clean-fast,96,20,1,0,0,19,0,297,14.8,77.2,9/20,45/76,websockets httpx src
+software-engineering_20260415_094424_025,calibforge-clean-v2,96,20,0,8,0,20,0,75,3.8,65.8,10/20,60/76,dill processor __builtin__ cloudpickle
+scientific-computing_20260419_023954_007,calibforge-clean-v2,84,20,3,6,0,14,0,50,2.5,36.4,12/20,41/64,matplotlib pandas
+software-engineering_20260508_045740_023,agentpick-calibforge-clean-fast,96,20,0,0,0,20,0,47,2.4,82.7,5/20,29/76,train numpy
+task_000128_5892b832,agentpick-clean-fast,96,20,0,0,0,20,0,46,2.3,47.5,15/20,45/76,av imageio PIL torchvision
+mathematics_20260606_172606_002,agentpick-calibforge-clean-fast,84,20,1,0,0,20,3,29,1.4,46.6,7/20,38/64,numpy
+task_000151_eed227cf,agentpick-clean-fast,96,19,0,0,0,19,0,219,11.5,68.7,13/19,60/77,numpy tqdm torch tiktoken
+security_20260601_053159_002,agentpick-calibforge-clean-fast,84,19,10,1,1,19,9,67,3.5,132.4,1/19,33/65,cryptography PIL pyzipper Crypto
+data-querying_20260508_045800_001,agentpick-calibforge-clean-fast,84,19,0,10,0,9,0,59,3.1,100.5,1/19,22/65,numpy duckdb
+d0c-s4vage__pfp-116,agentpick-clean-fast,84,19,0,0,0,19,0,34,1.8,72.9,14/19,45/65,utils pfp
+security_20260510_054909_006,calibforge-clean-v2,84,19,0,1,0,19,0,30,1.6,54.8,5/19,12/65,cryptography numpy openssl pycryptodome
+machine-learning_20260415_094424_003,agentpick-calibforge-clean-fast,84,19,0,0,0,19,0,30,1.6,70.8,9/19,41/65,onnxruntime onnx torch ml_dtypes
+machine-learning_20260606_153537_002,agentpick-calibforge-clean-fast,96,19,2,0,1,18,11,27,1.4,37.6,17/19,64/77,scipy utils
+task_001544_7d95dda4,agentpick-clean-fast,84,19,0,0,0,19,0,27,1.4,35.1,17/19,58/65,requests Bio numpy
+scientific-computing_20260416_020953_004,calibforge-clean-v2,96,19,0,0,0,19,0,26,1.4,43.3,17/19,68/77,Bio
+data-science_20260616_094815_007,calibforge-clean-v2,84,19,0,2,0,19,0,25,1.3,43.6,10/19,41/65,pandas
+model-training_20260604_193356_003,agentpick-calibforge-clean-fast,84,19,0,0,0,19,84,23,1.2,53.7,2/19,8/65,numpy torchvision tqdm sklearn
+model-training_20260602_105139_001,calibforge-clean-v2,96,18,14,2,6,16,47,126,7.0,40.1,6/18,54/78,datasets torch numpy fsspec
+security_20260415_123352_002,agentpick-calibforge-clean-fast,84,18,9,7,0,13,0,92,5.1,95.3,5/18,49/66,Crypto cryptography Cryptodome zlib
+security_20260610_112157_003,calibforge-clean-v2,84,18,11,2,0,16,11,81,4.5,75.0,0/18,1/66,Crypto cryptography Cryptodome pycryptodome
+games_20260418_044216_001,calibforge-clean-v2,96,18,18,4,0,1,0,70,3.9,73.2,4/18,52/78,z3
+system-administration_20260417_112147_009,calibforge-clean-v2,96,18,17,2,0,9,0,68,3.8,95.6,11/18,71/78,aiohttp websocket websockets
+security_20260513_205011_002,agentpick-calibforge-clean-fast,84,18,16,4,0,2,0,67,3.7,84.1,6/18,33/66,requests Crypto
+software-engineering_20260606_172554_012,agentpick-calibforge-clean-fast,84,18,11,2,2,12,18,53,2.9,54.7,12/18,48/66,websocket websockets app psutil
+machine-learning_20260604_004411_002,agentpick-calibforge-clean-fast,84,18,4,0,0,18,84,35,1.9,45.9,9/18,29/66,sklearn matplotlib
+software-engineering_20260413_174325_003,agentpick-calibforge-clean-fast,84,18,0,0,0,18,0,28,1.6,63.1,8/18,26/66,worker_pool
+file-operations_20260508_161717_005,calibforge-clean-v2,96,18,0,0,0,18,0,21,1.2,53.8,6/18,16/78,PIL
+task_000854_fe200810,agentpick-clean-fast,96,18,0,0,0,18,0,21,1.2,49.9,14/18,58/78,sklearn scipy statsmodels matplotlib
+software-engineering_20260416_184513_007,calibforge-clean-v2,84,17,0,0,0,17,0,332,19.5,96.9,8/17,45/67,click setuptools tomli toml
+model-training_20260615_143956_004,calibforge-clean-v2,84,17,15,10,3,14,80,177,10.4,59.6,3/17,30/67,pandas numpy sklearn matplotlib
+task_003078_2ecd85ff,agentpick-clean-fast,84,17,0,0,0,17,0,73,4.3,78.9,5/17,47/67,cryptography sklearn OpenSSL hash
+tw_287590,agentpick-clean-fast,84,17,12,0,0,9,0,32,1.9,52.6,10/17,31/67,pypdf PyPDF2 fitz
+task_000112_fefb47b8,agentpick-clean-fast,84,17,0,0,0,17,0,26,1.5,37.5,12/17,52/67,scapy dpkt
+software-engineering_20260508_161717_021,calibforge-clean-v2,84,17,0,0,0,17,0,25,1.5,41.1,2/17,6/67,calc
+mathematics_20260510_005520_001,agentpick-calibforge-clean-fast,84,17,1,0,0,16,0,21,1.2,29.5,12/17,61/67,sympy numpy Crypto
+file-operations_20260509_111805_001,agentpick-calibforge-clean-fast,84,17,1,0,0,17,0,20,1.2,43.0,1/17,8/67,PIL cv2 png zstandard
+model-training_20260604_002443_001,calibforge-clean-v2,96,16,5,15,5,16,14,93,5.8,28.8,1/16,13/80,torch numpy sklearn
+software-engineering_20260604_194036_023,calibforge-clean-v2,84,16,16,3,1,0,12,69,4.3,50.4,9/16,25/68,
+task_009821_3f039f12,agentpick-clean-fast,84,16,0,0,0,16,0,54,3.4,84.5,6/16,51/68,cryptography Crypto OpenSSL Cryptodome
+mathematics_20260413_173854_004,calibforge-clean-v2,84,16,0,9,0,11,0,32,2.0,34.9,10/16,48/68,sympy cryptography gmpy2 Cryptodome
+machine-learning_20260422_235124_001,calibforge-clean-v2,96,16,0,0,0,16,0,25,1.6,65.1,8/16,43/80,torch model
+model-training_20260604_193056_004,calibforge-clean-v2,84,16,4,0,0,12,83,22,1.4,75.9,7/16,24/68,sklearn zstandard brotli regex
+scientific-computing_20260415_094424_001,calibforge-clean-v2,96,16,0,0,0,16,0,21,1.3,71.3,12/16,67/80,matplotlib scipy scapy
+chardet__chardet.9630f238.func_pm_remove_cond__vjza6vvb,agentpick-clean-fast,84,16,0,0,0,16,0,20,1.2,67.6,6/16,48/68,chardet
+security_20260430_081156_003,agentpick-calibforge-clean-fast,84,16,0,0,0,16,0,19,1.2,68.0,8/16,18/68,yaml ruamel app test
+task_003405_f49bffaf,agentpick-clean-fast,84,16,0,0,0,16,0,16,1.0,31.8,15/16,45/68,resolve
+video-processing_20260606_172622_001,calibforge-clean-v2,84,15,10,11,12,15,12,121,8.1,53.5,0/15,12/69,cv2 numpy toml tomli_w
+data-science_20260605_015435_005,calibforge-clean-v2,96,15,8,13,9,15,13,82,5.5,32.2,1/15,41/81,pandas numpy scipy
+data-science_20260615_143301_001,calibforge-clean-v2,84,15,0,15,0,12,2,76,5.1,34.2,3/15,45/69,duckdb pandas numpy
+security_20260607_104421_002,agentpick-calibforge-clean-fast,84,15,1,6,2,15,13,65,4.3,62.2,12/15,53/69,pyzipper Crypto git Cryptodome
+machine-learning_20260428_101637_001,calibforge-clean-v2,96,15,0,0,0,15,0,36,2.4,84.1,5/15,19/81,torch model distutils sklearn
+data-science_20260509_205636_003,calibforge-clean-v2,84,15,0,11,0,15,0,28,1.9,31.1,12/15,60/69,pandas chardet dateutil
+software-engineering_20260508_045800_011,calibforge-clean-v2,84,15,0,1,0,14,0,24,1.6,53.9,6/15,19/69,psutil pipeline data
+software-engineering_20260511_015840_020,calibforge-clean-v2,96,14,0,0,0,14,0,119,8.5,60.9,11/14,74/82,pkg_resources setuptools
+scientific-computing_20260603_181444_004,calibforge-clean-v2,84,14,0,0,10,7,74,53,3.8,68.5,3/14,16/70,rdkit dir pkg_resources pandas
+software-engineering_20260604_193056_015,agentpick-calibforge-clean-fast,84,14,7,0,2,13,14,40,2.9,83.4,5/14,15/70,PIL zstandard
+software-engineering_20260501_051538_003,calibforge-clean-v2,84,14,0,0,0,14,0,36,2.6,73.9,8/14,32/70,worker_pool signals
+system-administration_20260508_045920_008,calibforge-clean-v2,84,14,12,2,0,12,0,32,2.3,45.2,13/14,65/70,yaml
+marshmallow-code__webargs.dbde72fe.pr_974,agentpick-clean-fast,96,14,0,0,0,14,0,31,2.2,66.1,7/14,53/82,tests requests webapp testing
+data-science_20260606_172606_008,calibforge-clean-v2,84,14,0,14,0,1,40,29,2.1,58.3,0/14,29/70,chardet
+task_006795_2e1938f5,agentpick-clean-fast,96,14,0,0,0,14,0,26,1.9,83.9,4/14,57/82,zstandard zstd
+keras-team__keras-20609,agentpick-clean-fast,84,14,0,0,0,14,0,19,1.4,99.1,2/14,12/70,tensorflow
+system-administration_20260607_104421_006,agentpick-calibforge-clean-fast,96,14,0,0,1,13,6,18,1.3,100.3,2/14,23/82,crypt passlib
+scientific-computing_20260503_182123_005,calibforge-clean-v2,96,14,0,0,0,14,0,14,1.0,46.9,7/14,39/82,astropy scipy dir
+video-processing_20260604_144210_001,agentpick-calibforge-clean-fast,96,14,0,0,0,14,0,14,1.0,56.9,2/14,18/82,scipy matplotlib PIL sklearn
+task_004407_3de0d0ba,agentpick-clean-fast,84,13,0,0,0,13,0,109,8.4,99.2,9/13,55/71,grpc dir google
+security_20260611_210349_004,calibforge-clean-v2,84,13,12,3,3,0,18,58,4.5,56.3,7/13,46/71,
+file-operations_20260606_153537_004,agentpick-calibforge-clean-fast,84,13,5,0,9,7,63,47,3.6,60.3,6/13,44/71,numpy scipy PIL stegano
+games_20260509_202829_001,calibforge-clean-v2,84,13,0,10,0,7,0,46,3.5,52.8,10/13,67/71,z3 pulp scipy ortools
+tw_327279,agentpick-clean-fast,84,13,9,0,0,6,0,33,2.5,89.8,4/13,54/71,Bio
+data-processing_20260508_180627_004,calibforge-clean-v2,84,13,0,9,0,12,0,27,2.1,47.7,10/13,48/71,dateutil pytz tzdata
+mathematics_20260415_002933_001,agentpick-calibforge-clean-fast,84,13,0,4,0,12,0,25,1.9,45.0,4/13,33/71,sympy cryptography gmpy2 attack
+task_004858_d0a2763f,agentpick-clean-fast,96,13,0,0,0,13,0,25,1.9,89.5,9/13,76/83,aiohttp websockets werkzeug httpx
+system-administration_20260414_091921_007,calibforge-clean-v2,84,13,0,13,0,0,0,21,1.6,74.0,12/13,61/71,
+tw_323887,agentpick-clean-fast,84,13,0,0,0,13,0,21,1.6,84.0,0/13,23/71,numpy click torch scipy
+system-administration_20260507_172207_002,agentpick-calibforge-clean-fast,84,13,0,1,0,12,0,17,1.3,109.7,6/13,52/71,redis bcrypt webapp
+scientific-computing_20260501_172213_006,calibforge-clean-v2,84,13,0,0,0,13,0,16,1.2,37.1,8/13,33/71,matplotlib statsmodels sklearn
+model-training_20260419_182351_003,calibforge-clean-v2,84,13,0,0,0,13,0,13,1.0,41.7,7/13,61/71,numpy
+file-operations_20260607_104421_005,calibforge-clean-v2,84,13,0,0,0,13,2,13,1.0,53.5,5/13,2/71,PIL bytes
+debugging_20260417_112147_001,calibforge-clean-v2,96,12,1,0,0,12,0,113,9.4,84.8,8/12,73/84,h5py numpy Cython pip
+data-science_20260604_003814_008,calibforge-clean-v2,96,12,12,6,8,12,18,106,8.8,34.2,0/12,51/84,numpy
+software-engineering_20260611_205750_012,calibforge-clean-v2,96,12,12,3,6,12,23,86,7.2,27.2,12/12,54/84,setuptools
+task_003486_0eb03622,agentpick-clean-fast,84,12,0,0,0,12,0,81,6.8,113.4,5/12,50/72,h5py zstandard scipy ctypes
+system-administration_20260604_193056_008,calibforge-clean-v2,84,12,11,2,8,11,35,81,6.8,68.5,2/12,55/72,Crypto Cryptodome cryptography
+task_004627_4d1d2cb8,agentpick-clean-fast,84,12,0,0,0,12,0,30,2.5,47.6,11/12,57/72,websocket yaml requests
+pyccel__pyccel-264,agentpick-clean-fast,84,12,0,0,0,12,0,27,2.2,96.3,6/12,34/72,mpi4py pyccel sympy
+data-processing_20260508_045557_003,agentpick-calibforge-clean-fast,96,12,0,0,0,12,0,27,2.2,65.2,1/12,10/84,Levenshtein fuzzywuzzy rapidfuzz nltk
+scientific-computing_20260610_111012_007,calibforge-clean-v2,84,12,4,0,0,12,5,25,2.1,38.8,10/12,56/72,scipy
+personal-assistant_20260415_094424_001,calibforge-clean-v2,84,12,0,10,0,11,0,25,2.1,27.2,6/12,50/72,pytz dateutil
+debugging_20260511_015840_005,calibforge-clean-v2,84,12,0,0,0,12,0,22,1.8,47.0,12/12,64/72,numpy pickle jsonschema
+data-processing_20260510_125534_002,calibforge-clean-v2,96,12,0,0,0,12,0,19,1.6,27.2,6/12,38/84,chardet pandas encoding
+scientific-computing_20260606_172554_003,calibforge-clean-v2,84,12,1,0,0,12,0,18,1.5,42.2,3/12,33/72,numpy set
+rts_task_6a81762bd5745f498f36b83e,agentpick-clean-fast,84,12,0,0,0,12,0,18,1.5,65.6,6/12,43/72,sklearn click numpy
+model-training_20260417_112147_003,agentpick-calibforge-clean-fast,84,12,0,0,0,12,0,18,1.5,60.6,7/12,38/72,numpy train nn
+software-engineering_20260514_012509_012,agentpick-calibforge-clean-fast,96,12,0,0,0,12,0,16,1.3,55.5,5/12,54/84,requests httpx starlette
+personal-assistant_20260507_093408_001,agentpick-calibforge-clean-fast,84,12,0,4,0,12,0,16,1.3,28.1,10/12,54/72,dateutil
+data-processing_20260604_144210_002,calibforge-clean-v2,96,12,0,0,0,12,3,16,1.3,47.8,4/12,32/84,numpy pandas dateutil
+software-engineering_20260511_015840_005,calibforge-clean-v2,84,12,0,0,0,12,0,14,1.2,59.9,4/12,50/72,pipeline psutil mp pool
+software-engineering_20260610_112157_020,agentpick-calibforge-clean-fast,84,11,0,0,8,3,64,67,6.1,65.9,5/11,40/73,numpy
+rts_task_273506dfe1d5bfc5c2b4f83c,agentpick-clean-fast,96,11,0,0,0,11,0,52,4.7,44.4,7/11,65/85,pandas tensorflow torch torchvision
+mahmoud__glom.fb3c4e76.pr_262,agentpick-clean-fast,84,11,0,0,0,11,0,38,3.5,75.3,8/11,64/73,yaml ruamel dict
+task_000014_a15a2b8a,agentpick-clean-fast,84,11,0,0,0,11,0,31,2.8,86.5,7/11,49/73,cv2 skimage imageio
+security_20260616_094815_004,calibforge-clean-v2,96,11,3,0,4,7,29,30,2.7,82.8,3/11,27/85,toml tomli
+bentoml__bentoml-5084,agentpick-clean-fast,84,11,0,0,0,11,0,28,2.5,64.0,9/11,46/73,PIL service torch model
+file-operations_20260602_105139_004,calibforge-clean-v2,84,11,0,0,5,7,30,25,2.3,64.2,2/11,36/73,brotli base32 lz4 msgpack
+jax-ml__jax-28022,agentpick-clean-fast,84,11,0,0,0,11,0,19,1.7,88.9,5/11,25/73,jax dir
+data-science_20260417_112147_001,calibforge-clean-v2,96,11,0,0,0,11,0,19,1.7,42.6,7/11,62/85,fuzzywuzzy pandas rapidfuzz dateutil
+task_002999_f7a7fdaf,agentpick-clean-fast,96,11,0,0,0,11,0,19,1.7,95.9,9/11,78/85,six git
+debugging_20260419_065313_004,calibforge-clean-v2,84,11,0,1,0,10,0,16,1.5,63.5,11/11,72/73,zstd zstandard dir
+software-engineering_20260514_134238_012,calibforge-clean-v2,84,11,0,1,0,11,0,15,1.4,36.9,6/11,54/73,httpx requests starlette fastapi
+data-science_20260604_193356_007,agentpick-calibforge-clean-fast,84,11,2,0,0,11,55,14,1.3,55.3,2/11,20/73,sklearn pandas scipy
+scientific-computing_20260503_182123_001,calibforge-clean-v2,96,11,0,2,0,10,0,13,1.2,48.6,0/11,28/85,scipy matplotlib
+data-science_20260418_190236_004,calibforge-clean-v2,84,11,0,1,0,11,0,13,1.2,40.0,11/11,73/73,pytz
+scientific-computing_20260418_190236_001,calibforge-clean-v2,96,11,0,0,0,11,0,12,1.1,55.4,5/11,48/85,matplotlib pandas
+file-operations_20260602_105139_002,agentpick-calibforge-clean-fast,84,11,0,0,0,11,1,11,1.0,51.7,8/11,19/73,PIL
+software-engineering_20260419_023954_020,agentpick-calibforge-clean-fast,96,10,0,10,0,0,0,69,6.9,52.1,10/10,66/86,
+task_006029_c732f1f4,agentpick-clean-fast,84,10,0,0,0,10,0,53,5.3,52.4,6/10,40/74,setuptools pip
+task_000148_13b866f9,agentpick-clean-fast,90,10,0,0,0,10,0,38,3.8,55.5,9/10,74/80,Crypto py7zr pyzipper deflate64
+mathematics_20260413_173854_001,calibforge-clean-v2,96,10,0,5,0,8,0,30,3.0,69.5,0/10,70/86,sympy gmpy2 numpy challenge
+software-engineering_20260612_191200_012,calibforge-clean-v2,84,10,3,1,8,2,62,26,2.6,78.2,4/10,41/74,websocket websockets
+file-operations_20260417_112147_004,calibforge-clean-v2,86,10,0,0,0,10,0,25,2.5,67.5,5/10,49/76,Crypto brotli PIL Cryptodome
+software-engineering_20260509_154924_003,calibforge-clean-v2,84,10,0,0,0,10,0,21,2.1,50.0,9/10,38/74,service
+tw_18273,agentpick-clean-fast,84,10,7,0,0,3,0,21,2.1,57.3,5/10,60/74,sklearn
+security_20260604_193356_007,calibforge-clean-v2,84,10,0,0,1,10,2,19,1.9,95.8,0/10,14/74,crypt
+pyca__cryptography-12286,agentpick-clean-fast,84,10,0,0,0,10,0,17,1.7,78.5,8/10,62/74,bcrypt cryptography tests
+mathematics_20260510_125534_002,calibforge-clean-v2,96,10,0,0,0,10,0,17,1.7,53.9,9/10,73/86,Crypto sympy
+tw_144971,agentpick-clean-fast,84,10,0,0,0,10,0,17,1.7,96.3,3/10,59/74,pexpect
+file-operations_20260509_205636_003,calibforge-clean-v2,84,10,4,0,0,7,0,15,1.5,57.4,7/10,54/74,PIL base58 base32 zstandard
+task_004777_b2057787,agentpick-clean-fast,96,10,0,0,0,10,0,15,1.5,42.4,7/10,60/86,crc32c
+security_20260415_123352_003,calibforge-clean-v2,84,10,0,0,0,10,0,14,1.4,36.1,7/10,42/74,pickle __builtins__ __builtin__ yaml
+facebookresearch__fvcore.a491d5b9.combine_file__htnzvb1x,agentpick-clean-fast,84,10,0,0,0,10,0,14,1.4,90.2,7/10,59/74,torch
+data-processing_20260415_182321_001,calibforge-clean-v2,84,10,0,1,0,10,0,12,1.2,26.2,6/10,58/74,pytz pandas dateutil
+task_002422_ccc838ee,agentpick-clean-fast,84,10,0,0,0,10,0,12,1.2,71.1,5/10,40/74,numpy PIL pytesseract
+system-administration_20260617_104707_007,agentpick-calibforge-clean-fast,96,10,0,0,0,10,20,12,1.2,101.0,3/10,36/86,crypt passlib
+model-training_20260509_205636_003,agentpick-calibforge-clean-fast,84,10,0,0,0,10,0,11,1.1,31.4,5/10,30/74,numpy torch sklearn
+data-science_20260614_141608_002,calibforge-clean-v2,107,10,0,0,0,10,14,10,1.0,25.5,9/10,60/97,pandas sklearn
+debugging_20260604_193356_001,calibforge-clean-v2,84,9,0,0,0,9,0,61,6.8,73.0,5/9,71/75,setuptools pytest distutils
+task_003986_4e4c690f,agentpick-clean-fast,84,9,0,0,0,9,0,53,5.9,70.2,3/9,53/75,librosa torch starlette fastapi
+pyccel__pyccel-2230,agentpick-clean-fast,96,9,0,0,0,9,0,23,2.6,112.0,1/9,45/87,pyccel
+security_20260604_193356_008,agentpick-calibforge-clean-fast,84,9,4,0,0,7,8,21,2.3,73.4,2/9,61/75,PIL Cryptodome zstd hexdump
+data-science_20260508_045920_001,calibforge-clean-v2,96,9,0,8,0,9,0,19,2.1,68.9,1/9,16/87,dateutil
+tw_100135,agentpick-clean-fast,96,9,6,0,0,7,0,19,2.1,32.3,9/9,58/87,brotli requests
+file-operations_20260508_045557_003,agentpick-calibforge-clean-fast,96,9,6,1,0,3,0,18,2.0,77.3,7/9,73/87,xz pyzipper
+software-engineering_20260414_080620_012,calibforge-clean-v2,84,9,0,2,0,8,0,17,1.9,71.3,2/9,31/75,psutil multiprocess typing_extensions cloudpickle
+mozilla__bleach.73871d76.lm_rewrite__6c10rrw7,agentpick-clean-fast,84,9,0,0,0,9,0,15,1.7,85.3,4/9,54/75,parse html5lib
+system-administration_20260430_081156_009,calibforge-clean-v2,84,9,0,9,0,0,0,14,1.6,28.6,9/9,68/75,
+system-administration_20260610_111012_007,agentpick-calibforge-clean-fast,96,9,0,0,0,9,7,13,1.4,106.7,1/9,18/87,crypt
+system-administration_20260510_005520_006,calibforge-clean-v2,96,9,0,4,0,5,0,13,1.4,63.4,7/9,79/87,supervisor
+cornellius-gp__gpytorch-216,agentpick-clean-fast,96,9,0,0,0,9,0,12,1.3,56.3,2/9,10/87,scipy
+amueller__word_cloud.ec24191c.combine_file__9bx7cdni,agentpick-clean-fast,84,9,0,0,0,9,0,11,1.2,91.6,0/9,11/75,scipy test skimage Cython
+security_20260415_002933_006,calibforge-clean-v2,84,8,5,1,0,3,0,35,4.4,86.9,4/8,32/76,lib cryptography Crypto
+scientific-computing_20260616_094815_005,agentpick-calibforge-clean-fast,84,8,2,0,2,6,17,28,3.5,97.9,3/8,24/76,imp scipy _cffi_backend test
+software-engineering_20260508_045740_011,agentpick-calibforge-clean-fast,84,8,0,2,0,7,0,20,2.5,58.6,0/8,6/76,psutil signals system
+tw_329715,agentpick-clean-fast,85,8,8,0,0,0,0,20,2.5,49.6,7/8,49/77,
+security_20260428_101637_006,calibforge-clean-v2,84,8,3,0,0,8,0,17,2.1,45.5,2/8,6/76,Crypto cryptography
+debugging_20260416_184513_003,agentpick-calibforge-clean-fast,96,8,0,0,0,8,0,17,2.1,55.9,6/8,51/88,gunicorn psutil service app
+task_005436_d605aece,agentpick-clean-fast,84,8,0,0,0,8,0,17,2.1,72.2,4/8,49/76,websockets websocket
+file-operations_20260604_003814_004,calibforge-clean-v2,84,8,3,0,0,6,8,15,1.9,53.0,6/8,11/76,zstandard crc32 zlib zstd
+task_005564_c049fbb2,agentpick-clean-fast,84,8,0,0,0,8,0,15,1.9,15.5,8/8,68/76,matplotlib numpy
+task_004494_dbb6143e,agentpick-clean-fast,96,8,0,0,0,8,0,15,1.9,33.4,4/8,72/88,matplotlib psutil service torch
+security_20260613_152233_001,agentpick-calibforge-clean-fast,96,8,2,0,2,5,64,14,1.8,85.0,0/8,5/88,__builtins__ __builtin__
+scientific-computing_20260510_053611_008,calibforge-clean-v2,84,8,0,0,0,8,0,13,1.6,55.5,4/8,54/76,mpmath scipy np numpy
+data-processing_20260414_080620_004,calibforge-clean-v2,84,8,0,0,0,8,0,13,1.6,70.6,1/8,19/76,parser bytes
+personal-assistant_20260504_125558_001,calibforge-clean-v2,84,8,0,4,0,8,0,12,1.5,46.2,6/8,59/76,dateutil
+scientific-computing_20260615_143956_004,calibforge-clean-v2,84,8,0,0,0,8,28,10,1.2,56.8,6/8,49/76,rdkit DataStructs
+system-administration_20260617_210354_003,agentpick-calibforge-clean-fast,84,8,0,0,1,8,4,10,1.2,80.1,2/8,13/76,crypt passlib bcrypt
+pyccel__pyccel-2038,agentpick-clean-fast,84,8,0,0,0,8,0,9,1.1,119.8,2/8,16/76,pyccel
+model-training_20260416_184513_002,calibforge-clean-v2,96,8,0,0,0,8,0,9,1.1,38.4,4/8,39/88,numpy train
+debugging_20260510_053611_005,calibforge-clean-v2,96,8,0,0,0,8,0,9,1.1,56.4,2/8,13/88,pickle numpy matplotlib
+task_007296_a67e32b2,agentpick-clean-fast,96,8,0,0,0,8,0,9,1.1,43.9,5/8,42/88,torch sklearn nn
+task_000575_10c82d13,agentpick-clean-fast,84,8,0,0,0,8,0,9,1.1,46.5,5/8,61/76,cryptography OpenSSL
+model-training_20260511_150433_002,calibforge-clean-v2,84,8,0,0,0,8,0,8,1.0,28.5,4/8,54/76,numpy
+machine-learning_20260506_213248_001,calibforge-clean-v2,84,8,0,0,0,8,0,8,1.0,60.1,7/8,41/76,numpy matplotlib torch
+software-engineering_20260510_054909_009,agentpick-calibforge-clean-fast,84,7,0,0,0,7,0,66,9.4,78.1,7/7,55/77,setuptools pkg_resources
+software-engineering_20260418_044216_020,agentpick-calibforge-clean-fast,84,7,0,6,0,2,0,54,7.7,52.0,4/7,65/77,setuptools pkg_resources
+system-administration_20260615_143301_008,agentpick-calibforge-clean-fast,84,7,0,0,7,0,26,36,5.1,92.4,0/7,4/77,
+software-engineering_20260416_031414_021,agentpick-calibforge-clean-fast,84,7,0,7,0,0,0,22,3.1,73.7,1/7,48/77,
+model-training_20260416_172928_004,agentpick-calibforge-clean-fast,96,7,0,0,0,7,0,21,3.0,57.3,5/7,75/89,sklearn scipy repr Cython
+model-training_20260419_182351_004,calibforge-clean-v2,84,7,0,5,0,3,0,19,2.7,98.4,2/7,35/77,scipy Cython dir
+system-administration_20260610_112157_006,calibforge-clean-v2,84,7,3,0,5,3,44,15,2.1,57.9,7/7,50/77,flask
+model-training_20260413_174325_003,calibforge-clean-v2,84,7,0,0,0,7,0,14,2.0,72.0,5/7,62/77,model torch
+facebookresearch__fvcore.a491d5b9.lm_rewrite__m0xnjits,agentpick-clean-fast,84,7,0,0,0,7,0,13,1.9,97.9,3/7,23/77,torch onnx
+scientific-computing_20260508_045800_004,agentpick-calibforge-clean-fast,84,7,0,3,0,7,0,12,1.7,36.3,7/7,62/77,Bio
+file-operations_20260604_003814_003,calibforge-clean-v2,90,7,2,0,4,1,25,12,1.7,34.9,5/7,53/83,pkg_resources
+data-querying_20260424_090344_001,calibforge-clean-v2,84,7,0,2,0,7,0,12,1.7,48.0,2/7,43/77,numpy pandas
+file-operations_20260414_211532_003,calibforge-clean-v2,96,7,4,0,0,4,0,11,1.6,78.4,6/7,70/89,zstandard
+eventlet__eventlet-866,agentpick-clean-fast,84,7,0,0,0,7,0,11,1.6,95.9,0/7,12/77,thread testing six
+task_001168_93422366,agentpick-clean-fast,92,7,0,0,0,7,0,11,1.6,27.9,6/7,81/85,sklearn psutil yaml librosa
+model-training_20260606_172554_004,calibforge-clean-v2,96,7,1,0,0,6,0,9,1.3,67.6,2/7,33/89,sklearn xgboost imblearn
+mathematics_20260511_015840_001,agentpick-calibforge-clean-fast,84,7,0,0,0,7,0,9,1.3,60.1,1/7,39/77,numpy attack
+file-operations_20260514_010833_001,calibforge-clean-v2,84,7,0,0,0,7,0,9,1.3,46.6,0/7,11/77,PIL crc32
+software-engineering_20260417_112147_007,agentpick-calibforge-clean-fast,84,7,0,0,0,7,0,8,1.1,51.3,4/7,62/77,src
+mathematics_20260514_012509_002,calibforge-clean-v2,84,7,0,0,0,7,0,8,1.1,83.3,2/7,43/77,sympy gmpy2 challenge scipy
+machine-learning_20260508_045740_001,calibforge-clean-v2,84,7,0,1,0,6,0,8,1.1,35.6,5/7,45/77,torch onnx scipy onnxruntime
+data-processing_20260508_045557_004,calibforge-clean-v2,96,7,0,2,0,5,0,8,1.1,53.0,5/7,55/89,zstd dateutil numpy
+scientific-computing_20260514_011856_002,calibforge-clean-v2,84,7,0,0,0,7,0,7,1.0,58.6,2/7,15/77,matplotlib pandas
+scientific-computing_20260419_182351_004,calibforge-clean-v2,84,7,0,0,0,7,0,7,1.0,78.6,1/7,29/77,pandas matplotlib scipy
+file-operations_20260416_020953_001,calibforge-clean-v2,84,7,1,0,0,6,0,7,1.0,68.3,1/7,18/77,zstandard brotli click bitarray
+debugging_20260601_053159_003,calibforge-clean-v2,84,7,0,0,0,7,0,7,1.0,43.3,5/7,38/77,numpy
+video-processing_20260610_111012_001,agentpick-calibforge-clean-fast,96,7,0,0,0,7,8,7,1.0,33.0,2/7,24/89,matplotlib scipy PIL
+software-engineering_20260604_194036_026,agentpick-calibforge-clean-fast,84,6,2,0,4,3,27,40,6.7,61.7,0/6,18/78,msgpack
+software-engineering_20260610_112157_014,agentpick-calibforge-clean-fast,96,6,0,0,4,2,35,31,5.2,48.7,2/6,8/90,magic
+system-administration_20260601_053159_008,agentpick-calibforge-clean-fast,96,6,0,0,4,2,74,16,2.7,90.8,1/6,12/90,crypt
+security_20260427_204204_002,agentpick-calibforge-clean-fast,84,6,4,0,0,4,0,15,2.5,77.5,1/6,42/78,Crypto Cryptodome cryptography
+system-administration_20260610_111702_005,calibforge-clean-v2,84,6,0,0,0,6,0,13,2.2,127.3,1/6,42/78,cryptography crypt
+task_001820_0ad61bdb,agentpick-clean-fast,84,6,0,0,0,6,0,12,2.0,20.7,1/6,33/78,scipy
+task_001093_ed3a1a04,agentpick-clean-fast,84,6,0,0,0,6,0,12,2.0,22.8,1/6,33/78,biopython Biopython
+software-engineering_20260603_181444_003,agentpick-calibforge-clean-fast,96,6,0,0,0,6,0,11,1.8,46.3,4/6,74/90,psutil
+data-processing_20260508_045740_003,agentpick-calibforge-clean-fast,96,6,0,0,0,6,0,11,1.8,37.8,6/6,77/90,rapidfuzz fuzzywuzzy fsspec
+pymc-devs__pytensor-1231,agentpick-clean-fast,84,6,0,0,0,6,0,10,1.7,98.3,0/6,6/78,jax numba
+model-training_20260419_065313_004,calibforge-clean-v2,84,6,0,0,0,6,0,10,1.7,46.3,4/6,62/78,model numpy
+data-processing_20260606_172554_004,calibforge-clean-v2,96,6,5,2,0,0,13,10,1.7,51.2,5/6,76/90,
+task_008938_9ee68be3,agentpick-clean-fast,96,6,0,0,0,6,0,10,1.7,60.5,6/6,74/90,zstd zstandard
+system-administration_20260508_045800_002,agentpick-calibforge-clean-fast,84,6,0,6,0,0,0,10,1.7,87.3,6/6,69/78,
+data-science_20260606_153537_003,agentpick-calibforge-clean-fast,84,6,1,0,0,6,1,9,1.5,39.8,0/6,14/78,pandas numpy tqdm
+data-processing_20260528_174918_003,agentpick-calibforge-clean-fast,84,6,0,5,0,3,0,9,1.5,60.2,0/6,26/78,fuzzywuzzy
+software-engineering_20260414_211453_012,calibforge-clean-v2,84,6,0,0,0,6,0,7,1.2,39.7,6/6,73/78,dataclass multiprocessing multiprocess
+security_20260413_174325_007,calibforge-clean-v2,87,6,0,0,0,6,0,7,1.2,81.2,0/6,17/81,zstandard
+pypa__setuptools-4676,agentpick-clean-fast,84,6,0,0,0,6,0,7,1.2,67.3,3/6,41/78,test distutils
+mathematics_20260606_172622_003,calibforge-clean-v2,84,6,0,0,0,6,5,7,1.2,49.7,2/6,25/78,scipy
+debugging_20260416_031414_004,calibforge-clean-v2,96,6,0,0,0,6,0,7,1.2,76.7,0/6,15/90,psutil
+task_005423_55489854,agentpick-clean-fast,87,6,0,0,0,6,0,7,1.2,47.7,3/6,31/81,numpy
+file-operations_20260602_105139_001,calibforge-clean-v2,96,6,0,0,0,6,0,6,1.0,35.8,3/6,46/90,numpy lib
+file-operations_20260514_011856_002,agentpick-calibforge-clean-fast,84,6,0,0,0,6,0,6,1.0,43.2,0/6,17/78,PIL imageio app
+task_004131_aa1a8b75,agentpick-clean-fast,84,6,0,0,0,6,0,6,1.0,36.3,4/6,63/78,sklearn Bio matplotlib
+software-engineering_20260610_111012_016,agentpick-calibforge-clean-fast,84,5,4,1,0,5,2,24,4.8,57.8,1/5,25/79,lz4
+software-engineering_20260509_111805_007,calibforge-clean-v2,84,5,0,2,0,3,0,22,4.4,64.2,5/5,77/79,pytest
+python-trio__trio-2845,agentpick-clean-fast,96,5,0,0,0,5,0,20,4.0,107.6,2/5,18/91,trio
+file-operations_20260424_090344_004,agentpick-calibforge-clean-fast,84,5,4,0,0,3,0,17,3.4,42.0,2/5,16/79,pypdf PyPDF2 PIL
+tw_112262,agentpick-clean-fast,84,5,4,0,0,1,0,16,3.2,59.2,4/5,73/79,IPython message
+task_002016_29630eda,agentpick-clean-fast,96,5,0,0,0,5,0,15,3.0,55.4,2/5,44/91,scipy tqdm nn cv2
+software-engineering_20260510_005520_005,calibforge-clean-v2,96,5,0,4,0,2,0,14,2.8,74.2,0/5,21/91,psutil
+software-engineering_20260415_182321_002,calibforge-clean-v2,84,5,5,3,0,0,0,14,2.8,89.8,3/5,22/79,
+debugging_20260417_112147_003,calibforge-clean-v2,97,5,0,5,0,0,0,14,2.8,81.2,2/5,58/92,
+model-training_20260415_002933_004,agentpick-calibforge-clean-fast,96,5,0,0,0,5,0,13,2.6,47.4,0/5,40/91,numpy data yaml models
+file-operations_20260415_123352_001,calibforge-clean-v2,96,5,0,4,0,4,0,13,2.6,57.6,3/5,77/91,zstandard bzip2 brotli
+task_002307_b945c419,agentpick-clean-fast,84,5,0,0,0,5,0,11,2.2,68.2,1/5,57/79,zstandard zstd brotli
+software-engineering_20260606_172622_020,calibforge-clean-v2,96,5,1,0,3,1,19,10,2.0,112.2,0/5,28/91,scapy
+scientific-computing_20260419_023954_006,calibforge-clean-v2,84,5,0,0,0,5,0,10,2.0,69.4,2/5,33/79,simulation matplotlib
+model-training_20260508_045740_003,calibforge-clean-v2,96,5,0,0,0,5,0,10,2.0,50.8,3/5,72/91,model
+debugging_20260615_143301_005,calibforge-clean-v2,96,5,0,0,2,3,15,10,2.0,38.4,3/5,33/91,crc32 bitstring crc32c
+software-engineering_20260604_144210_014,calibforge-clean-v2,96,5,0,0,0,5,1,9,1.8,59.2,1/5,22/91,vm parser
+software-engineering_20260507_170244_006,calibforge-clean-v2,84,5,0,0,0,5,0,8,1.6,85.2,4/5,53/79,processor process
+security_20260611_205750_001,agentpick-calibforge-clean-fast,84,5,3,0,0,3,9,8,1.6,68.0,0/5,4/79,regex pkg_resources
+security_20260509_020109_006,calibforge-clean-v2,84,5,1,0,0,5,0,7,1.4,112.4,0/5,11/79,PIL numpy
+mathematics_20260508_204815_004,calibforge-clean-v2,84,5,1,0,0,5,0,7,1.4,53.2,2/5,31/79,sympy gmpy2
+file-operations_20260603_181444_001,calibforge-clean-v2,84,5,1,0,2,3,10,7,1.4,51.6,0/5,8/79,PIL
+file-operations_20260419_065313_001,calibforge-clean-v2,84,5,1,0,0,4,0,7,1.4,53.6,2/5,39/79,pickle dill hexdump
+data-science_20260508_204815_002,calibforge-clean-v2,84,5,0,0,0,5,0,7,1.4,42.8,3/5,34/79,imblearn statsmodels tqdm packaging
+data-science_20260413_173854_005,calibforge-clean-v2,84,5,0,0,0,5,0,7,1.4,40.2,4/5,57/79,chardet
+software-engineering_20260416_020953_021,calibforge-clean-v2,96,5,0,0,0,5,0,6,1.2,60.2,4/5,48/91,calc parse
+security_20260601_053159_006,calibforge-clean-v2,84,5,0,0,0,5,4,6,1.2,49.2,1/5,17/79,scapy dpkt base32
+model-training_20260415_182321_003,agentpick-calibforge-clean-fast,84,5,0,0,0,5,0,6,1.2,50.6,4/5,63/79,data model
+machine-learning_20260508_180627_002,agentpick-calibforge-clean-fast,96,5,0,0,0,5,0,6,1.2,80.4,2/5,19/91,numpy train
+task_008487_13cee364,agentpick-clean-fast,84,5,0,0,0,5,0,6,1.2,58.4,2/5,34/79,scapy
+security_20260508_180627_006,calibforge-clean-v2,96,5,0,0,0,5,0,5,1.0,57.4,1/5,54/91,Crypto cryptography utils
+scientific-computing_20260601_053159_008,calibforge-clean-v2,96,5,0,0,0,5,91,5,1.0,66.2,1/5,29/91,pandas matplotlib
+scientific-computing_20260429_103257_003,agentpick-calibforge-clean-fast,84,5,0,0,0,5,0,5,1.0,83.8,1/5,51/79,scipy config sympy
+pymc-devs__pymc-7637,agentpick-clean-fast,96,5,0,0,0,5,0,5,1.0,92.2,4/5,57/91,jax cffi
+mathematics_20260610_112157_002,calibforge-clean-v2,84,5,0,0,0,5,3,5,1.0,15.0,4/5,67/79,Crypto sympy hash
+file-operations_20260513_204744_003,calibforge-clean-v2,84,5,0,0,0,5,0,5,1.0,47.8,1/5,25/79,PIL requests
+debugging_20260417_112147_004,calibforge-clean-v2,84,5,0,0,0,5,0,5,1.0,66.0,1/5,37/79,multiprocessing pipeline mp
+task_005281_b7cba125,agentpick-clean-fast,84,5,0,0,0,5,0,5,1.0,34.0,3/5,65/79,scipy data
+task_000168_c6bc12fd,agentpick-clean-fast,84,5,0,0,0,5,0,5,1.0,53.4,3/5,62/79,app psutil moviepy src
+tw_276310,agentpick-clean-fast,96,4,0,0,0,4,0,13,3.2,56.8,4/4,75/92,pandas cv2 ct
+security_20260604_003113_003,agentpick-calibforge-clean-fast,84,4,1,0,1,4,2,11,2.8,52.2,2/4,22/80,PIL pypdf
+debugging_20260506_213248_001,calibforge-clean-v2,96,4,0,0,0,4,0,11,2.8,66.5,2/4,71/92,ctypes imp
+data-science_20260617_051646_004,calibforge-clean-v2,84,4,2,1,0,2,20,11,2.8,46.2,0/4,8/80,matplotlib scipy
+security_20260419_112101_007,agentpick-calibforge-clean-fast,84,4,0,1,0,3,0,10,2.5,85.2,2/4,46/80,git
+system-administration_20260413_173854_004,calibforge-clean-v2,84,4,0,0,0,4,0,9,2.2,99.8,3/4,59/80,supervisor app
+pexpect__ptyprocess.1067dbda.func_pm_remove_loop__exlxfztz,agentpick-clean-fast,84,4,0,0,0,4,0,9,2.2,44.2,3/4,54/80,pexpect dir
+scientific-computing_20260501_172213_008,calibforge-clean-v2,96,4,0,0,0,4,0,8,2.0,51.8,3/4,69/92,simulation
+system-administration_20260416_020953_004,calibforge-clean-v2,96,4,1,2,0,2,0,8,2.0,96.8,3/4,45/92,app werkzeug
+security_20260430_081156_005,calibforge-clean-v2,84,4,0,0,0,4,0,7,1.8,89.0,1/4,75/80,requests it app
+machine-learning_20260419_112101_002,calibforge-clean-v2,84,4,0,0,0,4,0,7,1.8,37.2,4/4,65/80,matplotlib sklearn
+system-administration_20260603_181444_008,agentpick-calibforge-clean-fast,84,4,3,0,1,0,10,7,1.8,75.5,4/4,45/80,
+scientific-computing_20260416_020953_006,calibforge-clean-v2,84,4,0,0,0,4,0,6,1.5,52.0,1/4,24/80,models simulation sympy
+python-markdown__markdown-1072,agentpick-clean-fast,84,4,0,0,0,4,0,6,1.5,73.5,1/4,9/80,test http
+jsvine__pdfplumber.02ff4313.func_pm_ctrl_invert_if__tv5b85l9,agentpick-clean-fast,84,4,0,0,0,4,0,6,1.5,104.8,0/4,23/80,tests pypdf
+axelrod-python__axelrod-1113,agentpick-clean-fast,96,4,0,0,0,4,0,6,1.5,86.8,4/4,38/92,axelrod
+task_009249_b7441772,agentpick-clean-fast,84,4,0,0,0,4,0,6,1.5,46.2,0/4,43/80,sklearn sympy statsmodels
+task_002650_61b2beb7,agentpick-clean-fast,84,4,0,0,0,4,0,6,1.5,34.8,4/4,74/80,chardet
+security_20260419_065313_006,agentpick-calibforge-clean-fast,84,4,0,1,0,3,0,5,1.2,90.8,2/4,47/80,Crypto
+scrapy__scrapy.35212ec5.pr_5406,agentpick-clean-fast,84,4,0,0,0,4,0,5,1.2,105.0,2/4,33/80,OpenSSL openssl lib
+scientific-computing_20260603_181444_003,agentpick-calibforge-clean-fast,84,4,0,0,1,3,55,5,1.2,58.5,2/4,36/80,numpy biopython Bio
+python-trio__trio.cfbbe2c1.combine_module__2e5xy8b7,agentpick-clean-fast,84,4,0,0,0,4,0,5,1.2,85.8,0/4,34/80,trio thread
+pallets__werkzeug-2596,agentpick-clean-fast,84,4,0,0,0,4,0,5,1.2,86.5,1/4,21/80,http tests flask src
+mozilla__bleach.73871d76.pr_694,agentpick-clean-fast,96,4,0,0,0,4,0,5,1.2,111.8,2/4,55/92,html5lib dir
+model-training_20260604_193056_002,agentpick-calibforge-clean-fast,84,4,0,0,0,4,16,5,1.2,45.8,0/4,18/80,sklearn scipy
+google__jax-22744,agentpick-clean-fast,84,4,0,0,0,4,0,5,1.2,69.5,4/4,61/80,jax scipy
+file-operations_20260418_044216_005,calibforge-clean-v2,84,4,0,0,0,4,0,5,1.2,52.2,1/4,18/80,chardet magic
+data-science_20260611_112034_005,calibforge-clean-v2,96,4,0,0,0,4,0,5,1.2,86.8,3/4,60/92,chardet
+aaugustin__websockets-467,agentpick-clean-fast,84,4,0,0,0,4,0,5,1.2,118.8,0/4,49/80,tests websockets
+system-administration_20260414_211453_002,calibforge-clean-v2,84,4,0,3,0,1,0,4,1.0,66.5,4/4,77/80,requests
+software-engineering_20260604_002443_020,calibforge-clean-v2,84,4,0,0,0,4,0,4,1.0,54.8,3/4,66/80,requests
+software-engineering_20260415_182321_005,calibforge-clean-v2,96,4,0,0,0,4,0,4,1.0,39.2,3/4,82/92,ruamel
+security_20260610_111012_007,calibforge-clean-v2,84,4,0,0,4,0,36,4,1.0,61.5,0/4,6/80,
+file-operations_20260606_172622_005,calibforge-clean-v2,96,4,0,0,0,4,6,4,1.0,53.2,1/4,59/92,git hash zstandard src
+file-operations_20260604_193356_004,calibforge-clean-v2,96,4,0,0,0,4,0,4,1.0,53.0,0/4,34/92,hexdump crcmod lz4 zlib
+data-processing_20260503_182123_003,agentpick-calibforge-clean-fast,84,4,0,0,0,4,0,4,1.0,45.5,3/4,73/80,chardet
+task_000141_5fbf3c2f,agentpick-clean-fast,84,4,0,0,0,4,0,4,1.0,79.8,1/4,53/80,h5py zstandard
+system-administration_20260416_184513_004,calibforge-clean-v2,84,4,0,0,0,4,0,4,1.0,108.8,3/4,42/80,app flask
+software-engineering_20260419_023954_006,calibforge-clean-v2,84,3,0,0,0,3,0,36,12.0,81.0,3/3,72/81,toml setuptools pyarrow
+model-training_20260422_235114_001,calibforge-clean-v2,96,3,0,0,0,3,0,16,5.3,46.7,1/3,71/93,pkg_resources setuptools transformers
+file-operations_20260613_152233_002,agentpick-calibforge-clean-fast,84,3,0,0,3,0,61,15,5.0,53.7,1/3,44/81,
+rts_task_a1f849c57e17b4f4302493d0,agentpick-clean-fast,84,3,3,0,0,0,0,14,4.7,43.3,3/3,78/81,
+file-operations_20260604_002443_003,calibforge-clean-v2,96,3,0,0,2,1,29,14,4.7,22.0,0/3,49/93,crcmod
+security_20260510_125534_005,calibforge-clean-v2,96,3,3,1,0,1,0,11,3.7,122.0,0/3,29/93,cryptography
+machine-learning_20260610_111012_001,calibforge-clean-v2,84,3,1,0,2,0,10,11,3.7,82.0,1/3,18/81,
+task_002157_d18d63f3,agentpick-clean-fast,84,3,0,0,0,3,0,11,3.7,63.3,2/3,34/81,grpc_tools grpc app
+software-engineering_20260610_112157_018,calibforge-clean-v2,84,3,0,0,1,3,4,9,3.0,46.0,1/3,49/81,PIL
+software-engineering_20260510_062946_010,calibforge-clean-v2,96,3,2,0,0,3,0,8,2.7,71.0,0/3,17/93,PIL
+security_20260511_150433_006,calibforge-clean-v2,84,3,3,1,0,1,0,8,2.7,93.0,0/3,20/81,ext4
+pyg-team__pytorch_geometric-8870,agentpick-clean-fast,84,3,0,0,0,3,0,8,2.7,78.7,0/3,10/81,torch
+file-operations_20260615_143956_005,calibforge-clean-v2,84,3,0,0,2,1,13,8,2.7,29.0,2/3,54/81,crcmod
+debugging_20260416_020953_005,calibforge-clean-v2,84,3,0,2,0,1,0,8,2.7,53.3,2/3,27/81,brotli
+software-engineering_20260612_191200_009,calibforge-clean-v2,96,3,0,0,3,0,7,7,2.3,100.0,0/3,23/93,
+security_20260416_020953_005,agentpick-calibforge-clean-fast,84,3,2,0,0,3,0,6,2.0,44.0,3/3,74/81,cryptography
+model-training_20260509_111805_004,calibforge-clean-v2,96,3,0,0,0,3,0,6,2.0,43.0,2/3,62/93,imblearn xgboost
+data-processing_20260604_193056_001,calibforge-clean-v2,96,3,1,0,0,3,4,6,2.0,66.7,2/3,6/93,charset_normalizer pandas chardet
+software-engineering_20260604_194036_005,calibforge-clean-v2,96,3,0,0,3,0,32,5,1.7,50.7,0/3,15/93,
+software-engineering_20260507_170334_003,agentpick-calibforge-clean-fast,84,3,0,2,0,1,0,5,1.7,40.7,0/3,37/81,worker_pool
+software-engineering_20260414_091921_005,calibforge-clean-v2,84,3,1,0,0,3,0,5,1.7,38.7,0/3,30/81,ruamel
+security_20260611_205750_004,calibforge-clean-v2,84,3,1,0,0,2,7,5,1.7,71.0,1/3,20/81,setuptools print
+machine-learning_20260430_081156_001,calibforge-clean-v2,84,3,0,0,0,3,0,5,1.7,61.3,1/3,62/81,numpy torch
+machine-learning_20260415_182321_001,calibforge-clean-v2,96,3,0,0,0,3,0,5,1.7,53.7,0/3,73/93,model torchvision
+hypothesisworks__hypothesis-2983,agentpick-clean-fast,84,3,0,0,0,3,0,5,1.7,49.7,2/3,69/81,numpy pytz
+data-science_20260416_020953_005,calibforge-clean-v2,84,3,0,1,0,2,0,5,1.7,55.7,0/3,23/81,config app
+data-science_20260413_174325_001,calibforge-clean-v2,84,3,0,0,0,3,0,5,1.7,40.3,3/3,67/81,charset_normalizer scipy
+data-processing_20260618_093107_001,calibforge-clean-v2,84,3,2,0,0,1,4,5,1.7,72.0,2/3,61/81,stats
+data-processing_20260610_111012_003,calibforge-clean-v2,84,3,2,0,0,1,17,5,1.7,18.7,1/3,55/81,parse
+data-processing_20260603_181444_001,calibforge-clean-v2,84,3,1,0,0,3,1,5,1.7,66.0,0/3,37/81,dateutil encoding
+axelrod-python__axelrod-638,agentpick-clean-fast,84,3,0,0,0,3,0,5,1.7,64.3,2/3,70/81,axelrod
+system-administration_20260604_004411_007,calibforge-clean-v2,84,3,1,0,0,2,81,5,1.7,115.0,1/3,67/81,werkzeug app
+security_20260614_141608_001,agentpick-calibforge-clean-fast,84,3,1,0,2,0,73,4,1.3,50.7,2/3,50/81,
+mathematics_20260414_211532_001,calibforge-clean-v2,84,3,0,0,0,3,0,4,1.3,35.7,2/3,59/81,pytest
+machine-learning_20260503_030115_002,agentpick-calibforge-clean-fast,84,3,0,0,0,3,0,4,1.3,42.7,3/3,68/81,torch
+file-operations_20260610_112157_003,calibforge-clean-v2,84,3,0,0,0,3,0,4,1.3,69.7,0/3,25/81,git zlib zstandard
+file-operations_20260509_065529_004,calibforge-clean-v2,96,3,0,0,0,3,0,4,1.3,46.3,1/3,76/93,bzip2 zstandard bytes
+file-operations_20260417_112147_005,calibforge-clean-v2,84,3,0,0,0,3,0,4,1.3,55.7,2/3,64/81,zstd tensorflow tqdm
+debugging_20260504_125558_001,calibforge-clean-v2,96,3,0,0,0,3,0,4,1.3,87.7,0/3,60/93,requests
+data-science_20260602_105139_006,calibforge-clean-v2,86,3,0,0,0,3,0,4,1.3,60.0,1/3,46/83,chardet
+data-science_20260414_091921_001,calibforge-clean-v2,84,3,0,1,0,2,0,4,1.3,55.3,2/3,75/81,pytz pandas
+task_006425_4b39c264,agentpick-clean-fast,96,3,0,0,0,3,0,4,1.3,60.0,1/3,59/93,sklearn
+system-administration_20260616_094815_003,calibforge-clean-v2,84,3,0,0,0,3,0,4,1.3,77.0,1/3,19/81,crypt
+system-administration_20260610_112157_009,calibforge-clean-v2,84,3,0,0,3,0,4,4,1.3,84.3,1/3,64/81,
+software-engineering_20260606_172606_006,calibforge-clean-v2,84,3,0,0,0,3,3,3,1.0,28.7,3/3,57/81,numpy
+software-engineering_20260604_003814_004,agentpick-calibforge-clean-fast,84,3,0,0,3,0,31,3,1.0,76.0,3/3,53/81,
+software-engineering_20260603_181444_009,calibforge-clean-v2,84,3,0,0,3,0,10,3,1.0,49.7,3/3,37/81,
+software-engineering_20260427_204204_024,calibforge-clean-v2,96,3,0,0,0,3,0,3,1.0,61.0,1/3,42/93,pool path psutil
+software-engineering_20260415_094424_003,calibforge-clean-v2,96,3,0,0,0,3,0,3,1.0,38.7,1/3,45/93,psutil
+software-engineering_20260414_211532_024,calibforge-clean-v2,84,3,0,0,0,3,0,3,1.0,60.0,0/3,18/81,psutil multiprocessing multiprocess
+security_20260602_105139_001,agentpick-calibforge-clean-fast,84,3,0,0,3,0,46,3,1.0,70.3,2/3,48/81,
+security_20260508_045740_007,agentpick-calibforge-clean-fast,84,3,0,0,0,3,0,3,1.0,63.7,2/3,43/81,flask
+pyg-team__pytorch_geometric-8143,agentpick-clean-fast,96,3,0,0,0,3,0,3,1.0,74.7,1/3,42/93,scipy torch
+optimization_20260604_003113_001,agentpick-calibforge-clean-fast,96,3,1,0,0,2,96,3,1.0,73.3,1/3,34/93,cffi sklearn
+mathematics_20260420_020307_004,calibforge-clean-v2,84,3,0,0,0,3,0,3,1.0,37.7,2/3,68/81,matplotlib
+games_20260429_103257_001,agentpick-calibforge-clean-fast,84,3,0,0,0,3,0,3,1.0,70.0,0/3,14/81,importlib app set
+file-operations_20260611_210349_003,calibforge-clean-v2,84,3,0,0,0,3,30,3,1.0,58.7,0/3,10/81,regex zlib pandas
+file-operations_20260414_080620_001,calibforge-clean-v2,96,3,0,0,0,3,0,3,1.0,37.0,1/3,51/93,zstandard base32 it
+dbader__schedule.82a43db1.func_pm_remove_cond__9tbtqjem,agentpick-clean-fast,84,3,0,0,0,3,0,3,1.0,81.7,1/3,67/81,dateutil src
+data-science_20260614_141608_007,calibforge-clean-v2,84,3,0,0,0,3,16,3,1.0,62.7,1/3,38/81,sklearn scipy
+data-science_20260612_191200_003,agentpick-calibforge-clean-fast,96,3,0,0,0,3,50,3,1.0,43.7,3/3,79/93,config
+data-science_20260610_112157_005,calibforge-clean-v2,84,3,0,0,0,3,3,3,1.0,25.0,3/3,69/81,statsmodels scipy
+data-science_20260604_144210_005,calibforge-clean-v2,84,3,0,0,0,3,0,3,1.0,32.0,2/3,22/81,numpy scipy
+data-science_20260506_213248_004,agentpick-calibforge-clean-fast,84,3,0,0,0,3,0,3,1.0,71.0,2/3,54/81,sklearn
+data-science_20260413_173854_004,calibforge-clean-v2,84,3,0,3,0,0,0,3,1.0,34.0,3/3,66/81,
+video-processing_20260611_210349_001,agentpick-calibforge-clean-fast,84,3,0,0,0,3,3,3,1.0,44.3,0/3,13/81,matplotlib skimage
+video-processing_20260606_153537_001,calibforge-clean-v2,84,3,0,0,0,3,4,3,1.0,63.0,1/3,18/81,PIL np scipy
+task_005176_040cf82b,agentpick-clean-fast,96,3,0,0,0,3,0,3,1.0,36.3,1/3,73/93,parse packaging resolve
+system-administration_20260604_002443_002,calibforge-clean-v2,84,3,0,0,0,3,0,3,1.0,138.3,0/3,18/81,crypt pexpect
+pallets__markupsafe.620c06c9.func_basic__09grfhrm,agentpick-clean-fast,84,2,0,0,0,2,0,19,9.5,116.5,0/2,58/82,pip
+task_000816_72e21ee9,agentpick-clean-fast,96,2,0,0,0,2,0,13,6.5,76.0,2/2,74/94,mpi4py
+games_20260604_144210_001,agentpick-calibforge-clean-fast,84,2,0,0,1,1,5,12,6.0,42.5,2/2,23/82,sortedcontainers
+data-processing_20260613_152233_004,agentpick-calibforge-clean-fast,84,2,0,0,1,2,12,11,5.5,61.5,0/2,23/82,repr six
+alteryx__evalml-1221,agentpick-clean-fast,84,2,0,0,0,2,0,11,5.5,61.5,2/2,43/82,distutils pkg_resources
+task_000624_6605751b,agentpick-clean-fast,84,2,0,0,0,2,0,10,5.0,65.5,2/2,82/82,requests __builtins__
+software-engineering_20260508_045557_011,agentpick-calibforge-clean-fast,96,2,0,0,0,2,0,8,4.0,63.5,0/2,31/94,pexpect pytest
+system-administration_20260501_051538_004,agentpick-calibforge-clean-fast,84,2,0,0,0,2,0,8,4.0,83.0,2/2,69/82,redis
+python-trio__trio.cfbbe2c1.pr_3051,agentpick-clean-fast,89,2,0,0,0,2,0,7,3.5,61.0,1/2,39/87,src trio
+machine-learning_20260604_144210_001,agentpick-calibforge-clean-fast,84,2,0,1,0,1,0,7,3.5,82.0,0/2,9/82,cv2
+software-engineering_20260417_112147_019,calibforge-clean-v2,84,2,0,0,0,2,0,6,3.0,22.0,2/2,78/82,click
+file-operations_20260610_111702_004,calibforge-clean-v2,96,2,2,0,0,1,14,6,3.0,91.5,0/2,11/94,zstandard
+data-processing_20260430_081156_004,agentpick-calibforge-clean-fast,84,2,1,0,0,2,0,6,3.0,42.0,1/2,44/82,chardet charset_normalizer
+data-processing_20260424_090344_003,agentpick-calibforge-clean-fast,96,2,0,2,0,1,0,6,3.0,71.0,0/2,79/94,Levenshtein
+task_003899_3e4bce86,agentpick-clean-fast,96,2,0,0,0,2,0,6,3.0,55.5,2/2,62/94,scipy mpi4py
+software-engineering_20260420_020307_021,agentpick-calibforge-clean-fast,84,2,0,0,0,2,0,5,2.5,39.0,2/2,64/82,regex calc
+software-engineering_20260415_182321_021,calibforge-clean-v2,84,2,2,0,0,1,0,5,2.5,62.5,1/2,59/82,toml
+scientific-computing_20260606_153537_004,calibforge-clean-v2,84,2,1,0,0,2,0,5,2.5,55.5,1/2,62/82,numpy pandas
+task_003980_d394a7e3,agentpick-clean-fast,84,2,0,0,0,2,0,5,2.5,49.0,2/2,49/82,mpi4py
+software-engineering_20260610_112157_022,calibforge-clean-v2,84,2,0,0,0,2,1,4,2.0,111.5,0/2,25/82,sympy z3
+software-engineering_20260428_101637_011,calibforge-clean-v2,84,2,0,0,0,2,0,4,2.0,76.5,0/2,28/82,psutil
+software-engineering_20260418_044216_022,calibforge-clean-v2,96,2,0,0,0,2,0,4,2.0,87.0,1/2,66/94,vm
+debugging_20260413_173854_003,calibforge-clean-v2,84,2,0,0,0,2,0,4,2.0,35.5,2/2,72/82,processor multiprocess
+software-engineering_20260604_193056_013,calibforge-clean-v2,84,2,0,0,0,2,1,3,1.5,78.0,1/2,49/82,ct numpy
+software-engineering_20260418_190236_024,calibforge-clean-v2,84,2,0,0,0,2,0,3,1.5,56.0,2/2,22/82,worker_pool
+security_20260611_112034_008,agentpick-calibforge-clean-fast,84,2,0,0,2,0,24,3,1.5,47.5,1/2,54/82,
+scientific-computing_20260415_123352_005,calibforge-clean-v2,96,2,0,0,0,2,0,3,1.5,48.5,2/2,72/94,scipy
+personal-assistant_20260416_184513_001,calibforge-clean-v2,84,2,0,1,0,2,0,3,1.5,72.5,1/2,40/82,regex dateutil
+model-training_20260416_172928_001,calibforge-clean-v2,84,2,0,0,0,2,0,3,1.5,74.5,2/2,75/82,model
+machine-learning_20260606_172622_002,calibforge-clean-v2,84,2,0,0,0,2,0,3,1.5,27.0,1/2,54/82,data nn
+file-operations_20260505_093950_005,calibforge-clean-v2,84,2,0,0,0,2,0,3,1.5,52.0,0/2,7/82,chardet
+file-operations_20260420_020307_003,agentpick-calibforge-clean-fast,84,2,2,0,0,0,0,3,1.5,61.0,1/2,61/82,
+data-science_20260501_172213_003,calibforge-clean-v2,96,2,0,0,0,2,0,3,1.5,40.0,2/2,66/94,train pipeline
+tw_42850,agentpick-clean-fast,84,2,2,0,0,0,0,3,1.5,131.0,0/2,14/82,
+task_005084_af94922a,agentpick-clean-fast,96,2,0,0,0,2,0,3,1.5,29.5,1/2,70/94,bio Biopython
+system-administration_20260604_002443_004,agentpick-calibforge-clean-fast,84,2,0,0,1,1,17,3,1.5,96.0,0/2,9/82,ext4
+system-administration_20260511_150433_004,calibforge-clean-v2,96,2,0,0,0,2,0,3,1.5,96.5,0/2,80/94,app
+system-administration_20260414_211453_009,calibforge-clean-v2,84,2,0,2,0,0,0,2,1.0,29.0,2/2,76/82,
+software-engineering_20260616_094815_012,calibforge-clean-v2,84,2,0,0,0,2,0,2,1.0,54.5,1/2,11/82,app imp
+software-engineering_20260615_143301_011,calibforge-clean-v2,84,2,0,0,0,2,0,2,1.0,62.0,0/2,52/82,numpy
+software-engineering_20260614_141608_015,calibforge-clean-v2,84,2,0,0,0,2,5,2,1.0,34.5,0/2,52/82,PIL numpy
+software-engineering_20260611_210349_014,calibforge-clean-v2,84,2,0,0,0,2,1,2,1.0,52.5,2/2,40/82,app
+software-engineering_20260604_003113_009,calibforge-clean-v2,104,2,1,0,2,0,67,2,1.0,27.0,2/2,58/102,
+software-engineering_20260604_002443_021,agentpick-calibforge-clean-fast,84,2,0,0,0,2,0,2,1.0,58.5,0/2,23/82,__import__ app
+software-engineering_20260514_134238_011,calibforge-clean-v2,84,2,0,0,0,2,0,2,1.0,50.0,1/2,39/82,thread multiprocessing
+software-engineering_20260514_011856_005,calibforge-clean-v2,84,2,0,0,0,2,0,2,1.0,32.0,2/2,67/82,src
+software-engineering_20260508_153434_014,agentpick-calibforge-clean-fast,84,2,0,0,0,2,0,2,1.0,57.5,1/2,52/82,PIL
+software-engineering_20260503_030115_023,calibforge-clean-v2,84,2,0,0,0,2,0,2,1.0,42.0,1/2,56/82,dataclass signals
+software-engineering_20260417_112147_021,calibforge-clean-v2,84,2,0,0,0,2,0,2,1.0,79.5,0/2,48/82,tqdm app
+software-engineering_20260414_211532_023,agentpick-calibforge-clean-fast,84,2,0,0,0,2,0,2,1.0,58.5,1/2,25/82,numpy
+security_20260606_153537_003,agentpick-calibforge-clean-fast,84,2,0,0,0,2,0,2,1.0,81.0,0/2,19/82,git yaml
+security_20260604_003814_005,calibforge-clean-v2,84,2,0,0,2,0,32,2,1.0,35.5,0/2,7/82,
+security_20260528_174918_002,agentpick-calibforge-clean-fast,84,2,0,0,0,2,0,2,1.0,50.0,0/2,39/82,ctypes
+security_20260415_182321_001,calibforge-clean-v2,86,2,0,0,0,2,0,2,1.0,64.5,1/2,70/84,tarfile file
+security_20260414_211453_004,agentpick-calibforge-clean-fast,85,2,0,0,0,2,0,2,1.0,54.5,0/2,5/83,app
+scientific-computing_20260513_204536_003,agentpick-calibforge-clean-fast,96,2,0,0,0,2,0,2,1.0,26.0,2/2,71/94,numpy Levenshtein
+scientific-computing_20260509_020109_003,calibforge-clean-v2,84,2,0,0,0,2,0,2,1.0,28.0,1/2,46/82,Bio pandas
+scientific-computing_20260501_051538_004,calibforge-clean-v2,96,2,0,0,0,2,0,2,1.0,86.0,0/2,51/94,rdkit
+scientific-computing_20260417_112147_005,calibforge-clean-v2,96,2,0,0,0,2,0,2,1.0,44.5,1/2,87/94,statsmodels dask
+rts_task_9fc576bfba789ec7cbb43fbb,agentpick-clean-fast,84,2,0,0,0,2,0,2,1.0,113.0,0/2,47/82,yaml
+pybamm-team__pybamm-794,agentpick-clean-fast,96,2,0,0,0,2,0,2,1.0,90.0,0/2,46/94,tests
+personal-assistant_20260605_015435_001,calibforge-clean-v2,84,2,0,0,0,2,4,2,1.0,34.0,2/2,66/82,pytz dateutil
+personal-assistant_20260508_045557_001,agentpick-calibforge-clean-fast,84,2,0,0,0,2,0,2,1.0,60.5,1/2,46/82,app icalendar
+model-training_20260604_004411_002,calibforge-clean-v2,96,2,0,0,0,2,1,2,1.0,56.5,1/2,63/94,numpy xz
+model-training_20260416_184513_001,calibforge-clean-v2,84,2,0,0,0,2,0,2,1.0,67.0,0/2,39/82,models model
+mathematics_20260610_112157_001,agentpick-calibforge-clean-fast,84,2,0,0,0,2,0,2,1.0,49.5,0/2,8/82,numpy
+mathematics_20260506_213248_003,calibforge-clean-v2,96,2,0,0,0,2,0,2,1.0,29.0,1/2,55/94,np
+mathematics_20260415_094424_003,calibforge-clean-v2,84,2,0,0,0,2,0,2,1.0,49.0,1/2,53/82,mpmath matplotlib
+machine-learning_20260606_153537_001,calibforge-clean-v2,84,2,0,0,0,2,7,2,1.0,77.0,1/2,54/82,sklearn pandas
+jelmer__dulwich-1160,agentpick-clean-fast,84,2,0,0,0,2,0,2,1.0,122.5,0/2,63/82,dill testing
+file-operations_20260611_112034_004,agentpick-calibforge-clean-fast,84,2,0,0,0,2,7,2,1.0,60.5,0/2,8/82,bzip2
+file-operations_20260610_111702_001,calibforge-clean-v2,84,2,0,0,0,2,3,2,1.0,54.0,0/2,22/82,git bytes
+file-operations_20260510_125534_005,calibforge-clean-v2,96,2,1,0,0,1,0,2,1.0,33.0,1/2,77/94,bzip2
+file-operations_20260507_172207_001,calibforge-clean-v2,84,2,1,0,0,1,0,2,1.0,66.0,0/2,23/82,regex
+file-operations_20260506_213248_002,calibforge-clean-v2,84,2,1,0,0,1,0,2,1.0,43.5,0/2,12/82,file
+file-operations_20260417_145736_002,calibforge-clean-v2,84,2,1,0,0,1,0,2,1.0,34.0,0/2,22/82,numpy
+facebookresearch__fvcore.a491d5b9.lm_rewrite__ipg0fu5k,agentpick-clean-fast,96,2,0,0,0,2,0,2,1.0,52.0,0/2,29/94,type tests
+data-science_20260611_210349_007,calibforge-clean-v2,96,2,0,0,0,2,47,2,1.0,52.5,1/2,48/94,matplotlib
+data-science_20260604_193056_008,agentpick-calibforge-clean-fast,96,2,0,0,0,2,0,2,1.0,27.5,0/2,44/94,geopandas
+data-science_20260604_193056_006,calibforge-clean-v2,86,2,0,0,0,2,84,2,1.0,78.0,1/2,63/84,scipy
+data-science_20260420_020307_004,calibforge-clean-v2,84,2,0,0,0,2,0,2,1.0,39.5,2/2,71/82,pandas
+data-science_20260420_020307_002,calibforge-clean-v2,84,2,0,0,0,2,0,2,1.0,34.5,1/2,59/82,matplotlib
+data-science_20260415_123352_003,calibforge-clean-v2,84,2,0,0,0,2,0,2,1.0,47.0,2/2,78/82,pytz pandas
+data-science_20260415_002933_002,calibforge-clean-v2,84,2,0,0,0,2,0,2,1.0,44.0,0/2,43/82,sklearn statsmodels
+data-processing_20260605_015435_001,agentpick-calibforge-clean-fast,84,2,0,0,0,2,3,2,1.0,59.0,0/2,11/82,pandas
+data-processing_20260604_003814_002,calibforge-clean-v2,84,2,0,0,0,2,9,2,1.0,44.5,0/2,19/82,crcmod
+arrow-py__arrow.1d70d009.func_pm_ctrl_shuffle__vaslaiy9,agentpick-clean-fast,96,2,0,0,0,2,0,2,1.0,43.0,2/2,83/94,arrow scipy
+tw_288787,agentpick-clean-fast,84,2,0,0,0,2,0,2,1.0,31.0,2/2,42/82,PyPDF2 fitz
+task_001697_f00c5c92,agentpick-clean-fast,84,2,0,0,0,2,0,2,1.0,51.5,1/2,27/82,scipy torchvision
+task_000591_320f1d26,agentpick-clean-fast,84,2,0,0,0,2,0,2,1.0,71.0,0/2,33/82,psutil supervisor
+task_000482_d54c11a6,agentpick-clean-fast,96,2,0,0,0,2,0,2,1.0,102.0,2/2,78/94,pexpect
+task_000318_4bf545ba,agentpick-clean-fast,96,2,0,0,0,2,0,2,1.0,33.0,2/2,84/94,tensorflow psutil
+task_000258_60a61045,agentpick-clean-fast,84,2,0,0,0,2,0,2,1.0,42.0,1/2,66/82,msgpack
+system-administration_20260503_182123_009,calibforge-clean-v2,94,2,1,0,0,1,0,2,1.0,64.5,1/2,46/92,psutil
+system-administration_20260420_020307_002,calibforge-clean-v2,84,2,0,0,0,2,0,2,1.0,57.0,1/2,69/82,websocket
+system-administration_20260604_194036_009,agentpick-calibforge-clean-fast,84,1,1,1,0,1,7,11,11.0,96.0,0/1,31/83,lz4
+qiskit__qiskit-terra-7952,agentpick-clean-fast,84,1,0,0,0,1,0,8,8.0,85.0,1/1,58/83,pkg_resources
+tw_485539,agentpick-clean-fast,84,1,0,0,0,1,0,7,7.0,47.0,1/1,69/83,pkg_resources
+tw_358114,agentpick-clean-fast,84,1,1,0,0,1,0,7,7.0,142.0,0/1,65/83,cryptography
+software-engineering_20260606_172554_011,calibforge-clean-v2,96,1,0,0,0,1,1,5,5.0,80.0,0/1,48/95,torch
+task_003328_31c8a848,agentpick-clean-fast,96,1,0,0,0,1,0,5,5.0,66.0,1/1,72/95,numpy
+system-administration_20260612_191200_009,agentpick-calibforge-clean-fast,84,1,0,0,1,0,11,5,5.0,66.0,1/1,57/83,
+software-engineering_20260416_184513_014,calibforge-clean-v2,84,1,0,1,0,0,0,4,4.0,77.0,0/1,19/83,
+scientific-computing_20260414_091921_004,agentpick-calibforge-clean-fast,84,1,1,0,0,1,0,4,4.0,69.0,0/1,52/83,Bio
+pypa__bandersnatch-1557,agentpick-clean-fast,84,1,0,0,0,1,0,4,4.0,79.0,0/1,7/83,tests
+task_005102_2c84eabc,agentpick-clean-fast,84,1,0,0,0,1,0,4,4.0,47.0,1/1,54/83,scipy
+software-engineering_20260601_053159_026,calibforge-clean-v2,84,1,1,0,0,0,1,3,3.0,50.0,1/1,43/83,
+scientific-computing_20260415_182321_004,calibforge-clean-v2,84,1,1,0,0,0,0,3,3.0,107.0,0/1,63/83,
+personal-assistant_20260513_204848_001,agentpick-calibforge-clean-fast,96,1,1,0,0,1,0,3,3.0,41.0,1/1,57/95,icalendar dateutil
+optimization_20260606_172622_001,agentpick-calibforge-clean-fast,84,1,0,0,0,1,0,3,3.0,68.0,0/1,46/83,dict
+model-training_20260415_094424_001,calibforge-clean-v2,84,1,0,0,0,1,0,3,3.0,48.0,1/1,65/83,model
+mathematics_20260605_015435_003,calibforge-clean-v2,96,1,1,0,0,1,0,3,3.0,15.0,0/1,71/95,scipy
+games_20260511_150433_001,agentpick-calibforge-clean-fast,96,1,1,0,0,0,0,3,3.0,57.0,0/1,70/95,
+file-operations_20260416_172928_002,agentpick-calibforge-clean-fast,84,1,1,0,0,0,0,3,3.0,77.0,0/1,4/83,
+elastic__curator-1175,agentpick-clean-fast,84,1,0,0,0,1,0,3,3.0,35.0,0/1,54/83,test
+debugging_20260416_172928_005,calibforge-clean-v2,84,1,1,0,0,1,0,3,3.0,51.0,1/1,39/83,PIL
+data-querying_20260607_104421_001,calibforge-clean-v2,96,1,1,0,0,1,1,3,3.0,26.0,0/1,73/95,duckdb
+data-processing_20260424_090344_002,calibforge-clean-v2,85,1,0,1,0,1,0,3,3.0,70.0,1/1,30/84,dateutil
+conan-io__conan.86f29e13.func_pm_remove_assign__vt2zl5s6,agentpick-clean-fast,84,1,0,0,0,1,0,3,3.0,85.0,1/1,81/83,type
+tw_528959,agentpick-clean-fast,84,1,0,0,0,1,0,3,3.0,68.0,1/1,58/83,OpenSSL
+task_009068_ceebc4fa,agentpick-clean-fast,96,1,0,0,0,1,0,3,3.0,37.0,0/1,17/95,gmpy2
+software-engineering_20260612_191200_003,calibforge-clean-v2,84,1,0,0,1,0,4,2,2.0,51.0,1/1,41/83,
+software-engineering_20260602_105139_014,agentpick-calibforge-clean-fast,84,1,0,0,0,1,1,2,2.0,100.0,0/1,36/83,ct
+software-engineering_20260508_045800_001,calibforge-clean-v2,84,1,1,0,0,0,0,2,2.0,147.0,0/1,27/83,
+software-engineering_20260430_081156_005,agentpick-calibforge-clean-fast,84,1,0,0,0,1,0,2,2.0,63.0,0/1,48/83,bytes
+software-engineering_20260415_182321_006,calibforge-clean-v2,84,1,0,1,0,0,0,2,2.0,54.0,1/1,33/83,
+security_20260604_144210_007,calibforge-clean-v2,84,1,0,0,1,0,33,2,2.0,60.0,0/1,42/83,
+scientific-computing_20260508_045557_008,calibforge-clean-v2,84,1,0,0,0,1,0,2,2.0,30.0,1/1,39/83,simulation
+pylons__waitress-124,agentpick-clean-fast,96,1,0,0,0,1,0,2,2.0,41.0,1/1,43/95,tests
+personal-assistant_20260604_194036_001,agentpick-calibforge-clean-fast,84,1,0,0,0,1,0,2,2.0,76.0,1/1,33/83,dateutil
+games_20260605_015435_001,calibforge-clean-v2,84,1,1,0,0,0,0,2,2.0,35.0,1/1,69/83,
+file-operations_20260617_051646_005,calibforge-clean-v2,84,1,0,0,1,0,3,2,2.0,30.0,0/1,36/83,
+file-operations_20260607_104421_004,agentpick-calibforge-clean-fast,84,1,0,0,0,1,15,2,2.0,49.0,0/1,63/83,zstandard brotli
+debugging_20260509_065529_001,agentpick-calibforge-clean-fast,84,1,0,0,0,1,0,2,2.0,27.0,0/1,67/83,pkg_resources
+data-science_20260502_090008_004,calibforge-clean-v2,84,1,0,0,0,1,0,2,2.0,34.0,0/1,21/83,multiprocess
+data-processing_20260610_111702_002,calibforge-clean-v2,84,1,1,0,0,0,0,2,2.0,50.0,1/1,38/83,
+data-processing_20260508_045740_002,agentpick-calibforge-clean-fast,84,1,0,0,0,1,0,2,2.0,55.0,0/1,35/83,pandas
+task_007327_ccd3de90,agentpick-clean-fast,84,1,1,0,0,0,0,2,2.0,15.0,1/1,74/83,
+task_002827_0428ee83,agentpick-clean-fast,84,1,0,0,0,1,0,2,2.0,67.0,1/1,47/83,sortedcontainers
+task_000113_8a2ee560,agentpick-clean-fast,84,1,0,0,0,1,0,2,2.0,25.0,1/1,66/83,matplotlib
+system-administration_20260601_053159_005,agentpick-calibforge-clean-fast,96,1,1,0,0,0,1,2,2.0,150.0,0/1,56/95,
+system-administration_20260505_093950_001,calibforge-clean-v2,84,1,0,1,0,0,0,2,2.0,32.0,1/1,76/83,
+system-administration_20260419_023954_004,calibforge-clean-v2,84,1,0,1,0,0,0,2,2.0,140.0,0/1,40/83,
+system-administration_20260419_023954_001,calibforge-clean-v2,96,1,1,0,0,0,0,2,2.0,58.0,0/1,28/95,
+system-administration_20260414_080620_006,calibforge-clean-v2,84,1,0,0,0,1,0,1,1.0,105.0,0/1,45/83,supervisor
+system-administration_20260413_174325_007,calibforge-clean-v2,84,1,0,0,0,1,0,1,1.0,133.0,0/1,67/83,supervisor
+software-engineering_20260617_104707_014,calibforge-clean-v2,96,1,0,0,0,1,0,1,1.0,88.0,0/1,8/95,bs4
+software-engineering_20260617_051646_020,calibforge-clean-v2,84,1,0,0,0,1,1,1,1.0,56.0,0/1,21/83,ct
+software-engineering_20260614_141608_025,agentpick-calibforge-clean-fast,96,1,0,0,0,1,0,1,1.0,57.0,1/1,27/95,numpy
+software-engineering_20260613_152233_015,agentpick-calibforge-clean-fast,84,1,0,0,0,1,2,1,1.0,45.0,0/1,16/83,numpy
+software-engineering_20260611_205750_010,calibforge-clean-v2,84,1,0,0,1,0,7,1,1.0,51.0,0/1,0/83,
+software-engineering_20260610_111012_014,agentpick-calibforge-clean-fast,96,1,1,0,0,0,2,1,1.0,46.0,1/1,5/95,
+software-engineering_20260606_172606_012,calibforge-clean-v2,84,1,0,0,1,0,24,1,1.0,45.0,0/1,16/83,
+software-engineering_20260606_153537_022,agentpick-calibforge-clean-fast,84,1,0,0,0,1,0,1,1.0,86.0,1/1,57/83,parser
+software-engineering_20260604_193056_012,calibforge-clean-v2,84,1,0,0,0,1,0,1,1.0,93.0,0/1,39/83,rapidfuzz
+software-engineering_20260604_004411_026,agentpick-calibforge-clean-fast,96,1,0,0,0,1,3,1,1.0,80.0,0/1,5/95,vm
+software-engineering_20260604_004411_023,agentpick-calibforge-clean-fast,84,1,0,0,0,1,7,1,1.0,90.0,1/1,25/83,lz4
+software-engineering_20260604_004411_011,agentpick-calibforge-clean-fast,84,1,0,0,0,1,1,1,1.0,69.0,1/1,20/83,psutil
+software-engineering_20260511_015840_026,calibforge-clean-v2,84,1,0,0,0,1,0,1,1.0,63.0,1/1,49/83,vm
+software-engineering_20260508_045557_021,calibforge-clean-v2,84,1,0,0,0,1,0,1,1.0,67.0,0/1,19/83,lib
+software-engineering_20260503_030115_021,calibforge-clean-v2,96,1,0,0,0,1,0,1,1.0,59.0,1/1,76/95,numpy
+software-engineering_20260501_051538_012,calibforge-clean-v2,96,1,0,0,0,1,0,1,1.0,60.0,1/1,67/95,thread
+software-engineering_20260419_182351_021,calibforge-clean-v2,84,1,0,0,0,1,0,1,1.0,94.0,0/1,51/83,regex
+software-engineering_20260419_065313_006,calibforge-clean-v2,85,1,0,0,0,1,0,1,1.0,53.0,1/1,75/84,dataclass
+software-engineering_20260418_044216_016,agentpick-calibforge-clean-fast,84,1,1,0,0,0,0,1,1.0,78.0,1/1,33/83,
+software-engineering_20260415_182321_024,calibforge-clean-v2,84,1,0,0,0,1,0,1,1.0,81.0,0/1,24/83,toml
+software-engineering_20260415_123352_011,agentpick-calibforge-clean-fast,84,1,0,0,0,1,0,1,1.0,51.0,0/1,14/83,psutil
+software-engineering_20260414_091921_006,calibforge-clean-v2,96,1,0,0,0,1,0,1,1.0,58.0,0/1,51/95,pipeline
+software-engineering_20260413_173854_005,agentpick-calibforge-clean-fast,84,1,0,0,0,1,0,1,1.0,56.0,1/1,32/83,app
+security_20260603_181444_003,calibforge-clean-v2,84,1,0,0,0,1,0,1,1.0,59.0,0/1,19/83,pytz
+security_20260514_134238_005,calibforge-clean-v2,84,1,0,1,0,0,0,1,1.0,40.0,1/1,39/83,
+security_20260514_012509_001,agentpick-calibforge-clean-fast,84,1,0,0,0,1,0,1,1.0,25.0,0/1,61/83,path
+security_20260510_062946_001,agentpick-calibforge-clean-fast,84,1,0,0,0,1,0,1,1.0,61.0,0/1,69/83,tarfile
+security_20260418_044216_004,calibforge-clean-v2,84,1,0,0,0,1,0,1,1.0,60.0,1/1,64/83,__import__
+scientific-computing_20260611_205750_001,calibforge-clean-v2,96,1,0,0,0,1,92,1,1.0,117.0,0/1,11/95,scipy
+scientific-computing_20260604_002443_008,calibforge-clean-v2,96,1,0,0,0,1,66,1,1.0,79.0,1/1,57/95,matplotlib
+scientific-computing_20260510_005520_008,agentpick-calibforge-clean-fast,84,1,0,0,0,1,0,1,1.0,49.0,1/1,52/83,sympy
+scientific-computing_20260415_123352_003,agentpick-calibforge-clean-fast,84,1,0,0,0,1,0,1,1.0,43.0,1/1,65/83,numpy
+scientific-computing_20260414_080620_005,calibforge-clean-v2,96,1,0,0,0,1,0,1,1.0,46.0,1/1,81/95,signals
+pyro-ppl__numpyro-1918,agentpick-clean-fast,84,1,0,0,0,1,0,1,1.0,76.0,1/1,58/83,jax
+pycqa__docformatter-143,agentpick-clean-fast,84,1,0,0,0,1,0,1,1.0,144.0,0/1,27/83,tests
+personal-assistant_20260610_111702_001,calibforge-clean-v2,84,1,0,0,0,1,0,1,1.0,26.0,1/1,44/83,pandas
+personal-assistant_20260421_155939_001,calibforge-clean-v2,84,1,0,0,0,1,0,1,1.0,66.0,1/1,30/83,regex
+personal-assistant_20260417_112147_001,agentpick-calibforge-clean-fast,84,1,0,0,0,1,0,1,1.0,13.0,0/1,42/83,icalendar
+pandas-dev__pandas.95280573.pr_48050,agentpick-clean-fast,96,1,0,0,0,1,0,1,1.0,107.0,0/1,75/95,chardet
+optimization_20260413_173854_001,agentpick-calibforge-clean-fast,84,1,0,0,0,1,0,1,1.0,62.0,1/1,70/83,numpy
+model-training_20260606_172606_003,calibforge-clean-v2,84,1,0,0,0,1,53,1,1.0,50.0,0/1,11/83,torchvision
+model-training_20260605_015435_002,calibforge-clean-v2,84,1,0,0,0,1,1,1,1.0,41.0,0/1,50/83,numpy
+model-training_20260428_101637_002,calibforge-clean-v2,84,1,0,0,0,1,0,1,1.0,70.0,0/1,55/83,numpy
+mathematics_20260513_205011_001,agentpick-calibforge-clean-fast,84,1,0,0,0,1,0,1,1.0,43.0,1/1,59/83,parse
+mathematics_20260508_045800_001,calibforge-clean-v2,84,1,0,0,0,1,0,1,1.0,53.0,0/1,27/83,numpy
+machine-learning_20260616_094815_002,calibforge-clean-v2,96,1,0,0,0,1,50,1,1.0,31.0,0/1,14/95,scipy
+machine-learning_20260612_191200_002,calibforge-clean-v2,84,1,0,0,0,1,0,1,1.0,28.0,1/1,18/83,scipy
+machine-learning_20260602_105139_002,calibforge-clean-v2,84,1,0,0,0,1,84,1,1.0,46.0,0/1,21/83,sklearn
+machine-learning_20260508_153434_002,agentpick-calibforge-clean-fast,84,1,0,0,0,1,0,1,1.0,16.0,1/1,75/83,matplotlib
+machine-learning_20260419_023954_002,calibforge-clean-v2,96,1,0,0,0,1,0,1,1.0,67.0,0/1,42/95,torch
+lepture__mistune.bf54ef67.lm_rewrite__u9gus5ea,agentpick-clean-fast,84,1,0,0,0,1,0,1,1.0,104.0,1/1,56/83,repr
+kozea__weasyprint-2416,agentpick-clean-fast,84,1,0,0,0,1,0,1,1.0,44.0,1/1,52/83,tests
+keras-team__keras-20079,agentpick-clean-fast,84,1,0,0,0,1,0,1,1.0,91.0,0/1,43/83,tensorflow
+gpflow__gpflow-2096,agentpick-clean-fast,84,1,0,0,0,1,0,1,1.0,53.0,1/1,40/83,sympy
+games_20260617_210354_001,calibforge-clean-v2,84,1,0,0,0,1,0,1,1.0,61.0,1/1,26/83,dict
+games_20260607_104421_001,agentpick-calibforge-clean-fast,84,1,0,0,0,1,0,1,1.0,65.0,0/1,31/83,src
+games_20260510_005520_001,calibforge-clean-v2,96,1,0,1,0,0,0,1,1.0,65.0,0/1,84/95,
+file-operations_20260617_210354_004,agentpick-calibforge-clean-fast,84,1,0,0,0,1,26,1,1.0,45.0,0/1,22/83,bytes
+file-operations_20260615_143301_001,calibforge-clean-v2,84,1,0,0,0,1,0,1,1.0,27.0,0/1,35/83,numpy
+file-operations_20260613_152233_001,calibforge-clean-v2,96,1,0,0,1,0,7,1,1.0,138.0,0/1,78/95,
+file-operations_20260612_191200_001,calibforge-clean-v2,84,1,0,0,0,1,0,1,1.0,52.0,1/1,21/83,numpy
+file-operations_20260611_205750_005,agentpick-calibforge-clean-fast,84,1,1,0,0,0,1,1,1.0,56.0,0/1,51/83,
+file-operations_20260611_112034_002,calibforge-clean-v2,84,1,0,0,0,1,1,1,1.0,47.0,0/1,34/83,crc32
+file-operations_20260604_144210_004,agentpick-calibforge-clean-fast,84,1,0,0,0,1,1,1,1.0,39.0,0/1,28/83,numpy
+file-operations_20260604_003814_001,calibforge-clean-v2,84,1,0,0,0,1,4,1,1.0,24.0,1/1,49/83,crcmod
+file-operations_20260511_015840_004,calibforge-clean-v2,84,1,1,0,0,0,0,1,1.0,34.0,1/1,52/83,
+file-operations_20260510_005520_005,calibforge-clean-v2,84,1,0,0,0,1,0,1,1.0,39.0,0/1,60/83,tarfile
+file-operations_20260507_093408_004,calibforge-clean-v2,96,1,0,0,0,1,0,1,1.0,43.0,1/1,56/95,numpy
+file-operations_20260503_182123_003,calibforge-clean-v2,84,1,0,0,0,1,0,1,1.0,32.0,0/1,33/83,chardet
+file-operations_20260430_081156_004,agentpick-calibforge-clean-fast,96,1,0,0,0,1,0,1,1.0,50.0,0/1,45/95,bytes
+file-operations_20260425_072438_002,agentpick-calibforge-clean-fast,84,1,0,0,0,1,0,1,1.0,50.0,0/1,23/83,git
+file-operations_20260424_090344_005,calibforge-clean-v2,84,1,0,0,0,1,0,1,1.0,75.0,1/1,48/83,numpy
+file-operations_20260419_112101_001,calibforge-clean-v2,84,1,0,0,0,1,0,1,1.0,34.0,1/1,72/83,brotli
+file-operations_20260418_190236_005,calibforge-clean-v2,84,1,0,0,0,1,0,1,1.0,44.0,0/1,26/83,zstandard
+file-operations_20260415_182321_004,agentpick-calibforge-clean-fast,96,1,0,0,0,1,0,1,1.0,30.0,1/1,46/95,bytes
+file-operations_20260414_091921_002,calibforge-clean-v2,88,1,1,0,0,0,0,1,1.0,28.0,1/1,61/87,
+facebookresearch__fvcore.a491d5b9.lm_rewrite__mynbot4f,agentpick-clean-fast,84,1,0,0,0,1,0,1,1.0,46.0,1/1,67/83,cv2
+debugging_20260611_210349_005,calibforge-clean-v2,84,1,0,0,0,1,6,1,1.0,40.0,1/1,56/83,data
+debugging_20260610_111702_005,calibforge-clean-v2,84,1,0,0,0,1,1,1,1.0,32.0,1/1,66/83,pickle
+debugging_20260418_190236_002,calibforge-clean-v2,84,1,0,0,0,1,0,1,1.0,55.0,1/1,72/83,mp
+debugging_20260418_190236_001,calibforge-clean-v2,96,1,0,0,0,1,0,1,1.0,51.0,1/1,69/95,pipeline
+debugging_20260414_080620_005,calibforge-clean-v2,96,1,0,0,0,1,0,1,1.0,20.0,1/1,79/95,pickle
+data-science_20260510_054909_001,calibforge-clean-v2,84,1,0,0,0,1,0,1,1.0,37.0,0/1,67/83,pip
+data-science_20260416_031414_004,calibforge-clean-v2,84,1,0,0,0,1,0,1,1.0,49.0,0/1,44/83,scipy
+data-science_20260413_173854_006,calibforge-clean-v2,96,1,0,0,0,1,0,1,1.0,39.0,1/1,18/95,set
+data-processing_20260617_104707_001,calibforge-clean-v2,84,1,0,0,0,1,0,1,1.0,33.0,1/1,23/83,chardet
+data-processing_20260615_143956_001,calibforge-clean-v2,84,1,0,0,0,1,5,1,1.0,44.0,1/1,49/83,pandas
+data-processing_20260615_143301_003,calibforge-clean-v2,84,1,0,0,0,1,25,1,1.0,37.0,1/1,24/83,sortedcontainers
+data-processing_20260611_210349_004,agentpick-calibforge-clean-fast,84,1,0,0,0,1,0,1,1.0,46.0,0/1,26/83,hexdump
+data-processing_20260508_204815_002,calibforge-clean-v2,96,1,0,0,0,1,0,1,1.0,91.0,0/1,27/95,yaml
+data-processing_20260507_170244_003,calibforge-clean-v2,84,1,0,0,0,1,0,1,1.0,22.0,1/1,58/83,chardet
+data-processing_20260506_213248_004,calibforge-clean-v2,99,1,0,0,0,1,0,1,1.0,30.0,1/1,79/98,jsonschema
+data-processing_20260504_125558_004,agentpick-calibforge-clean-fast,84,1,0,0,0,1,0,1,1.0,34.0,1/1,63/83,dateutil
+collective__icalendar-878,agentpick-clean-fast,84,1,0,0,0,1,0,1,1.0,68.0,1/1,58/83,icalendar
+bottlepy__bottle.a8dfef30.func_pm_remove_cond__0zlkz504,agentpick-clean-fast,96,1,0,0,0,1,0,1,1.0,98.0,1/1,52/95,test
+borgbackup__borg-8872,agentpick-clean-fast,84,1,0,0,0,1,0,1,1.0,56.0,1/1,38/83,src
+alteryx__woodwork-1533,agentpick-clean-fast,84,1,0,0,0,1,0,1,1.0,89.0,0/1,69/83,process
+video-processing_20260617_104707_001,calibforge-clean-v2,84,1,0,0,0,1,3,1,1.0,37.0,1/1,26/83,matplotlib
+video-processing_20260414_211532_001,calibforge-clean-v2,84,1,0,0,0,1,0,1,1.0,22.0,1/1,54/83,skimage
+tw_17238,agentpick-clean-fast,84,1,1,0,0,0,0,1,1.0,101.0,0/1,42/83,
+tobymao__sqlglot.036601ba.lm_rewrite__croj8akp,agentpick-clean-fast,96,1,0,0,0,1,0,1,1.0,115.0,1/1,46/95,type
+task_008668_aad66165,agentpick-clean-fast,84,1,0,0,0,1,0,1,1.0,58.0,1/1,69/83,parser
+task_006780_f07da33b,agentpick-clean-fast,96,1,0,0,0,1,0,1,1.0,30.0,1/1,83/95,mpmath
+task_004338_6800b70e,agentpick-clean-fast,96,1,0,0,0,1,0,1,1.0,50.0,0/1,56/95,cv2
+task_004244_018a965b,agentpick-clean-fast,84,1,0,0,0,1,0,1,1.0,82.0,0/1,50/83,numpy
+task_004227_00e8d97f,agentpick-clean-fast,96,1,0,0,0,1,0,1,1.0,43.0,1/1,82/95,pandas
+task_004118_161aa034,agentpick-clean-fast,96,1,0,0,0,1,0,1,1.0,44.0,0/1,75/95,numpy
+task_003888_e6eb8949,agentpick-clean-fast,84,1,0,0,0,1,0,1,1.0,98.0,0/1,71/83,numpy
+task_001162_eff22bd4,agentpick-clean-fast,84,1,0,0,0,1,0,1,1.0,27.0,0/1,62/83,psutil
+task_000597_e676e1f7,agentpick-clean-fast,96,1,0,0,0,1,0,1,1.0,54.0,1/1,77/95,resolve
+task_000176_2b846a1b,agentpick-clean-fast,84,1,0,0,0,1,0,1,1.0,112.0,0/1,54/83,app
+task_000012_58fdcccc,agentpick-clean-fast,84,1,0,0,0,1,0,1,1.0,61.0,1/1,58/83,dateutil
+system-administration_20260614_141608_009,agentpick-calibforge-clean-fast,96,1,1,0,0,0,9,1,1.0,97.0,0/1,20/95,
+system-administration_20260611_205750_006,calibforge-clean-v2,96,1,1,0,0,0,2,1,1.0,87.0,0/1,64/95,
+system-administration_20260611_205750_004,agentpick-calibforge-clean-fast,96,1,0,0,1,0,5,1,1.0,87.0,0/1,33/95,
+system-administration_20260607_104421_004,calibforge-clean-v2,84,1,0,0,0,1,0,1,1.0,94.0,1/1,41/83,crypt
+system-administration_20260514_012509_003,calibforge-clean-v2,84,1,1,0,0,0,0,1,1.0,57.0,1/1,72/83,
+system-administration_20260513_204536_004,calibforge-clean-v2,96,1,0,0,0,1,0,1,1.0,62.0,1/1,54/95,supervisor
+system-administration_20260510_130518_008,calibforge-clean-v2,84,1,0,1,0,0,0,1,1.0,62.0,0/1,54/83,
+system-administration_20260509_111805_008,calibforge-clean-v2,84,1,0,0,0,1,0,1,1.0,58.0,1/1,76/83,dir
+system-administration_20260504_125558_002,calibforge-clean-v2,84,1,0,0,0,1,0,1,1.0,78.0,1/1,63/83,requests
+system-administration_20260424_090344_004,calibforge-clean-v2,84,1,0,0,0,1,0,1,1.0,49.0,1/1,61/83,supervisor
+system-administration_20260416_031414_009,calibforge-clean-v2,96,1,0,0,0,1,0,1,1.0,92.0,1/1,66/95,yaml
+system-administration_20260416_020953_009,agentpick-calibforge-clean-fast,96,1,0,0,0,1,0,1,1.0,139.0,0/1,89/95,requests
