@@ -837,3 +837,52 @@ def test_freeze_reference_groups_are_staged_beside_signals_never_as_signals(tmp_
     assert sorted(p.name for p in (staged / "rollouts").iterdir()) == ["h1", "p1", "p3"]
     assert len(list((staged / "rollouts" / "p1").iterdir())) == 12
     assert sorted(p.name for p in (staged / "signals").iterdir()) == ["h1--g-1.json"]
+
+
+def test_freeze_direction_map_holds_whatever_the_band_and_caps_at_k(tmp_path, monkeypatch):
+    monkeypatch.setattr(eb, "_bench_commit", lambda: "test")
+    src = tmp_path / "corpus"
+    tasks = ["a", "b", "c", "d", "e"]
+    rows = [_row(t, test=f"test {t}") for t in tasks]
+    for r in rows:
+        _pkg(src / "tasks" / r["label"], test=r["metadata"]["tmax"]["test_sh"])
+    mix = _jsonl(tmp_path / "mix.jsonl", rows)
+    # a: mixed here, mapped easier; b: all solved here, mapped easier; c: 16
+    # attempts, the first 12 graded all solved; d: all infra; e: not mapped.
+    ev = _eval(tmp_path, "base", mix, {"a": "PFFFFFFFFFFF", "b": "P" * 12, "c": "PIPPPPPPPPPPPFFF",
+                                       "d": "IIII", "e": "F" * 12})
+    combo_rows = [_row("BASE__a", test="test a"), _row("A0__a", test="other")]
+    combo = _eval(tmp_path, "combo", _jsonl(tmp_path / "combo.jsonl", combo_rows),
+                  {"BASE__a": "FFFFFFFFFFFF", "A0__a": "PPPPPPPPPPPP"})
+    dmap = tmp_path / "map.json"
+    dmap.write_text(json.dumps({"a": "easier", "b": "easier", "c": "harder", "d": "harder"}))
+    out = eb.freeze(bench=tmp_path / "bench", name="p", run=None, evals=[combo, ev], first_group=[], selected=None,
+                    release=None, mix=mix, sources=[src], log=eb.Log(tmp_path / "f.log"), direction_map=dmap, k=12,
+                    eval_prefixes={str(combo): "BASE__"})
+    m, _ = eb.load_set(out, verify=True)
+    assert m["directions"] == {"easier": 2, "harder": 1}
+    assert m["dropped"] == {"d": "ungraded", "e": "not_in_direction_map"}
+    assert m["directions_from"] == {"kind": "direction_map", "path": str(dmap.resolve()),
+                                    "sha256": eb.layout.sha256_file(dmap), "tasks": 4}
+    assert m["k"] == 12 and m["signals_from"]["eval_prefixes"] == {str(combo.resolve()): "BASE__"}
+    # a's attempts come from the combo eval's BASE__ rows, given first; never the A0__ rewrite's.
+    sa = json.load(open(out / "runs" / "p" / "signals" / "a--g-2.json"))  # BASE__a is the combo's 2nd group
+    assert (sa["direction"], sa["solved"], sa["total"]) == ("easier", 0, 12)
+    assert m["measured"]["a"]["source"]["dir"] == str(combo.resolve())
+    assert all(rel.startswith("rollouts/a/") for rel in sa["attempts"])
+    sb = json.load(open(out / "runs" / "p" / "signals" / "b--g-2.json"))
+    assert (sb["direction"], sb["solved"], sb["total"]) == ("easier", 12, 12)
+    # c: r0..r12 (the infra attempt included) up to its 12th graded attempt.
+    sc = json.load(open(out / "runs" / "p" / "signals" / "c--g-3.json"))
+    assert (sc["direction"], sc["solved"], sc["total"], len(sc["attempts"])) == ("harder", 12, 12, 13)
+    bad = tmp_path / "bad.json"
+    bad.write_text(json.dumps({"zz": "easier"}))
+    with pytest.raises(SystemExit, match="not rows of"):
+        eb.freeze(bench=tmp_path / "bench", name="q", run=None, evals=[ev], first_group=[], selected=None,
+                  release=None, mix=mix, sources=[src], log=eb.Log(tmp_path / "f.log"), direction_map=bad)
+
+
+def test_split_eval_arg_takes_a_prefix_only_before_the_path():
+    assert eb.split_eval_arg("BASE__=/x/y") == ("BASE__", Path("/x/y"))
+    assert eb.split_eval_arg("/x/a=b") == (None, Path("/x/a=b"))
+    assert eb.split_eval_arg(Path("/x/y")) == (None, Path("/x/y"))

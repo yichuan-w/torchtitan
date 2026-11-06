@@ -459,27 +459,62 @@ def _harness(launch: dict | None) -> str | None:
 # ------------------------------------------------------------------------- freeze
 
 
-def _measured_by_eval(ev: Path) -> dict[str, dict]:
-    """Each task an eval scored: all its attempts, banded as scored, with the
-    test_sh of the row the eval read (the evalset launch.json names)."""
+def split_eval_arg(arg: str | Path) -> tuple[str | None, Path]:
+    """``PREFIX=DIR`` reads only the eval's tasks named ``PREFIX<id>``, as
+    ``<id>`` (the ``BASE__`` rows of a combo eval); a bare ``DIR`` reads all."""
+    s = str(arg)
+    head, sep, tail = s.partition("=")
+    if sep and head and "/" not in head:
+        return head, Path(tail)
+    return None, Path(s)
+
+
+def _first_graded(attempts: list[dict], k: int | None) -> list[dict]:
+    """Attempts in record order (r0, r1, ...) up to and including the k-th
+    graded one; all of them when ``k`` is None."""
+    attempts = sorted(attempts, key=lambda a: int(RECORD_NAME.search(a["rel"]).group(2)))
+    if k is None:
+        return attempts
+    out, graded = [], 0
+    for a in attempts:
+        if graded == k:
+            break
+        out.append(a)
+        graded += a["state"] != "INFRA"
+    return out
+
+
+def _measured_by_eval(ev: Path, *, k: int | None = None, prefix: str | None = None) -> dict[str, dict]:
+    """Each task an eval scored: its attempts, banded as scored, with the
+    test_sh of the row the eval read (the evalset launch.json names). ``k``
+    keeps each task's first k graded attempts (a k=16 eval read at 12) and
+    bands only a task with k of them; ``prefix`` reads only ``prefix<id>``
+    tasks, as ``<id>``."""
     launch = json.load(open(ev / "launch.json"))
     rows = {_iid(r): r for r in _rows(Path(launch["env"]["SWE_TB2_DATA"]))}
     per: dict[str, list[dict]] = collections.defaultdict(list)
     for e in eval_index(ev):
+        if prefix is not None and not e["task"].startswith(prefix):
+            continue
         state = "INFRA" if e.get("infra_failed") else e["state"]
         per[e["task"]].append({"state": state, "rel": e["record"], "src": _record_path(ev, e["record"])})
     out = {}
-    for tid, attempts in per.items():
+    for row_id, attempts in per.items():
+        tid = row_id[len(prefix):] if prefix is not None else row_id
+        attempts = _first_graded(attempts, k)
         b, passed, graded = _attempts_bucket(attempts)
+        if k is not None and graded != k:
+            b = "ungraded"
         groups = {int(re.findall(r"g(-?\d+)-r\d+\.jsonl$", a["rel"])[0]) for a in attempts}
         if len(groups) != 1:
             raise SystemExit(f"{tid}: the eval's records span groups {sorted(groups)}")
         out[tid] = {
             "bucket": b, "solved": passed, "graded": graded, "group": groups.pop(),
             "records": {f"rollouts/{tid}/{Path(a['rel']).name}": a["src"] for a in sorted(attempts, key=lambda x: x["rel"])},
-            "test_sh": rows[tid]["metadata"]["tmax"]["test_sh"],
+            "test_sh": rows[row_id]["metadata"]["tmax"]["test_sh"],
             "source": {"kind": "eval", "dir": str(ev.resolve()), "tt_commit": launch.get("tt_commit"),
-                       "harness": _harness(launch), "k": len(attempts)},
+                       "harness": _harness(launch), "k": len(attempts)}
+            | ({"k_cap": k} if k is not None else {}) | ({"prefix": prefix} if prefix is not None else {}),
         }
     return out
 
@@ -555,6 +590,9 @@ def freeze(
     recipe: str = DEFAULT_RECIPE,
     reference_first_group: list[Path] | None = None,
     reference_band: str = "3-8",
+    direction_map: Path | None = None,
+    k: int | None = None,
+    eval_prefixes: dict[str, str] | None = None,
 ) -> Path:
     """Snapshot a signal selection as ``<bench>/sets/<name>/``.
 
@@ -583,6 +621,15 @@ def freeze(
     named in reference.json, with no signal. offline_stage.py stages them
     beside the signals, so EVOLVE_PEER_CONTEXT finds in-band peers in the
     signal's run as it does in training.
+
+    ``direction_map`` (the 2026-11-06 standard, pool_select.py writes it):
+    {task: "easier"|"harder"} fixed by the selection across both students.
+    Every mapped task becomes a signal in its mapped direction whatever this
+    student's band, its graded attempts as traces; unmapped rows are left out.
+    ``k`` reads each eval task's first k graded attempts (k=16 evals at 12)
+    and the first groups at k instead of the recipe's. ``eval_prefixes``
+    (eval path -> prefix) reads only that eval's ``<prefix><id>`` tasks as
+    ``<id>``.
     """
     out = bench / "sets" / name
     if out.exists():
@@ -598,6 +645,21 @@ def freeze(
     rows = _rows(mix)
     by_id = {_iid(r): r for r in rows}
     stamp = layout.stamp()
+    k_read = k or int(STUDENT_RECIPES[recipe]["SWE_TB2_VAL_K"])
+    dmap: dict[str, str] | None = None
+    dmap_info = None
+    if direction_map is not None:
+        if run is not None:
+            raise SystemExit("--direction-map sets the directions of measurements, not of --run's signals")
+        dmap = json.load(open(direction_map))
+        bad = {t: d for t, d in dmap.items() if d not in ("easier", "harder")}
+        if bad:
+            raise SystemExit(f"{direction_map}: directions must be easier/harder: {list(bad.items())[:5]}")
+        outside_mix = sorted(set(dmap) - set(by_id))
+        if outside_mix:
+            raise SystemExit(f"{len(outside_mix)} mapped tasks are not rows of {mix}: {outside_mix[:5]}")
+        dmap_info = {"path": str(direction_map.resolve()), "sha256": layout.sha256_file(direction_map),
+                     "tasks": len(dmap)}
     dropped: dict[str, str] = {}
     measured: dict[str, dict] = {}
     signals: dict[str, tuple[dict, dict]] = {}
@@ -611,29 +673,36 @@ def freeze(
             ran = json.load(open(ev / "launch.json"))["env"].get("SWE_BENCH_RECIPE")
             if ran is not None and ran != recipe:
                 raise SystemExit(f"{ev} ran the {ran} recipe, not --recipe {recipe}")
-            for tid, m in _measured_by_eval(ev).items():
+            prefix = (eval_prefixes or {}).get(str(ev))
+            for tid, m in _measured_by_eval(ev, k=k, prefix=prefix).items():
                 found.setdefault(tid, m)
         for r in first_group:
-            for tid, m in _measured_by_first_group(r, int(STUDENT_RECIPES[recipe]["SWE_TB2_VAL_K"])).items():
+            for tid, m in _measured_by_first_group(r, k_read).items():
                 found.setdefault(tid, m)
         launches = [json.load(open(p / "launch.json")) for p in [*evals, *first_group]]
         src_launch = (evals or first_group)[0] / "launch.json"
         for tid in sorted(by_id):
             m = found.get(tid)
-            if m is None:
+            if dmap is not None and tid not in dmap:
+                dropped[tid] = "not_in_direction_map"
+            elif m is None:
                 dropped[tid] = "not_measured"
             elif m["test_sh"] != by_id[tid]["metadata"]["tmax"]["test_sh"]:
                 dropped[tid] = "measured_other_test_sh"
-            elif m["bucket"] not in ("all_solved", "none_solved"):
+            elif dmap is not None and m["graded"] == 0:
+                dropped[tid] = "ungraded"
+            elif dmap is None and m["bucket"] not in ("all_solved", "none_solved"):
                 dropped[tid] = m["bucket"]
             else:
                 measured[tid] = m
+                direction = dmap[tid] if dmap is not None else \
+                    "harder" if m["bucket"] == "all_solved" else "easier"
                 sig = {"attempts": list(m["records"]), "created": stamp,
-                       "direction": "harder" if m["bucket"] == "all_solved" else "easier",
+                       "direction": direction,
                        "group": m["group"], "rev": 0, "run": name,
                        "solved": m["solved"], "task": tid, "total": m["graded"]}
                 signals[tid] = (sig, m["records"])
-            if tid in dropped:
+            if tid in dropped and dropped[tid] != "not_in_direction_map":
                 log(f"task={tid} dropped: {dropped[tid]}")
     harnesses = sorted({_harness(lc) for lc in launches})
     if len(harnesses) != 1:
@@ -666,12 +735,11 @@ def freeze(
         del signals[tid]
         measured.pop(tid, None)
 
-    k = int(STUDENT_RECIPES[recipe]["SWE_TB2_VAL_K"])
     lo, hi = (int(x) for x in reference_band.split("-"))
     reference: dict[str, dict] = {}
     for r in reference_first_group or []:
-        for tid, m in _measured_by_first_group(r, k).items():
-            if tid in signals or tid in reference or m["graded"] != k or not lo <= m["solved"] <= hi:
+        for tid, m in _measured_by_first_group(r, k_read).items():
+            if tid in signals or tid in reference or m["graded"] != k_read or not lo <= m["solved"] <= hi:
                 continue
             reference[tid] = m
 
@@ -729,7 +797,13 @@ def freeze(
         "created": stamp,
         "bench_commit": _bench_commit(),
         "signals_from": {"run": str(run.resolve())} if run else
-        {"evals": [str(e.resolve()) for e in evals], "first_group": [str(r.resolve()) for r in first_group]},
+        {"evals": [str(e.resolve()) for e in evals], "first_group": [str(r.resolve()) for r in first_group]}
+        | ({"eval_prefixes": {str(Path(e).resolve()): p for e, p in eval_prefixes.items()}} if eval_prefixes else {}),
+        # Where the directions came from: each row's own band, or the pool's
+        # direction map (the 2026-11-06 standard).
+        "directions_from": {"kind": "direction_map", **dmap_info} if dmap_info else {"kind": "band"},
+        # Attempts read per measured task (the first k graded); None: all of them.
+        "k": k,
         "selected_from": str(selected.resolve()) if selected else None,
         "student_harness": harnesses[0],
         # The recipe the before-measurements were taken under; evals of the
@@ -3264,7 +3338,12 @@ def main() -> None:
     p.add_argument("--name", required=True)
     p.add_argument("--run", type=Path, help="a directory in the run shape that already holds the signals")
     p.add_argument("--selected", type=Path, help="with --run: task -> {group}; default every signal")
-    p.add_argument("--eval", type=Path, nargs="*", default=[], help="evals measuring the rows (each task's attempts)")
+    p.add_argument("--eval", nargs="*", default=[],
+                   help="evals measuring the rows (each task's attempts); PREFIX=DIR reads only PREFIX<id> tasks as <id>")
+    p.add_argument("--direction-map", type=Path,
+                   help="json {task: easier|harder} (pool_select.py): every mapped task is a signal in that direction, "
+                   "whatever its band here; unmapped rows are left out")
+    p.add_argument("--k", type=int, help="read each measured task's first k graded attempts (a k=16 eval at 12)")
     p.add_argument("--recipe", choices=sorted(STUDENT_RECIPES), default=DEFAULT_RECIPE,
                    help="the student recipe the measurements were taken under")
     p.add_argument("--first-group", type=Path, nargs="*", default=[],
@@ -3376,7 +3455,10 @@ def main() -> None:
             ap.error("--mix needs --sources")
         if bool(a.run) == bool(a.eval or a.first_group):
             ap.error("give --run, or measurements (--eval / --first-group)")
-        freeze(bench=a.bench, name=a.name, run=a.run, evals=a.eval, first_group=a.first_group, selected=a.selected,
+        parsed = [split_eval_arg(e) for e in a.eval]
+        prefixes = {str(d): pre for pre, d in parsed if pre is not None}
+        freeze(bench=a.bench, name=a.name, run=a.run, evals=[d for _, d in parsed], first_group=a.first_group,
+               selected=a.selected, direction_map=a.direction_map, k=a.k, eval_prefixes=prefixes or None,
                recipe=a.recipe, reference_first_group=a.reference_first_group, reference_band=a.reference_band,
                release=a.release, mix=a.mix, sources=a.sources, log=_log_for(a.bench, "freeze"))
     elif a.cmd == "run":
