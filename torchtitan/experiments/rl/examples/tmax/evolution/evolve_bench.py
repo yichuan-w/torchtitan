@@ -186,7 +186,13 @@ DRIVE_OWNED = (
     "ATTEMPTS_SINCE",
     "EVOLVE_SOCK_DIR",
     "TMPDIR",
+    "DISPATCH",
 )
+# How the drive runs a round's rewrites (offline_drive.sh DISPATCH): `loop`, one
+# `evolve_ondella.py --once --workers N` process; `unit`, one systemd user unit
+# per task (offline_dispatch.py), which a drive stop or restart leaves running
+# and whose count is <root>/workers. How an arm runs, not what it measures.
+DISPATCH_MODES = ("loop", "unit")
 ARM_KEYS = {"name", "profile", "commit", "bin", "workers", "env"}
 
 BUCKETS = ("mixed", "all_solved", "none_solved", "ungraded", "no_attempts")
@@ -754,7 +760,8 @@ def _arm_root(*, root: Path, arm: dict, arm_path: Path, tt: Path, head: str, cod
             {k: v for k, v in record["arm"].items() if k != "workers"}
         if not same_arm or {k: prev.get(k) for k in keys} != {k: record.get(k) for k in keys}:
             raise SystemExit(f"{root} holds another arm or set ({rec_path}); a new config is a new arm name")
-        prev.setdefault("relaunches", []).append({"at": layout.stamp(), "workers": record["arm"]["workers"]})
+        prev.setdefault("relaunches", []).append({"at": layout.stamp(), "workers": record["arm"]["workers"],
+                                                  "dispatch": record.get("dispatch", "loop")})
         layout.write_json_atomic(rec_path, prev)
         log(f"resume root={root} workers={record['arm']['workers']}")
         return
@@ -779,7 +786,8 @@ def _start_unit(unit: str, cwd: Path, env: dict[str, str], argv: list[str], log:
     subprocess.run(cmd + argv, check=True)
 
 
-def _drive_env(root: Path, arm: dict, pins: dict[str, str], source_run: Path, selected: Path) -> dict[str, str]:
+def _drive_env(root: Path, arm: dict, pins: dict[str, str], source_run: Path, selected: Path,
+               dispatch: str = "loop") -> dict[str, str]:
     return {
         **arm["env"],
         **pins,
@@ -791,7 +799,21 @@ def _drive_env(root: Path, arm: dict, pins: dict[str, str], source_run: Path, se
         "ATTEMPTS_SINCE": time.strftime("%Y%m%d-%H%M", time.gmtime()),
         "EVOLVE_SOCK_DIR": f"/dev/shm/{os.environ['USER']}-evolve-{root.name}",
         "TMPDIR": str(root / "tmp"),
+        "DISPATCH": dispatch,
     }
+
+
+def _write_workers(root: Path, workers: int, *, overwrite: bool, log: Log) -> None:
+    """<root>/workers, which a DISPATCH=unit drive re-reads every tick: written
+    for a new root or an explicit --workers, otherwise left as someone set it."""
+    path = root / "workers"
+    if path.exists() and not overwrite:
+        log(f"workers file kept at {path.read_text().strip()} ({path})")
+        return
+    tmp = path.with_name("workers.incoming")
+    tmp.write_text(f"{workers}\n")
+    os.replace(tmp, path)
+    log(f"workers file set to {workers} ({path})")
 
 
 # The drive script is the bench checkout's (its staging, and STREAM_DONE); the
@@ -802,11 +824,15 @@ DRIVE = _EVO / "offline_drive.sh"
 
 def run_arm(*, bench: Path, set_name: str, arm_path: Path, log: Log, workers: int | None = None,
             before: list[Path] | None = None, every: int = 40, minutes: int = 60,
-            eval_host: str = "della-tridao", eval_gpus: str = "auto", no_auto_eval: bool = False) -> Path:
+            eval_host: str = "della-tridao", eval_gpus: str = "auto", no_auto_eval: bool = False,
+            dispatch: str = "loop") -> Path:
     """Create the arm's root from the set and start offline_drive.sh for it as a
     systemd user unit (RUNBOOK, "Offline evolution of a signal subset"). A root
     that exists with the same arm and set is resumed: the drive restages only
-    the tasks an infrastructure loss took, under a fresh ATTEMPTS_SINCE."""
+    the tasks an infrastructure loss took, under a fresh ATTEMPTS_SINCE.
+    ``dispatch="unit"`` runs each rewrite in a unit of its own (DISPATCH_MODES)."""
+    if dispatch not in DISPATCH_MODES:
+        raise SystemExit(f"dispatch is one of {DISPATCH_MODES}, not {dispatch!r}")
     set_dir = bench / "sets" / set_name
     manifest, set_sha = load_set(set_dir, verify=True)
     arm = load_arm(arm_path)
@@ -828,10 +854,13 @@ def run_arm(*, bench: Path, set_name: str, arm_path: Path, log: Log, workers: in
               record={"set": set_name, "set_dir": str(set_dir.resolve()), "set_manifest_sha256": set_sha,
                       "drive_pins": DRIVE_PINS, "before": [str(p) for p in before],
                       "auto_eval": not no_auto_eval, "every": every, "minutes": minutes,
-                      "eval_host": eval_host, "eval_gpus": eval_gpus})
+                      "eval_host": eval_host, "eval_gpus": eval_gpus, "dispatch": dispatch})
     (root / "tmp").mkdir(exist_ok=True)
+    if dispatch == "unit":
+        _write_workers(root, arm["workers"], overwrite=workers is not None, log=log)
     unit = f"bench-{root.name}"
-    _start_unit(unit, root, _drive_env(root, arm, DRIVE_PINS, set_dir / manifest["run"], set_dir / "selected.json"),
+    _start_unit(unit, root, _drive_env(root, arm, DRIVE_PINS, set_dir / manifest["run"], set_dir / "selected.json",
+                                       dispatch),
                 ["bash", str(DRIVE)], log)
     if not no_auto_eval:
         py = Path(os.environ.get("TRL_VENV", "/scratch/gpfs/TRIDAO/al9080/titan-rl")) / "bin" / "python"
@@ -3149,6 +3178,8 @@ def main() -> None:
     p.add_argument("--eval-host", default="della-tridao", help="gpu-pool target for student evals")
     p.add_argument("--eval-gpus", default="auto", help="comma-separated cards, or auto for pool pick")
     p.add_argument("--no-auto-eval", action="store_true", help="start only the drive; keep manual wave/eval/tally")
+    p.add_argument("--dispatch", choices=DISPATCH_MODES, default="loop",
+                   help="unit: one systemd user unit per rewrite, count from <root>/workers")
     p = sub.add_parser("pipeline", help="rewrite while the base eval runs: stager + drive as user units")
     p.add_argument("--bench", type=Path, required=True)
     p.add_argument("--name", required=True, help="the set's name")
@@ -3238,7 +3269,7 @@ def main() -> None:
     elif a.cmd == "run":
         run_arm(bench=a.bench, set_name=a.set, arm_path=a.arm, log=_log_for(a.bench, "run"), workers=a.workers,
                 before=a.before, every=a.every, minutes=a.minutes, eval_host=a.eval_host,
-                eval_gpus=a.eval_gpus, no_auto_eval=a.no_auto_eval)
+                eval_gpus=a.eval_gpus, no_auto_eval=a.no_auto_eval, dispatch=a.dispatch)
     elif a.cmd == "pipeline":
         pipeline(bench=a.bench, name=a.name, eval_dir=a.eval, release=a.release, arm_path=a.arm,
                  poll_sec=a.poll, log=_log_for(a.bench, "pipeline"))

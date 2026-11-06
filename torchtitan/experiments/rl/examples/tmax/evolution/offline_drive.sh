@@ -39,8 +39,26 @@
 #     bash <evolution dir>/offline_drive.sh
 # Log: $TRL_BASE/logs/offline_drive--<stamp>.log; each round's loop output in
 # $TRL_BASE/evolution/offline-round<k>.log, and the loop's own loop.log.
+#
+# DISPATCH=unit (default DISPATCH=loop) runs each round's rewrites one systemd
+# user unit per task, bench-rw-<root>-<task>, outside this drive's unit, so
+# stopping or restarting the drive leaves them running (offline_dispatch.py has
+# the details). The number of live units is <root>/workers, re-read every tick,
+# WORKERS when the file is absent. A restarted drive adopts the units still
+# live and finalizes only what the gone ones left. Needs a host with linger and
+# the arm checkout's evolve_ondella.py --task. Per-task output in
+# $TRL_BASE/evolution/rw/<task>.log.
 set -uo pipefail
 : "${TRL_BASE:?}" "${SOURCE_RUN:?}" "${SELECTED:?}"
+DISPATCH=${DISPATCH:-loop}
+case "$DISPATCH" in loop|unit) ;; *) echo "offline_drive: DISPATCH is loop or unit, not $DISPATCH" >&2; exit 2 ;; esac
+if [ "$DISPATCH" = unit ]; then
+  # The environment this unit was given, before anything is sourced: each
+  # rewrite unit starts from it (offline_rewrite.sh).
+  mkdir -p "$TRL_BASE/tmp"
+  RW_ENV_FILE=$TRL_BASE/tmp/rw-unit.env0
+  (umask 077; env -0 > "$RW_ENV_FILE.incoming") && mv -f "$RW_ENV_FILE.incoming" "$RW_ENV_FILE"
+fi
 WORKERS=${WORKERS:-64}; MAX_ROUNDS=${MAX_ROUNDS:-6}; MAX_ATTEMPTS=${MAX_ATTEMPTS:-2}
 ATTEMPTS_SINCE=${ATTEMPTS_SINCE:-$(date -u +%Y%m%d-%H%M)}
 # DRIVE_DIR, not HERE: evolveloop_env.sh sets HERE to its own directory when sourced.
@@ -70,6 +88,10 @@ LINGER=$(loginctl show-user "$USER" -p Linger --value 2>/dev/null)
 if [ "$LINGER" = yes ] && [ -z "${INVOCATION_ID:-}" ]; then
   L "refusing: $(hostname) has linger and this drive is not a systemd user unit; start it with systemd-run --user"
   echo "offline_drive: start it as a systemd user unit on $(hostname) (see the header)" >&2; exit 2
+fi
+if [ "$DISPATCH" = unit ] && { [ "$LINGER" != yes ] || [ -z "${INVOCATION_ID:-}" ]; }; then
+  L "refusing: DISPATCH=unit starts a systemd user unit per rewrite, which needs linger and this drive running as a unit"
+  echo "offline_drive: DISPATCH=unit needs linger on $(hostname) and the drive as a user unit" >&2; exit 2
 fi
 if [ "$LINGER" != yes ] && [ -n "${INVOCATION_ID:-}" ]; then
   L "refusing: $(hostname) has no linger, so this systemd unit dies with the session that started it; start it under setsid nohup"
@@ -119,7 +141,20 @@ probe_provider() {
   echo "http=$code $(head -c 300 "$body" 2>/dev/null | tr '\n' ' ')"
   [ "$code" = 200 ]
 }
-L "start stream_done=${STREAM_DONE:-} workers=$WORKERS max_rounds=$MAX_ROUNDS max_attempts=$MAX_ATTEMPTS since=$ATTEMPTS_SINCE checkout=$TT@$(git -C "$TT" rev-parse --short HEAD) model=${SYNTH_MODEL:-gpt-5.6-sol} api_base=${SYNTH_API_BASE:-openai} agent_timeout=${EVOLVE_AGENT_TIMEOUT:-2400} sock_dir=${EVOLVE_SOCK_DIR:-/tmp} tmpdir=${TMPDIR:-/tmp}"
+L "start dispatch=$DISPATCH stream_done=${STREAM_DONE:-} workers=$WORKERS max_rounds=$MAX_ROUNDS max_attempts=$MAX_ATTEMPTS since=$ATTEMPTS_SINCE checkout=$TT@$(git -C "$TT" rev-parse --short HEAD) model=${SYNTH_MODEL:-gpt-5.6-sol} api_base=${SYNTH_API_BASE:-openai} agent_timeout=${EVOLVE_AGENT_TIMEOUT:-2400} sock_dir=${EVOLVE_SOCK_DIR:-/tmp} tmpdir=${TMPDIR:-/tmp}"
+if [ "$DISPATCH" = unit ]; then
+  # Rewrite units a previous drive started are adopted, not restarted; what
+  # the gone ones left `running` is marked interrupted. Then whatever is still
+  # pending or live from before (round 0) drains before the first staging, so
+  # staging never runs beside a rewrite: the default drive's rounds start the
+  # same way, from a loop that finalizes and handles what is pending.
+  if ! out=$("$PY" "$DRIVE_DIR/offline_dispatch.py" adopt --root "$TRL_BASE" --evo "$EVO" --log "$DLOG" 2>>"$DLOG"); then
+    L "adopt failed; stopping"; exit 3
+  fi
+  L "adopt: $out"
+  "$PY" "$DRIVE_DIR/offline_dispatch.py" round --root "$TRL_BASE" --label 0 --workers "$WORKERS" \
+    --env-file "$RW_ENV_FILE" --rewrite-sh "$DRIVE_DIR/offline_rewrite.sh" --log "$DLOG" >/dev/null 2>>"$DLOG"
+fi
 k=0
 while [ "$k" -lt "$MAX_ROUNDS" ]; do
   k=$((k + 1))
@@ -147,6 +182,14 @@ while [ "$k" -lt "$MAX_ROUNDS" ]; do
     fi
     L "nothing left to restage; done"
     break
+  fi
+  if [ "$DISPATCH" = unit ]; then
+    L "round $k: dispatching units, workers from $TRL_BASE/workers (default $WORKERS)"
+    "$PY" "$DRIVE_DIR/offline_dispatch.py" round --root "$TRL_BASE" --label "$k" --workers "$WORKERS" \
+      --env-file "$RW_ENV_FILE" --rewrite-sh "$DRIVE_DIR/offline_rewrite.sh" --log "$DLOG" \
+      >> "$TRL_BASE/evolution/offline-round$k.log" 2>&1
+    L "round $k: exit=$? $(tail -1 "$TRL_BASE/evolution/offline-round$k.log" | cut -c1-200)"
+    continue
   fi
   L "round $k: running --once --workers $WORKERS"
   "$PY" "$EVO/evolve_ondella.py" --once --workers "$WORKERS" >> "$TRL_BASE/evolution/offline-round$k.log" 2>&1

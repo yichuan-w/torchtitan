@@ -367,6 +367,25 @@ $PY $EVO/evolve_bench.py compare sol=$BENCH/results/sol-medium.json opus=$BENCH/
     --out $BENCH/results/sol-vs-opus
 ```
 
+### One unit per rewrite (`run --dispatch unit`)
+
+By default the drive runs each round as one `evolve_ondella.py --once --workers N`
+process inside the drive's unit, so stopping the drive, or relaunching it to
+change N, kills every rewrite in flight. With `--dispatch unit` the drive
+starts each task's rewrite as a systemd user unit of its own,
+`bench-rw-<set>--<arm>-<task>`, running `evolve_ondella.py --task <task>`
+(`offline_dispatch.py`, `offline_rewrite.sh`). The drive can then stop or be
+relaunched while rewrites go on; a relaunched drive adopts the units still live
+and marks interrupted only what the gone ones left. The number of live units is
+the integer in `<root>/workers`, re-read every 30 s: `echo 24 > <root>/workers`
+takes effect without a restart, and 0 pauses dispatching. `run` writes the file
+for a new root or an explicit `--workers`. Staging, MAX_ATTEMPTS, MAX_ROUNDS and
+ATTEMPTS_SINCE are those of the default drive: a round still drains before the
+next is staged. The arm's checkout needs `evolve_ondella.py --task` (the loop
+commit "evolve loop: --task", cherry-picked per arm on
+`yichuan/evolve-bench-decouple-<arm>`); the drive refuses an arm without it.
+Per-task output is in `<root>/evolution/rw/<task>.log`.
+
 ### Scoring rewrites while the arm runs
 
 The default `run` starts a second systemd user unit,
