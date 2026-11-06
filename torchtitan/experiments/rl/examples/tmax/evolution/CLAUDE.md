@@ -7,6 +7,11 @@
   the rewriting agents are told, which prompt changes to try, settings and their values, checks and
   their thresholds. A session decides these from EvolveBench measurements without asking him, and
   says in its report what it decided.
+- The measure that decides a choice inside the loop is whether it raises EvolveBench and helps the
+  policy progressively solve Terminal-Bench 2 tasks (his words, 2026-11-05: 「evolvebench能上去
+  而且对 逐渐解决tb2 有帮助就行」). Mechanism questions such as whether an easier rewrite may do
+  part of the original task's core work, or how a harder rewrite's new requirement reaches the
+  grader, are the sessions' to settle by that measure, not his.
 - A choice goes to him when it would change one of the principles below, even if it looks like an
   implementation detail.
 - A principle here is only what he stated explicitly. Each gives the date and the question he was
