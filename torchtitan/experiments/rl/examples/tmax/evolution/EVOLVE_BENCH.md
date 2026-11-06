@@ -164,23 +164,35 @@ evidence.
 It enters the report only after its agreement is measured on a calibration set,
 above all how often it passes a rewrite that is not worth anything. The
 calibration set, with the verdict each should get, uses rewrites named in
-yichuan-w/torchtitan#319 and #324:
+yichuan-w/torchtitan#319 and #324. The TLS, LZ4, HAProxy, Bubblewrap and
+encoding rewrites are from run 1030c, whose samples are on branch
+`yichuan/evolve-samples-1030c`:
 
-- the TLS rewrite: not worth it; most failures did the check the instruction
-  asks for and failed on a urllib3 pin the instruction does not state;
-- the LZ4 rewrite: not worth it; most failures loaded the library correctly at
-  runtime and failed on not finding the copy provided under `/opt`;
-- `task_001320` rev2 and rev3: leak;
-- the HAProxy rewrite: the check its author meant to add was dropped;
-- the rewrites of arm A4 (`EVOLVE_HARDER_WORK` alone) whose failures hit the time
-  limit: lengthened work;
-- the 24 rewrites still at 12/12 that Yichuan read in #319: not worth it.
+- `task_005436_d605aece`, the TLS rewrite (r0 to r1, harder): not worth it. It
+  claims the student must make a self-signed certificate pass default hostname
+  verification for `localhost`; most failures did the check the instruction
+  asks for (`curl --cacert`) and failed on a urllib3 pin the instruction does
+  not state.
+- `software-engineering_20260508_045740_001`, the LZ4 rewrite (harder): not
+  worth it. It claims the student must tell link-time library lookup from
+  the runtime loader's, so that the installed extension loads the LZ4 1.10.0
+  the task provides and not the system 1.9.4; most failures loaded 1.10.0 at
+  runtime and failed on not finding the copy provided under `/opt`.
+- `task_001320` rev2 and rev3: leak.
+- `system-administration_20260509_065529_005`, the HAProxy rewrite (r1 to r2):
+  the check its author meant to add was dropped.
+- the rewrites of arm A4 (`EVOLVE_HARDER_WORK` alone) on the 122B harder slice
+  whose failures hit the time limit, three of them (mathematics,
+  model-training, sci_154924): lengthened work.
+- the 24 rewrites still at 12/12 that Yichuan read in #319, listed with their
+  rewrite directories there: not worth it.
 
-Cases that should be judged worth it come from 13 candidates: the 11 audit-clean rewrites at 3 to 8
-of 12 in #319 and the Bubblewrap and encoding rewrites in #324 item 5, each
-with evidence on the questions above; Zhifei's side assigns their labels. If
-fewer than 10 of them are worth it, more come from the audit-clean mixed
-rewrites of the first rep over this standard's pool.
+Cases that should be judged worth it come from 13 candidates: the 11
+audit-clean rewrites at 3 to 8 of 12 in #319, the Bubblewrap rewrite
+(`task_000575_10c82d13`) and the encoding rewrite (`task_002307_b945c419`)
+from #324 item 5, each with evidence on the questions above; Zhifei's side
+assigns their labels. If fewer than 10 of them are worth it, more come from
+the audit-clean mixed rewrites of the first rep over this standard's pool.
 
 ### Arms under this standard
 
