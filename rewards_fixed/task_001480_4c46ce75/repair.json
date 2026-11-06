@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The verifier accepts `ocr_text` with the manifest quantity prefix removed even though the instruction requires each raw image line.",
+    "evidence": "traces/attempt-12.jsonl turn 6 writes `cleaned_with_qty` after removing the leading quantity; turn 7 shows those stripped values, and the rollout received reward 1.",
+    "change": "Check each JSON record against the corresponding OCR line, including its quantity prefix, while continuing to allow OCR's observed character errors.",
+    "kind": "reward_hack"
+  }
+]

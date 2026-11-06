@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The verifier rewarded static project.scripts mappings even though the instruction says setup.py dynamically generates commands from commands.py.",
+    "evidence": "traces/attempt-02.jsonl turn 6 appends five static mappings and receives reward 1; traces/attempt-12.jsonl turn 7 does the same.",
+    "change": "State that adding a main_* function must produce its launcher after reinstall without another metadata edit, and exercise that behavior on a fresh source copy.",
+    "kind": "reward_hack"
+  }
+]

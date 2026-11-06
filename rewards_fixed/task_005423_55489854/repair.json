@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The verifier rewarded an inaccurate zero standard deviation even though the instruction required correct floating-point values.",
+    "evidence": "traces/attempt-01.jsonl turn 15 reports stddev 0.0 and the rollout received reward 1.0; attempts 08 and 09 do the same.",
+    "change": "Clarified population-statistic accuracy in the instruction and made the scratch verifier derive and compare the expected mean and population standard deviation from the supplied data.",
+    "kind": "reward_hack"
+  }
+]

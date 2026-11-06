@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "A direct hard-coded key passes even though the task requires generating and extracting it through ESIL.",
+    "evidence": "traces/attempt-01.jsonl turn 63 and traces/attempt-12.jsonl turn 55 write the arithmetic answer after unsuccessful ESIL setup; all 12 rewarded attempts ultimately write the known value directly.",
+    "change": "Require the radare2 command script used to generate the result as a reusable deliverable and execute it during grading.",
+    "kind": "reward_hack"
+  }
+]

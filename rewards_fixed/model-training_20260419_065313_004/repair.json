@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The verifier accepted two distinct Parameter objects when their tensor storage happened to alias, despite the instruction requiring the layers to share parameters.",
+    "evidence": "traces/attempt-02.jsonl turn 4 and traces/attempt-05.jsonl turn 4 replace clone() with a .data alias and receive reward 1.",
+    "change": "Require Parameter identity as well as shared storage for the model's tied embedding and output projection.",
+    "kind": "reward_hack"
+  }
+]

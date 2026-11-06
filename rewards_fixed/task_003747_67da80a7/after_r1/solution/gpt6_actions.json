@@ -1,0 +1,93 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 3.0,
+    "keystrokes": "sed -n '1,14l' /home/user/raw_data.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 3.0,
+    "keystrokes": "sed -n '120,155p' /usr/local/share/doc/rfc4180.txt\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 6.2,
+    "keystrokes": "cat > /home/user/process.c <<'EOF'\n#define _POSIX_C_SOURCE 200809L\n#include <errno.h>\n#include <regex.h>\n#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n\ntypedef struct {\n    char *email;\n    double total;\n} Record;\n\nstatic int append_char(char **field, size_t *length, size_t *capacity, int c) {\n    if (*length + 1 >= *capacity) {\n        size_t new_capacity = *capacity ? *capacity * 2 : 64;\n        char *new_field = realloc(*field, new_capacity);\n        if (!new_field) return -1;\n        *field = new_field;\n        *capacity = new_capacity;\n    }\n    (*field)[(*length)++] = (char)c;\n    (*field)[*length] = '\\0';\n    return 0;\n}\n\nstatic int read_csv_field(FILE *input, char **field) {\n    size_t length = 0, capacity = 0;\n    int c = fgetc(input);\n    if (c == EOF) return -1;\n    int quoted = c == '\"';\n    if (!quoted && append_char(field, &length, &capacity, c) != 0) return -2;\n    while ((c = fgetc(input)) != EOF) {\n        if (quoted) {\n            if (c != '\"') {\n                if (append_char(field, &length, &capacity, c) != 0) return -2;\n                continue;\n            }\n            c = fgetc(input);\n            if (c == '\"') {\n                if (append_char(field, &length, &capacity, c) != 0) return -2;\n                continue;\n            }\n        }\n        if (c == ',') return ',';\n        if (c == '\\n') return '\\n';\n        if (c == '\\r') {\n            c = fgetc(input);\n            if (c != '\\n' && c != EOF) ungetc(c, input);\n            return '\\n';\n        }\n        if (c == EOF) return 0;\n        if (append_char(field, &length, &capacity, c) != 0) return -2;\n    }\n    if (!*field) {\n        *field = calloc(1, 1);\n        if (!*field) return -2;\n    }\n    return 0;\n}\n\nstatic int compare_records(const void *left, const void *right) {\n    const Record *a = left;\n    const Record *b = right;\n    if (a->total < b->total) return 1;\n    if (a->total > b->total) return -1;\n    return strcmp(a->email, b->email);\n}\n\nint main(void) {\n    const char *pattern =\n        \"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\\\.[a-zA-Z]{2,}$\";\n    FILE *input = fopen(\"/home/user/raw_data.csv\", \"r\");\n    if (!input) {\n        perror(\"raw_data.csv\");\n        return 1;\n    }\n    regex_t email_regex;\n    if (regcomp(&email_regex, pattern, REG_EXTENDED) != 0) {\n        fclose(input);\n        return 1;\n    }\n\n    Record *records = NULL;\n    size_t count = 0, capacity = 0;\n    int is_header = 1;\n    for (;;) {\n        char *date = NULL, *email = NULL, *value_text = NULL;\n        int first = read_csv_field(input, &date);\n        if (first == -1) break;\n        int second = read_csv_field(input, &email);\n        int third = read_csv_field(input, &value_text);\n        if (first < 0 || second < 0 || third < 0) {\n            free(date); free(email); free(value_text);\n            goto failure;\n        }\n        if (first != ',' || second != ',' || (third != '\\n' && third != 0)) {\n            free(date); free(email); free(value_text);\n            goto failure;\n        }\n        free(date);\n        if (is_header) {\n            is_header = 0;\n            free(email); free(value_text);\n            if (third == 0) break;\n            continue;\n        }\n        if (regexec(&email_regex, email, 0, NULL, 0) != 0) {\n            free(email); free(value_text);\n            if (third == 0) break;\n            continue;\n        }\n        errno = 0;\n        char *endptr;\n        double value = strtod(value_text, &endptr);\n        if (endptr == value_text || *endptr != '\\0' || errno == ERANGE) {\n            free(email); free(value_text);\n            if (third == 0) break;\n            continue;\n        }\n        free(value_text);\n        char *at = strchr(email, '@');\n        size_t domain_length = strlen(at);\n        char *masked = malloc(5 + domain_length);\n        if (!masked) {\n            free(email);\n            goto failure;\n        }\n        masked[0] = email[0];\n        memcpy(masked + 1, \"***\", 3);\n        memcpy(masked + 4, at, domain_length + 1);\n        free(email);\n\n        size_t index;\n        for (index = 0; index < count; index++)\n            if (strcmp(records[index].email, masked) == 0) break;\n        if (index < count) {\n            records[index].total += value;\n            free(masked);\n        } else {\n            if (count == capacity) {\n                size_t new_capacity = capacity ? capacity * 2 : 16;\n                Record *new_records = realloc(records, new_capacity * sizeof(*records));\n                if (!new_records) {\n                    free(masked);\n                    goto failure;\n                }\n                records = new_records;\n                capacity = new_capacity;\n            }\n            records[count++] = (Record){masked, value};\n        }\n        if (third == 0) break;\n    }\n    fclose(input);\n    regfree(&email_regex);\n    qsort(records, count, sizeof(*records), compare_records);\n\n    FILE *output = fopen(\"/home/user/clean_data.csv\", \"w\");\n    if (!output) goto output_failure;\n    fprintf(output, \"MaskedEmail,TotalValue\\n\");\n    for (size_t index = 0; index < count; index++)\n        fprintf(output, \"%s,%.2f\\n\", records[index].email, records[index].total);\n    if (fclose(output) != 0) goto output_failure;\n    for (size_t index = 0; index < count; index++) free(records[index].email);\n    free(records);\n    return 0;\n\nfailure:\n    fclose(input);\n    regfree(&email_regex);\noutput_failure:\n    for (size_t index = 0; index < count; index++) free(records[index].email);\n    free(records);\n    return 1;\n}\nEOF\ngcc -o /home/user/process /home/user/process.c && /home/user/process && cat /home/user/clean_data.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 6.2,
+    "keystrokes": "sqlite3 /home/user/analytics.db <<'EOF'\nDROP TABLE IF EXISTS UserTotals;\nCREATE TABLE UserTotals (MaskedEmail TEXT, TotalValue REAL);\n.mode csv\n.import --skip 1 /home/user/clean_data.csv UserTotals\nEOF\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 6.2,
+    "keystrokes": "sqlite3 /home/user/analytics.db 'SELECT MaskedEmail, TotalValue FROM UserTotals ORDER BY TotalValue DESC, MaskedEmail ASC;'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 10.4,
+    "keystrokes": "gcc -Wall -Wextra -Werror -o /home/user/process /home/user/process.c && /home/user/process\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 10.4,
+    "keystrokes": "sqlite3 /home/user/analytics.db 'SELECT COUNT(*) FROM UserTotals;'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 10.4,
+    "keystrokes": "",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 10.4,
+    "keystrokes": "",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 14.7,
+    "keystrokes": "",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 14.7,
+    "keystrokes": "sqlite3 /home/user/analytics.db 'PRAGMA integrity_check;'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 18.8,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 21.8,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

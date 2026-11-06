@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The verifier accepted a Metropolis-Hastings target density that omitted centering by the empirical mean and did not validate the generated metrics against the requested algorithm.",
+    "evidence": "traces/attempt-06.jsonl turn 3 computes the quadratic form from current and proposal directly rather than from x - mean; the rollout nevertheless received reward 1.",
+    "change": "Exercise the submitted pipeline on a fresh rank-deficient dataset and compare its deterministic output with independently derived expected metrics for the specified sampler and bootstrap.",
+    "kind": "reward_hack"
+  }
+]

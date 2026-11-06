@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The verifier rewarded analyses that called the maximum of a coarse saved trajectory the y2 peak even though the public task requires calculating the peak time and value.",
+    "evidence": "traces/attempt-01.jsonl turns 7-9 retain the 1001-point linear grid and use argmax; its rewarded result necessarily reports the first positive saved time, 100 seconds, instead of the transient peak near 0.00456 seconds.",
+    "change": "Make peak resolution quantitatively observable in the instruction and check the saved trajectory and analysis against an independently established peak reference.",
+    "kind": "reward_hack"
+  }
+]

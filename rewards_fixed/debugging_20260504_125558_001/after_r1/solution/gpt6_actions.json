@@ -1,0 +1,107 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 3.0,
+    "keystrokes": "ls -la\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 3.0,
+    "keystrokes": "cat start_server.sh\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 3.0,
+    "keystrokes": "find . -name \"*.py\" | grep -v migrations | head -30\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 6.3,
+    "keystrokes": "cat inventory/views.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 6.3,
+    "keystrokes": "cat inventory/serializers.py inventory/models.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 6.3,
+    "keystrokes": "cat settings.py asgi.py urls.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 9.6,
+    "keystrokes": "sed -n '150,260p' inventory/views.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 12.7,
+    "keystrokes": "python3 - <<'EOF'\nimport re\ns = open('inventory/views.py').read()\ns = s.replace(\"    def get_rates(self):\", \"    async def get_rates(self):\")\ns = s.replace(\"        rates = self._refresh_rates_from_api()\", \"        rates = await sync_to_async(self._refresh_rates_from_api, thread_sensitive=False)()\")\ns = s.replace(\"    def get_tax_rate(self):\", \"    async def get_tax_rate(self):\")\ns = s.replace(\"    def get_currency_rate(self):\", \"    async def get_currency_rate(self):\")\ns = s.replace(\"        rates = self.get_rates()\", \"        rates = await self.get_rates()\")\ns = s.replace(\"tax_rate = pricing_service.get_tax_rate()\", \"tax_rate = await pricing_service.get_tax_rate()\")\ns = s.replace(\"currency_rate = pricing_service.get_currency_rate()\", \"currency_rate = await pricing_service.get_currency_rate()\")\nopen('inventory/views.py','w').write(s)\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 12.7,
+    "keystrokes": "grep -n \"sleep\\|get_tax_rate\\|get_currency_rate\\|await pricing\" inventory/views.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 12.7,
+    "keystrokes": "python3 -c \"import ast; ast.parse(open('inventory/views.py').read())\" && echo OK\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 16.0,
+    "keystrokes": "nohup ./start_server.sh > server.log 2>&1 &\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 16.0,
+    "keystrokes": "sleep 6; tail -5 server.log\n",
+    "duration": 8.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 16.0,
+    "keystrokes": "python load_test.py http://127.0.0.1:8000 15; echo EXIT=$?\n",
+    "duration": 30.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 54.1,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 54.1,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

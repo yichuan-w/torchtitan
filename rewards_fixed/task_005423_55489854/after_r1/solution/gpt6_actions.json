@@ -1,0 +1,128 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "cd /home/user/metrics_service\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "ls -la\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "find . -maxdepth 3 -type f -print\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "sed -n '1,240p' setup.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "sed -n '1,280p' aggregator.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "for f in *.c *.h; do [ -f \"$f\" ] && { echo \"===== $f =====\"; sed -n '1,280p' \"$f\"; }; done\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "python3 setup.py build_ext --inplace\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 1.6,
+    "keystrokes": "head -10 data.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 1.6,
+    "keystrokes": "python3 -c 'import fast_stats; print(\"extension import succeeded\")'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 1.6,
+    "keystrokes": "cat > setup.py <<'EOF'\nfrom setuptools import setup, Extension\n\nmodule = Extension('fast_stats', sources=['fast_stats.c', 'utils.c'])\n\nsetup(name='fast_stats',\n      version='1.0',\n      description='Fast statistics computation',\n      ext_modules=[module])\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 1.6,
+    "keystrokes": "cat > utils.c <<'EOF'\n/* Welford's online update keeps variance stable for large baselines. */\nvoid update_stats(double value, int count, double *mean, double *m2) {\n    double delta = value - *mean;\n    *mean += delta / count;\n    double delta2 = value - *mean;\n    *m2 += delta * delta2;\n}\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 1.6,
+    "keystrokes": "python3 - <<'PY'\nfrom pathlib import Path\np = Path(\"fast_stats.c\")\ns = p.read_text()\ns = s.replace(\n    \"// Defined in utils.c\\nextern double compute_variance(double sum, double sum_sq, int count);\",\n    \"// Defined in utils.c\\nextern void update_stats(double value, int count, double *mean, double *m2);\"\n)\nold = \"\"\"    double sum = 0.0;\n    double sum_sq = 0.0;\n\n    for (Py_ssize_t i = 0; i < count; i++) {\n        PyObject* item = PyList_GetItem(list_obj, i);\n        double val = PyFloat_AsDouble(item);\n        sum += val;\n        sum_sq += val * val;\n    }\n\n    double mean = sum / count;\n    double variance = compute_variance(sum, sum_sq, (int)count);\n\n    double stddev = sqrt(variance);\n\"\"\"\nnew = \"\"\"    double mean = 0.0;\n    double m2 = 0.0;\n\n    for (Py_ssize_t i = 0; i < count; i++) {\n        PyObject* item = PyList_GetItem(list_obj, i);\n        double val = PyFloat_AsDouble(item);\n        if (PyErr_Occurred()) {\n            return NULL;\n        }\n        update_stats(val, (int)i + 1, &mean, &m2);\n    }\n\n    double variance = m2 / (double)count;\n    /* Protect sqrt against any tiny negative round-off. */\n    if (variance < 0.0) {\n        variance = 0.0;\n    }\n    double stddev = sqrt(variance);\n\"\"\"\nif old not in s:\n    raise SystemExit(\"Expected variance implementation not found\")\np.write_text(s.replace(old, new))\nPY\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 1.6,
+    "keystrokes": "python3 - <<'PY'\nfrom pathlib import Path\np = Path(\"aggregator.py\")\ns = p.read_text()\ns = s.replace(\"    # TODO: Add assertion-based intermediate validation here\\n\", \"    assert not math.isnan(stddev) and stddev >= 0\\n\")\np.write_text(s)\nPY\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 1.6,
+    "keystrokes": "python3 setup.py build_ext --inplace --force\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 1.6,
+    "keystrokes": "python3 aggregator.py /home/user/metrics_service/data.csv /home/user/metrics_service/report.json\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 1.6,
+    "keystrokes": "python3 -c 'import csv,json,math,statistics; xs=[float(r[0]) for r in csv.reader(open(\"data.csv\"))]; r=json.load(open(\"report.json\")); print(r); assert math.isclose(r[\"mean\"], math.fsum(xs)/len(xs), rel_tol=0, abs_tol=1e-6) and math.isclose(r[\"stddev\"], statistics.pstdev(xs), rel_tol=0.02)'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 4.3,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 4.3,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

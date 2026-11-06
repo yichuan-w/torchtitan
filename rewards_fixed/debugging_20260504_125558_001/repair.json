@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The load test and verifier accepted HTTP and application errors as long as no more than 30 percent of requests were counted as timeouts.",
+    "evidence": "traces/attempt-01.jsonl turn 14 was rewarded after reporting 12 successes and 5 errors; traces/attempt-12.jsonl turn 18 was rewarded after reporting 11 successes and 41 errors.",
+    "change": "Require every request in the concurrent workload to complete successfully, and make the load test exit nonzero for any timeout or error.",
+    "kind": "reward_hack"
+  }
+]

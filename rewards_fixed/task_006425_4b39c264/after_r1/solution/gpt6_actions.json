@@ -1,0 +1,72 @@
+[
+  {
+    "step_id": 3,
+    "offset_sec": 0.0,
+    "keystrokes": "ls -la /home/user\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.0,
+    "keystrokes": "head /home/user/original_data.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.0,
+    "keystrokes": "wc -l /home/user/original_data.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.3,
+    "keystrokes": "cat > /home/user/synthetic_pipeline.py <<'PY'\nimport json\n\nimport numpy as np\nfrom scipy.stats import wasserstein_distance\n\n\ndef calculate_wasserstein(orig, synth):\n    \"\"\"Return the 1-Wasserstein distance between two samples.\"\"\"\n    return float(wasserstein_distance(orig, synth))\n\n\ndef run_pipeline():\n    data = np.loadtxt(\"/home/user/original_data.csv\", delimiter=\",\", skiprows=1)\n    feature_names = [\"A\", \"B\", \"C\"]\n\n    # Empirical mean and covariance\n    empirical_mean = np.mean(data, axis=0)\n    empirical_cov = np.cov(data, rowvar=False)\n    n_features = data.shape[1]\n\n    # Metropolis-Hastings MCMC on the covariance support\n    eigenvalues, eigenvectors = np.linalg.eigh(empirical_cov)\n    tolerance = np.finfo(float).eps * n_features * eigenvalues[-1]\n    positive = eigenvalues > tolerance\n    L = eigenvectors[:, positive] * np.sqrt(eigenvalues[positive])\n    inv_cov = (eigenvectors[:, positive] / eigenvalues[positive]) @ eigenvectors[:, positive].T\n    np.random.seed(42)\n\n    current = empirical_mean.copy()\n    chain = np.empty((2500, n_features))\n\n    for i in range(2500):\n        z = np.random.standard_normal(positive.sum())\n        proposal = current + 0.5 * (L @ z)\n\n        diff_new = proposal - empirical_mean\n        diff_old = current - empirical_mean\n        log_acceptance = -0.5 * (\n            diff_new @ inv_cov @ diff_new - diff_old @ inv_cov @ diff_old\n        )\n\n        if np.log(np.random.random()) < log_acceptance:\n            current = proposal\n\n        chain[i] = current\n\n    synthetic = chain[500:]\n\n    metrics = {}\n    for i, name in enumerate(feature_names):\n        metrics[name] = {\n            \"distance\": calculate_wasserstein(data[:, i], synthetic[:, i])\n        }\n\n    # Bootstrap confidence intervals for each feature\n    np.random.seed(123)\n    bootstrap_distances = {name: [] for name in feature_names}\n\n    for _ in range(100):\n        indices = np.random.randint(0, synthetic.shape[0], size=synthetic.shape[0])\n        synthetic_bootstrap = synthetic[indices]\n        for i, name in enumerate(feature_names):\n            distance = calculate_wasserstein(\n                data[:, i], synthetic_bootstrap[:, i]\n            )\n            bootstrap_distances[name].append(distance)\n\n    for name in feature_names:\n        metrics[name][\"ci_lower\"] = float(\n            np.percentile(bootstrap_distances[name], 2.5)\n        )\n        metrics[name][\"ci_upper\"] = float(\n            np.percentile(bootstrap_distances[name], 97.5)\n        )\n        metrics[name][\"distance\"] = float(metrics[name][\"distance\"])\n\n    with open(\"/home/user/metrics.json\", \"w\") as f:\n        json.dump(metrics, f, indent=2)\n\n\nif __name__ == \"__main__\":\n    run_pipeline()\nPY\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.3,
+    "keystrokes": "cat > /home/user/test_pipeline.py <<'PY'\nfrom synthetic_pipeline import calculate_wasserstein\n\n\ndef test_calculate_wasserstein_identical_samples():\n    assert calculate_wasserstein([1, 2, 3], [1, 2, 3]) == 0.0\nPY\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.3,
+    "keystrokes": "python3 /home/user/synthetic_pipeline.py\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.3,
+    "keystrokes": "cat /home/user/metrics.json\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.3,
+    "keystrokes": "cd /home/user && pytest /home/user/test_pipeline.py\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 2.6,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 2.6,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

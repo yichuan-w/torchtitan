@@ -1,0 +1,28 @@
+2024-01-15 10:23:45 INFO: Starting simulation with parameters from reaction_params.json
+2024-01-15 10:23:45 INFO: k1=0.04, k2=30000000.0, k3=10000.0
+2024-01-15 10:23:45 INFO: Initial conditions: y1=1.0, y2=0.0, y3=0.0
+2024-01-15 10:23:45 INFO: Time span: 0.0 to 100000.0 seconds
+2024-01-15 10:23:45 INFO: Using default solve_ivp configuration
+2024-01-15 10:25:45 WARNING: Simulation taking longer than expected
+2024-01-15 10:27:45 ERROR: Simulation timeout after 4 minutes
+
+2024-01-15 10:30:12 INFO: Attempting with reduced output points
+2024-01-15 10:30:12 INFO: t_eval points reduced from 1001 to 101
+2024-01-15 10:32:12 WARNING: Simulation still running slowly
+2024-01-15 10:34:12 ERROR: Simulation timeout
+
+2024-01-15 10:40:00 INFO: Attempting with smaller tolerances
+2024-01-15 10:40:00 INFO: rtol=1e-6, atol=1e-9
+2024-01-15 10:42:00 WARNING: No improvement observed
+2024-01-15 10:44:00 ERROR: Simulation timeout
+
+2024-01-15 10:50:00 INFO: Trying explicit Euler method
+2024-01-15 10:50:00 INFO: dt = 1e-10
+2024-01-15 10:50:01 INFO: t = 0.001, y = [1.0000e+00, 0.0000e+00, 0.0000e+00]
+2024-01-15 10:51:00 WARNING: Progress too slow
+2024-01-15 10:52:00 ERROR: Euler method not viable for this problem
+
+2024-01-15 11:00:00 INFO: Checking reaction parameters
+2024-01-15 11:00:01 INFO: All rate constants loaded successfully
+2024-01-15 11:00:02 INFO: ODE equations verified
+2024-01-15 11:00:03 INFO: Need to investigate solver options

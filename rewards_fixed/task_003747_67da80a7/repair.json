@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The seed verifier accepted a correct final CSV and database even when the required C program could not regenerate them.",
+    "evidence": "The SQLite-only trial derived both deliverables without changing the naive C program; the seed scratch verifier awarded reward 1, whereas instruction.md requires writing and executing the C program.",
+    "change": "The scratch verifier now removes clean_data.csv, executes /home/user/process, and checks the regenerated CSV semantics.",
+    "kind": "reward_hack"
+  }
+]

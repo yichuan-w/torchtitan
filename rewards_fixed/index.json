@@ -1,0 +1,133 @@
+[
+ {
+  "task": "task_006425_4b39c264",
+  "source": "agentpick-clean-fast",
+  "status": "accepted",
+  "before_rev": 0,
+  "after_rev": 1,
+  "defect": "The verifier accepted a Metropolis-Hastings target density that omitted centering by the empirical mean and did not validate the generated metrics against the requested algorithm.",
+  "change": "Exercise the submitted pipeline on a fresh rank-deficient dataset and compare its deterministic output with independently derived expected metrics for the specified sampler and bootstrap."
+ },
+ {
+  "task": "task_008487_13cee364",
+  "source": "agentpick-clean-fast",
+  "status": "accepted",
+  "before_rev": 0,
+  "after_rev": 1,
+  "defect": "The seed verifier accepts a correct final plaintext without establishing the public requirements to use a Rust program, verify the proprietary checksum, and derive the LCG parameters algebraically rather than by brute force.",
+  "change": "Made the reusable Rust source an explicit deliverable at /home/user/solve.rs, added a fresh compile-and-run reproduction check, preserved the semantic final-artifact checks, and declared each scratch-checked behavior with verbatim instruction support in run/checked-behaviours.json."
+ },
+ {
+  "task": "task_001480_4c46ce75",
+  "source": "agentpick-clean-fast",
+  "status": "accepted",
+  "before_rev": 0,
+  "after_rev": 1,
+  "defect": "The verifier accepts `ocr_text` with the manifest quantity prefix removed even though the instruction requires each raw image line.",
+  "change": "Check each JSON record against the corresponding OCR line, including its quantity prefix, while continuing to allow OCR's observed character errors."
+ },
+ {
+  "task": "model-training_20260419_065313_004",
+  "source": "calibforge-clean-v2",
+  "status": "accepted",
+  "before_rev": 0,
+  "after_rev": 1,
+  "defect": "The verifier accepted two distinct Parameter objects when their tensor storage happened to alias, despite the instruction requiring the layers to share parameters.",
+  "change": "Require Parameter identity as well as shared storage for the model's tied embedding and output projection."
+ },
+ {
+  "task": "task_003078_2ecd85ff",
+  "source": "agentpick-clean-fast",
+  "status": "accepted",
+  "before_rev": 0,
+  "after_rev": 1,
+  "defect": "The supplied embed_oracle promised by the instruction was absent, so attempts replaced it with unrelated generated embeddings and were still rewarded.",
+  "change": "Restore the declared stripped oracle binary in the image and protect it from solver modification while validating database and search results against its output."
+ },
+ {
+  "task": "software-engineering_20260417_145736_020",
+  "source": "calibforge-fresh900",
+  "status": "accepted",
+  "before_rev": 0,
+  "after_rev": 1,
+  "defect": "The verifier rewarded static project.scripts mappings even though the instruction says setup.py dynamically generates commands from commands.py.",
+  "change": "State that adding a main_* function must produce its launcher after reinstall without another metadata edit, and exercise that behavior on a fresh source copy."
+ },
+ {
+  "task": "task_005423_55489854",
+  "source": "agentpick-clean-fast",
+  "status": "accepted",
+  "before_rev": 0,
+  "after_rev": 1,
+  "defect": "The verifier rewarded an inaccurate zero standard deviation even though the instruction required correct floating-point values.",
+  "change": "Clarified population-statistic accuracy in the instruction and made the scratch verifier derive and compare the expected mean and population standard deviation from the supplied data."
+ },
+ {
+  "task": "task_003888_e6eb8949",
+  "status": "rejected",
+  "reason": "the image's final USER changed from unset to root"
+ },
+ {
+  "task": "tw_6033",
+  "source": "agentpick-clean-fast",
+  "status": "accepted",
+  "before_rev": 0,
+  "after_rev": 1,
+  "defect": "The task said to build the operating system, but the verifier rewarded an incomplete top-level build that lacked both disk images.",
+  "change": "State the completed images and boot-to-shell result, and check the actual images by booting them."
+ },
+ {
+  "task": "task_003747_67da80a7",
+  "source": "agentpick-clean-fast",
+  "status": "accepted",
+  "before_rev": 0,
+  "after_rev": 1,
+  "defect": "The seed verifier accepted a correct final CSV and database even when the required C program could not regenerate them.",
+  "change": "The scratch verifier now removes clean_data.csv, executes /home/user/process, and checks the regenerated CSV semantics."
+ },
+ {
+  "task": "debugging_20260504_125558_001",
+  "source": "calibforge-clean-v2",
+  "status": "accepted",
+  "before_rev": 0,
+  "after_rev": 1,
+  "defect": "The load test and verifier accepted HTTP and application errors as long as no more than 30 percent of requests were counted as timeouts.",
+  "change": "Require every request in the concurrent workload to complete successfully, and make the load test exit nonzero for any timeout or error."
+ },
+ {
+  "task": "tw_42850",
+  "source": "agentpick-clean-fast",
+  "status": "accepted",
+  "before_rev": 0,
+  "after_rev": 1,
+  "defect": "A direct hard-coded key passes even though the task requires generating and extracting it through ESIL.",
+  "change": "Require the radare2 command script used to generate the result as a reusable deliverable and execute it during grading."
+ },
+ {
+  "task": "security_20260511_150433_006",
+  "source": "calibforge-clean-v2",
+  "status": "accepted",
+  "before_rev": 1,
+  "after_rev": 2,
+  "defect": "The verifier accepted the recovered API key even though the instruction requires EXFIL_TARGET to contain the recovered password value.",
+  "change": "Require the recovered staged database password in the scratch verifier and update the reference report to submit that password."
+ },
+ {
+  "task": "scientific-computing_20260415_182321_005",
+  "source": "calibforge-clean-v2",
+  "status": "accepted",
+  "before_rev": 0,
+  "after_rev": 1,
+  "defect": "The verifier rewarded analyses that called the maximum of a coarse saved trajectory the y2 peak even though the public task requires calculating the peak time and value.",
+  "change": "Make peak resolution quantitatively observable in the instruction and check the saved trajectory and analysis against an independently established peak reference."
+ },
+ {
+  "task": "facebookresearch__fvcore.a491d5b9.lm_rewrite__mynbot4f",
+  "source": "agentpick-clean-fast",
+  "status": "accepted",
+  "before_rev": 0,
+  "after_rev": 1,
+  "defect": "The scale-transform expected result uses the submitted to_numpy implementation, so an internally consistent but semantically wrong uint8 conversion is rewarded.",
+  "change": "Add an independent fractional uint8 interpolation expectation to the scratch verifier and expose PyTorch 2.6 as the pinned runtime contract."
+ }
+]

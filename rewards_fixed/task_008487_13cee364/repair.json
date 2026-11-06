@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The seed verifier accepts a correct final plaintext without establishing the public requirements to use a Rust program, verify the proprietary checksum, and derive the LCG parameters algebraically rather than by brute force.",
+    "evidence": "traces/attempt-01.jsonl turn 9 shows an intended Rust implementation, but tests/test.sh contains only existence and exact-content checks, so that work is not distinguished from a hard-coded output.",
+    "change": "Made the reusable Rust source an explicit deliverable at /home/user/solve.rs, added a fresh compile-and-run reproduction check, preserved the semantic final-artifact checks, and declared each scratch-checked behavior with verbatim instruction support in run/checked-behaviours.json.",
+    "kind": "reward_hack"
+  }
+]

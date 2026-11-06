@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The task said to build the operating system, but the verifier rewarded an incomplete top-level build that lacked both disk images.",
+    "evidence": "attempt-01 turns 20-24 and attempt-06 turns 22-26 accept a failed make after only kernel/kernel and kernel/bootblock exist; both receive reward 1.",
+    "change": "State the completed images and boot-to-shell result, and check the actual images by booting them.",
+    "kind": "reward_hack"
+  }
+]

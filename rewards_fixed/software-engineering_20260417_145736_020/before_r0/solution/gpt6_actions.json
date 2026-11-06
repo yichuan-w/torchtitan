@@ -1,0 +1,86 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "ls -la /app/datatools; find /app/datatools -type f | head -50\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.1,
+    "keystrokes": "cat /app/datatools/pyproject.toml\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.1,
+    "keystrokes": "cat /app/datatools/setup.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.1,
+    "keystrokes": "cat /app/datatools/src/datatools/commands.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.4,
+    "keystrokes": "cat >> /app/datatools/pyproject.toml << 'EOF'\n\n[project.scripts]\ncsv2json = \"datatools.commands:main_csv2json\"\njson2csv = \"datatools.commands:main_json2csv\"\nvalidate = \"datatools.commands:main_validate\"\nstats = \"datatools.commands:main_stats\"\ndatatools = \"datatools.commands:main_datatools\"\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.4,
+    "keystrokes": "pip uninstall -y datatools 2>/dev/null; pip install /app/datatools\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.4,
+    "keystrokes": "\n",
+    "duration": 60.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 60.6,
+    "keystrokes": "which csv2json json2csv validate stats datatools\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 60.6,
+    "keystrokes": "datatools\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 60.6,
+    "keystrokes": "csv2json /app/datatools/test_data/sample.csv | head -5; stats /app/datatools/test_data/sample.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 60.9,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 60.9,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

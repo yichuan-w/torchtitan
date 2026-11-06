@@ -1,0 +1,93 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 3.0,
+    "keystrokes": "head -n 10 /home/user/raw_data.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 3.0,
+    "keystrokes": "wc -l /home/user/raw_data.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 6.2,
+    "keystrokes": "cat &gt; /home/user/process.c &lt;&lt;'EOF'\n#define _POSIX_C_SOURCE 200809L\n#include &lt;stdio.h&gt;\n#include &lt;stdlib.h&gt;\n#include &lt;string.h&gt;\n#include &lt;regex.h&gt;\n#include &lt;errno.h&gt;\n\ntypedef struct {\n    char *email;\n    double total;\n} Record;\n\nstatic int compare_records(const void *a, const void *b) {\n    const Record *ra = a;\n    const Record *rb = b;\n    if (ra-&gt;total &lt; rb-&gt;total) return 1;\n    if (ra-&gt;total &gt; rb-&gt;total) return -1;\n    return strcmp(ra-&gt;email, rb-&gt;email);\n}\n\nint main(void) {\n    const char *input_path = \"/home/user/raw_data.csv\";\n    const char *output_path = \"/home/user/clean_data.csv\";\n    const char *pattern =\n        \"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\\\.[a-zA-Z]{2,}$\";\n    regex_t regex;\n    FILE *input = fopen(input_path, \"r\");\n    if (!input) {\n        perror(input_path);\n        return 1;\n    }\n    FILE *output = NULL;\n    if (regcomp(&amp;regex, pattern, REG_EXTENDED) != 0) {\n        fprintf(stderr, \"Could not compile email validation regex\\n\");\n        fclose(input);\n        return 1;\n    }\n\n    Record *records = NULL;\n    size_t count = 0, capacity = 0;\n    char *line = NULL;\n    size_t line_capacity = 0;\n    ssize_t length;\n    int first_line = 1;\n\n    while ((length = getline(&amp;line, &amp;line_capacity, input)) != -1) {\n        if (length &gt; 0 &amp;&amp; line[length - 1] == '\\n') line[--length] = '\\0';\n        if (length &gt; 0 &amp;&amp; line[length - 1] == '\\r') line[--length] = '\\0';\n        if (first_line) {\n            first_line = 0;\n            continue;\n        }\n\n        char *first_comma = strchr(line, ',');\n        if (!first_comma) continue;\n        char *second_comma = strchr(first_comma + 1, ',');\n        if (!second_comma) continue;\n\n        *second_comma = '\\0';\n        char *email = first_comma + 1;\n        char *value_text = second_comma + 1;\n        if (regexec(&amp;regex, email, 0, NULL, 0) != 0) continue;\n\n        errno = 0;\n        char *endptr;\n        double value = strtod(value_text, &amp;endptr);\n        if (endptr == value_text || errno == ERANGE) continue;\n        while (*endptr == ' ' || *endptr == '\\t') endptr++;\n        if (*endptr != '\\0') continue;\n\n        char *at = strchr(email, '@');\n        if (!at) continue;\n        size_t local_first = 1;\n        size_t domain_len = strlen(at);\n        char *masked = malloc(local_first + 3 + domain_len + 1);\n        if (!masked) {\n            perror(\"malloc\");\n            goto cleanup_error;\n        }\n        masked[0] = email[0];\n        memcpy(masked + 1, \"***\", 3);\n        memcpy(masked + 4, at, domain_len + 1);\n\n        size_t i;\n        for (i = 0; i &lt; count; i++) {\n            if (strcmp(records[i].email, masked) == 0) break;\n        }\n        if (i &lt; count) {\n            records[i].total += value;\n            free(masked);\n        } else {\n            if (count == capacity) {\n                size_t new_capacity = capacity ? capacity * 2 : 16;\n                Record *new_records = realloc(records, new_capacity * sizeof(*records));\n                if (!new_records) {\n                    free(masked);\n                    perror(\"realloc\");\n                    goto cleanup_error;\n                }\n                records = new_records;\n                capacity = new_capacity;\n            }\n            records[count].email = masked;\n            records[count].total = value;\n            count++;\n        }\n    }\n\n    qsort(records, count, sizeof(*records), compare_records);\n    output = fopen(output_path, \"w\");\n    if (!output) {\n        perror(output_path);\n        goto cleanup_error;\n    }\n    fprintf(output, \"MaskedEmail,TotalValue\\n\");\n    for (size_t i = 0; i &lt; count; i++)\n        fprintf(output, \"%s,%.2f\\n\", records[i].email, records[i].total);\n\n    if (fclose(output) != 0) {\n        perror(\"closing output\");\n        output = NULL;\n        goto cleanup_error;\n    }\n    output = NULL;\n    for (size_t i = 0; i &lt; count; i++) free(records[i].email);\n    free(records);\n    free(line);\n    fclose(input);\n    regfree(&amp;regex);\n    return 0;\n\ncleanup_error:\n    if (output) fclose(output);\n    for (size_t i = 0; i &lt; count; i++) free(records[i].email);\n    free(records);\n    free(line);\n    fclose(input);\n    regfree(&amp;regex);\n    return 1;\n}\nEOF\ngcc -o /home/user/process /home/user/process.c\n/home/user/process\ncat /home/user/clean_data.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 6.2,
+    "keystrokes": "sqlite3 /home/user/analytics.db &lt;&lt;'EOF'\nCREATE TABLE UserTotals (MaskedEmail TEXT, TotalValue REAL);\n.mode csv\n.import --skip 1 /home/user/clean_data.csv UserTotals\nEOF\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 6.2,
+    "keystrokes": "sqlite3 /home/user/analytics.db 'SELECT MaskedEmail, TotalValue FROM UserTotals ORDER BY TotalValue DESC, MaskedEmail ASC;'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 10.4,
+    "keystrokes": "cat > /home/user/process.c <<'EOF'\n#define _POSIX_C_SOURCE 200809L\n#include <errno.h>\n#include <regex.h>\n#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n\ntypedef struct {\n    char *email;\n    double total;\n} Record;\n\nstatic int compare_records(const void *left, const void *right) {\n    const Record *a = left;\n    const Record *b = right;\n    if (a->total < b->total) return 1;\n    if (a->total > b->total) return -1;\n    return strcmp(a->email, b->email);\n}\n\nint main(void) {\n    const char *input_path = \"/home/user/raw_data.csv\";\n    const char *output_path = \"/home/user/clean_data.csv\";\n    const char *pattern =\n        \"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\\\.[a-zA-Z]{2,}$\";\n    regex_t email_regex;\n    FILE *input = fopen(input_path, \"r\");\n    if (input == NULL) {\n        perror(input_path);\n        return 1;\n    }\n    if (regcomp(&email_regex, pattern, REG_EXTENDED) != 0) {\n        fprintf(stderr, \"Could not compile email validation regex\\n\");\n        fclose(input);\n        return 1;\n    }\n\n    Record *records = NULL;\n    size_t count = 0, capacity = 0;\n    char *line = NULL;\n    size_t line_capacity = 0;\n    ssize_t length;\n    int is_header = 1;\n\n    while ((length = getline(&line, &line_capacity, input)) != -1) {\n        if (length > 0 && line[length - 1] == '\\n')\n            line[--length] = '\\0';\n        if (length > 0 && line[length - 1] == '\\r')\n            line[--length] = '\\0';\n\n        if (is_header) {\n            is_header = 0;\n            continue;\n        }\n\n        char *first_comma = strchr(line, ',');\n        if (first_comma == NULL) continue;\n        char *second_comma = strchr(first_comma + 1, ',');\n        if (second_comma == NULL) continue;\n\n        *second_comma = '\\0';\n        char *email = first_comma + 1;\n        char *value_text = second_comma + 1;\n        if (regexec(&email_regex, email, 0, NULL, 0) != 0) continue;\n\n        errno = 0;\n        char *endptr;\n        double value = strtod(value_text, &endptr);\n        if (endptr == value_text || errno == ERANGE) continue;\n        while (*endptr == ' ' || *endptr == '\\t') endptr++;\n        if (*endptr != '\\0') continue;\n\n        char *at = strchr(email, '@');\n        if (at == NULL) continue;\n        size_t domain_length = strlen(at);\n        char *masked = malloc(4 + domain_length + 1);\n        if (masked == NULL) {\n            perror(\"malloc\");\n            goto failure;\n        }\n        masked[0] = email[0];\n        memcpy(masked + 1, \"***\", 3);\n        memcpy(masked + 4, at, domain_length + 1);\n\n        size_t i;\n        for (i = 0; i < count; i++) {\n            if (strcmp(records[i].email, masked) == 0) break;\n        }\n        if (i < count) {\n            records[i].total += value;\n            free(masked);\n        } else {\n            if (count == capacity) {\n                size_t new_capacity = capacity == 0 ? 16 : capacity * 2;\n                Record *new_records =\n                    realloc(records, new_capacity * sizeof(*records));\n                if (new_records == NULL) {\n                    free(masked);\n                    perror(\"realloc\");\n                    goto failure;\n                }\n                records = new_records;\n                capacity = new_capacity;\n            }\n            records[count].email = masked;\n            records[count].total = value;\n            count++;\n        }\n    }\n\n    qsort(records, count, sizeof(*records), compare_records);\n\n    FILE *output = fopen(output_path, \"w\");\n    if (output == NULL) {\n        perror(output_path);\n        goto failure;\n    }\n    fprintf(output, \"MaskedEmail,TotalValue\\n\");\n    for (size_t i = 0; i < count; i++)\n        fprintf(output, \"%s,%.2f\\n\", records[i].email, records[i].total);\n\n    if (fclose(output) != 0) {\n        perror(\"closing output\");\n        goto failure;\n    }\n\n    for (size_t i = 0; i < count; i++) free(records[i].email);\n    free(records);\n    free(line);\n    fclose(input);\n    regfree(&email_regex);\n    return 0;\n\nfailure:\n    for (size_t i = 0; i < count; i++) free(records[i].email);\n    free(records);\n    free(line);\n    fclose(input);\n    regfree(&email_regex);\n    return 1;\n}\nEOF\ngcc -o /home/user/process /home/user/process.c && /home/user/process && cat /home/user/clean_data.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 10.4,
+    "keystrokes": "sqlite3 /home/user/analytics.db 'DROP TABLE IF EXISTS UserTotals; CREATE TABLE UserTotals (MaskedEmail TEXT, TotalValue REAL);'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 10.4,
+    "keystrokes": "sqlite3 /home/user/analytics.db &lt;&lt;'EOF'\n.mode csv\n.import --skip 1 /home/user/clean_data.csv UserTotals\nEOF\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 10.4,
+    "keystrokes": "sqlite3 /home/user/analytics.db 'SELECT MaskedEmail, TotalValue FROM UserTotals ORDER BY TotalValue DESC, MaskedEmail ASC;'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 14.7,
+    "keystrokes": "printf '.mode csv\\n.import --skip 1 /home/user/clean_data.csv UserTotals\\n' | sqlite3 /home/user/analytics.db\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 14.7,
+    "keystrokes": "sqlite3 /home/user/analytics.db 'SELECT MaskedEmail, TotalValue FROM UserTotals ORDER BY TotalValue DESC, MaskedEmail ASC;'\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 18.8,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 21.8,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

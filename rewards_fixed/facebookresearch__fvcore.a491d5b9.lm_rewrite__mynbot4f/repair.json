@@ -1,0 +1,8 @@
+[
+  {
+    "defect": "The scale-transform expected result uses the submitted to_numpy implementation, so an internally consistent but semantically wrong uint8 conversion is rewarded.",
+    "evidence": "traces/attempt-01.jsonl turns 10-21 replace round().byte() with NumPy astype(np.uint8), and the rollout receives reward 1.",
+    "change": "Add an independent fractional uint8 interpolation expectation to the scratch verifier and expose PyTorch 2.6 as the pinned runtime contract.",
+    "kind": "reward_hack"
+  }
+]

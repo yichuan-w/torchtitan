@@ -1,0 +1,17 @@
+{
+    "k1": 0.04,
+    "k2": 30000000.0,
+    "k3": 10000.0,
+    "description": "Three-species reaction rate constants",
+    "units": "1/s for first-order, M^-1 s^-1 for second-order",
+    "reactions": {
+        "R1": {"equation": "y1 -> y2", "rate_law": "k1 * y1"},
+        "R2": {"equation": "2*y2 -> y3 + y2", "rate_law": "k2 * y2^2"},
+        "R3": {"equation": "y2 + y3 -> y1", "rate_law": "k3 * y2 * y3"}
+    },
+    "ode_system": {
+        "dy1/dt": "-k1*y1 + k3*y2*y3",
+        "dy2/dt": "k1*y1 - k2*y2^2 - k3*y2*y3",
+        "dy3/dt": "k2*y2^2"
+    }
+}

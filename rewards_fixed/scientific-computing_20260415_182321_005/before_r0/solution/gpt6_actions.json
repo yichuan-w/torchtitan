@@ -1,0 +1,79 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "ls -la /app/kinetics/\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "cat /app/kinetics/reaction_params.json\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "cat /app/kinetics/simulate.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.3,
+    "keystrokes": "cat /app/kinetics/config.ini\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.4,
+    "keystrokes": "cd /app/kinetics && sed -i \"s/        args=(k1, k2, k3),/        args=(k1, k2, k3),\\n        method='LSODA',/\" simulate.py && grep -n \"method\" simulate.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.4,
+    "keystrokes": "cat > /app/kinetics/analyze.py << 'EOF'\n#!/usr/bin/env python3\n\"\"\"Analyze results of the three-species chemical kinetics simulation.\"\"\"\n\nimport numpy as np\n\ndef main():\n    data = np.load('/app/kinetics/results.npz')\n    t = data['t']\n    y1 = data['y1']\n    y2 = data['y2']\n    y3 = data['y3']\n\n    # Time at which y2 reaches its maximum\n    imax = int(np.argmax(y2))\n    t_max = t[imax]\n    y2_max = y2[imax]\n\n    print(\"=\" * 60)\n    print(\"Chemical Kinetics Simulation Analysis\")\n    print(\"=\" * 60)\n\n    print(\"\\nFinal concentrations at t=100,000 seconds:\")\n    print(f\"  y1: {y1[-1]:.8e}\")\n    print(f\"  y2: {y2[-1]:.8e}\")\n    print(f\"  y3: {y3[-1]:.8e}\")\n\n    print(\"\\nMaximum y2 concentration:\")\n    print(f\"  Time:  t = {t_max:.6e} s\")\n    print(f\"  Value: y2 = {y2_max:.8e}\")\n\n    # Mass conservation check\n    total = y1 + y2 + y3\n    max_dev = np.max(np.abs(total - 1.0))\n    print(\"\\nMass conservation (y1 + y2 + y3 should equal 1.0):\")\n    print(f\"  Max deviation from 1.0: {max_dev:.3e}\")\n    if max_dev < 1e-2:\n        print(\"  Status: PASS - mass is conserved.\")\n    else:\n        print(\"  Status: FAIL - mass conservation violated!\")\n    print(\"=\" * 60)\n\nif __name__ == '__main__':\n    main()\nEOF\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 0.4,
+    "keystrokes": "cd /app/kinetics && timeout 30 python3 simulate.py\n",
+    "duration": 30.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 30.6,
+    "keystrokes": "python3 /app/kinetics/analyze.py\n",
+    "duration": 5.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 30.6,
+    "keystrokes": "ls -la /app/kinetics/results.npz\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 35.7,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 35.7,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

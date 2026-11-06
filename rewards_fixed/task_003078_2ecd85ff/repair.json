@@ -1,0 +1,14 @@
+[
+  {
+    "defect": "The supplied embed_oracle promised by the instruction was absent, so attempts replaced it with unrelated generated embeddings and were still rewarded.",
+    "evidence": "traces/attempt-01.jsonl turns 1-7 and traces/attempt-06.jsonl turns 1-4 find no /app/embed_oracle and write a Python replacement before building the ETL.",
+    "change": "Restore the declared stripped oracle binary in the image and protect it from solver modification while validating database and search results against its output.",
+    "kind": "reward_hack"
+  },
+  {
+    "defect": "The untouched image did not contain /app/embed_oracle although instruction.md says the compiled legacy tool is located there.",
+    "evidence": "A fresh sandbox exec of `ls -la /app` showed an empty directory; every sampled successful attempt likewise searched for the missing file.",
+    "change": "Compile the seed's declared oracle implementation during the image build, strip it, remove its source, and install it at /app/embed_oracle.",
+    "kind": "broken_setup"
+  }
+]

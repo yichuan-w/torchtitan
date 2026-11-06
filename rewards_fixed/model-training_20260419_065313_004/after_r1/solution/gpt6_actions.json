@@ -1,0 +1,58 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "cat model.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "cat train.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.2,
+    "keystrokes": "python3 - <<'PY'\np='model.py'\ns=open(p).read().replace('self.output_proj.weight.data = self.embedding.weight.data.clone()', 'self.output_proj.weight = self.embedding.weight')\ns=s.replace('    def _init_weights(self):', '    def load_state_dict(self, state_dict, *args, **kwargs):\\n        result = super().load_state_dict(state_dict, *args, **kwargs)\\n        self.output_proj.weight = self.embedding.weight\\n        return result\\n\\n    def _init_weights(self):')\nopen(p,'w').write(s)\nPY\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.2,
+    "keystrokes": "grep -A12 'def _tie_weights' model.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.2,
+    "keystrokes": "python3 train.py\n",
+    "duration": 60.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 60.4,
+    "keystrokes": "ls -la /app/model.pt\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 60.5,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 60.5,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

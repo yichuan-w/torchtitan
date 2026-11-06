@@ -1,0 +1,429 @@
+[
+  {
+    "step_id": 3,
+    "offset_sec": 0.0,
+    "keystrokes": "ls -la /app\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.0,
+    "keystrokes": "cat /app/catalog.csv\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.0,
+    "keystrokes": "python3 --version\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 0.0,
+    "keystrokes": "command -v tesseract || true\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 0.4,
+    "keystrokes": "tesseract /app/manifest.png stdout --psm 6\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 0.4,
+    "keystrokes": "file /app/manifest.png\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 1.9,
+    "keystrokes": "echo ready\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 13,
+    "offset_sec": 2.0,
+    "keystrokes": "echo parser_ok\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 2.1,
+    "keystrokes": "pwd\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 17,
+    "offset_sec": 2.2,
+    "keystrokes": "printf '%s\\n' 'print(\"safe_write_works\")' | tee /home/user/test_pipeline.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 17,
+    "offset_sec": 2.2,
+    "keystrokes": "python3 /home/user/test_pipeline.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 19,
+    "offset_sec": 2.4,
+    "keystrokes": "rm -f /home/user/pipeline.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 19,
+    "offset_sec": 2.4,
+    "keystrokes": "printf '%s\\n' 'import csv' 'import json' 'import re' 'import subprocess' | tee /home/user/pipeline.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 22,
+    "offset_sec": 2.6,
+    "keystrokes": "echo 'from difflib import SequenceMatcher' | tee -a /home/user/pipeline.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 22,
+    "offset_sec": 2.6,
+    "keystrokes": "cat /home/user/pipeline.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 25,
+    "offset_sec": 2.8,
+    "keystrokes": "echo 'MANIFEST = \"/app/manifest.png\"' | tee -a /home/user/pipeline.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 26,
+    "offset_sec": 2.9,
+    "keystrokes": "echo 'CATALOG = \"/app/catalog.csv\"' | tee -a /home/user/pipeline.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 26,
+    "offset_sec": 2.9,
+    "keystrokes": "echo 'MATCHES = \"/home/user/matches.json\"' | tee -a /home/user/pipeline.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 26,
+    "offset_sec": 2.9,
+    "keystrokes": "echo 'REPORT = \"/home/user/report.txt\"' | tee -a /home/user/pipeline.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 26,
+    "offset_sec": 2.9,
+    "keystrokes": "echo '' | tee -a /home/user/pipeline.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 26,
+    "offset_sec": 2.9,
+    "keystrokes": "echo 'def normalize(text):' | tee -a /home/user/pipeline.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 26,
+    "offset_sec": 2.9,
+    "keystrokes": "echo '    text = text.lower()' | tee -a /home/user/pipeline.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 26,
+    "offset_sec": 2.9,
+    "keystrokes": "echo '    text = re.sub(r\"[^a-z0-9]+\", \" \", text)' | tee -a /home/user/pipeline.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 26,
+    "offset_sec": 2.9,
+    "keystrokes": "echo '    return \" \".join(text.split())' | tee -a /home/user/pipeline.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 26,
+    "offset_sec": 2.9,
+    "keystrokes": "echo '' | tee -a /home/user/pipeline.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 26,
+    "offset_sec": 2.9,
+    "keystrokes": "echo 'def strip_quantity(text):' | tee -a /home/user/pipeline.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 26,
+    "offset_sec": 2.9,
+    "keystrokes": "echo '    return re.sub(r\"^\\s*\\d+\\s*[xX]\\s*\", \"\", text).strip()' | tee -a /home/user/pipeline.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 28,
+    "offset_sec": 4.0,
+    "keystrokes": "printf '%s\\n' '' 'def levenshtein(a, b):' '    prev = list(range(len(b) + 1))' '    for i, ca in enumerate(a, 1):' '        cur = [i]' '        for j, cb in enumerate(b, 1):' '            cur.append(min(prev[j] + 1, cur[-1] + 1, prev[j - 1] + (ca != cb)))' '        prev = cur' '    return prev[-1]' | tee -a /home/user/pipeline.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 29,
+    "offset_sec": 4.1,
+    "keystrokes": "printf '%s\\n' '' 'def similarity(a, b):' '    lev_ratio = 1.0 - levenshtein(a, b) / max(len(a), len(b), 1)' '    seq_ratio = SequenceMatcher(None, a, b).ratio()' '    return 0.45 * lev_ratio + 0.55 * seq_ratio' | tee -a /home/user/pipeline.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 31,
+    "offset_sec": 4.2,
+    "keystrokes": "cat /home/user/pipeline.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 33,
+    "offset_sec": 4.3,
+    "keystrokes": "echo 'with open(CATALOG, newline=\"\", encoding=\"utf-8\") as f:' | tee -a /home/user/pipeline.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 33,
+    "offset_sec": 4.3,
+    "keystrokes": "echo '    rows = list(csv.DictReader(f))' | tee -a /home/user/pipeline.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 34,
+    "offset_sec": 4.5,
+    "keystrokes": "echo '' | tee -a /home/user/pipeline.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 34,
+    "offset_sec": 4.5,
+    "keystrokes": "echo 'catalog = []' | tee -a /home/user/pipeline.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 34,
+    "offset_sec": 4.5,
+    "keystrokes": "echo 'for row in rows:' | tee -a /home/user/pipeline.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 34,
+    "offset_sec": 4.5,
+    "keystrokes": "echo '    catalog.append((row[\"product_id\"].strip(), row[\"product_name\"].strip(), normalize(row[\"product_name\"])))' | tee -a /home/user/pipeline.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 34,
+    "offset_sec": 4.5,
+    "keystrokes": "echo '' | tee -a /home/user/pipeline.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 34,
+    "offset_sec": 4.5,
+    "keystrokes": "echo 'ocr = subprocess.run([\"tesseract\", MANIFEST, \"stdout\", \"--psm\", \"6\"], capture_output=True, text=True, check=True)' | tee -a /home/user/pipeline.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 34,
+    "offset_sec": 4.5,
+    "keystrokes": "echo 'raw_lines = [line.strip() for line in ocr.stdout.splitlines() if line.strip()]' | tee -a /home/user/pipeline.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 35,
+    "offset_sec": 5.2,
+    "keystrokes": "echo '' | tee -a /home/user/pipeline.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 35,
+    "offset_sec": 5.2,
+    "keystrokes": "echo 'matches = []' | tee -a /home/user/pipeline.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 35,
+    "offset_sec": 5.2,
+    "keystrokes": "echo 'for raw in raw_lines:' | tee -a /home/user/pipeline.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 35,
+    "offset_sec": 5.2,
+    "keystrokes": "echo '    probe = normalize(strip_quantity(raw))' | tee -a /home/user/pipeline.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 35,
+    "offset_sec": 5.2,
+    "keystrokes": "echo '    scores = [similarity(probe, item[2]) for item in catalog]' | tee -a /home/user/pipeline.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 35,
+    "offset_sec": 5.2,
+    "keystrokes": "echo '    best = max(range(len(catalog)), key=lambda i: scores[i])' | tee -a /home/user/pipeline.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 35,
+    "offset_sec": 5.2,
+    "keystrokes": "echo '    matches.append({\"ocr_text\": raw, \"matched_product_id\": catalog[best][0], \"normalized_catalog_name\": catalog[best][2]})' | tee -a /home/user/pipeline.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 36,
+    "offset_sec": 5.9,
+    "keystrokes": "echo '' | tee -a /home/user/pipeline.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 36,
+    "offset_sec": 5.9,
+    "keystrokes": "echo 'json_matches = [{\"ocr_text\": m[\"ocr_text\"], \"matched_product_id\": m[\"matched_product_id\"]} for m in matches]' | tee -a /home/user/pipeline.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 36,
+    "offset_sec": 5.9,
+    "keystrokes": "echo 'with open(MATCHES, \"w\", encoding=\"utf-8\") as f:' | tee -a /home/user/pipeline.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 36,
+    "offset_sec": 5.9,
+    "keystrokes": "echo '    json.dump(json_matches, f, indent=2)' | tee -a /home/user/pipeline.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 36,
+    "offset_sec": 5.9,
+    "keystrokes": "echo '' | tee -a /home/user/pipeline.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 36,
+    "offset_sec": 5.9,
+    "keystrokes": "echo 'with open(REPORT, \"w\", encoding=\"utf-8\") as f:' | tee -a /home/user/pipeline.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 36,
+    "offset_sec": 5.9,
+    "keystrokes": "echo '    for m in matches:' | tee -a /home/user/pipeline.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 36,
+    "offset_sec": 5.9,
+    "keystrokes": "echo '        f.write(\"Match: [\" + m[\"matched_product_id\"] + \"] \" + m[\"normalized_catalog_name\"] + \" \" + chr(60) + \"- \" + m[\"ocr_text\"] + \"\\n\")' | tee -a /home/user/pipeline.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 36,
+    "offset_sec": 5.9,
+    "keystrokes": "echo '' | tee -a /home/user/pipeline.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 36,
+    "offset_sec": 5.9,
+    "keystrokes": "echo 'print(\"Pipeline complete\")' | tee -a /home/user/pipeline.py\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 36,
+    "offset_sec": 5.9,
+    "keystrokes": "python3 /home/user/pipeline.py\n",
+    "duration": 0.2,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 36,
+    "offset_sec": 5.9,
+    "keystrokes": "cat /home/user/matches.json\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 36,
+    "offset_sec": 5.9,
+    "keystrokes": "cat /home/user/report.txt\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 37,
+    "offset_sec": 7.3,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 38,
+    "offset_sec": 7.3,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

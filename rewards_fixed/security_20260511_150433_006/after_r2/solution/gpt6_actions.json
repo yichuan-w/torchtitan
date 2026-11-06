@@ -1,0 +1,121 @@
+[
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "ls -la /app/evidence/ && file /app/evidence/server.img\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 2,
+    "offset_sec": 0.0,
+    "keystrokes": "fdisk -l /app/evidence/server.img\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 1.1,
+    "keystrokes": "mkdir -p /mnt/img && mount -o loop,ro /app/evidence/server.img /mnt/img && ls /mnt/img\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 1.1,
+    "keystrokes": "ls /mnt/img/var/www/ 2>/dev/null; ls /mnt/img/etc/cron.d/ /mnt/img/var/spool/cron/ 2>/dev/null\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 2.2,
+    "keystrokes": "debugfs -R \"ls -l /\" /app/evidence/server.img\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 3.2,
+    "keystrokes": "mkdir -p /app/extracted && debugfs -R \"rdump / /app/extracted\" /app/evidence/server.img 2>/dev/null; ls /app/extracted\n",
+    "duration": 5.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 5,
+    "offset_sec": 3.2,
+    "keystrokes": "find /app/extracted -type f | head -100\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 8.3,
+    "keystrokes": "cat /app/extracted/var/www/html/images/products/update.php; echo ---; cat /app/extracted/etc/cron.d/system-health; echo ---; cat /app/extracted/usr/local/bin/health_check\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 6,
+    "offset_sec": 8.3,
+    "keystrokes": "cat /app/extracted/opt/ecommerce/config/.staged_creds; echo ---; cat /app/extracted/opt/ecommerce/config/.crypto; echo ---; cat /app/extracted/opt/ecommerce/config/database.yml; echo ---; cat /app/extracted/tmp/.hidden/.sync; echo ---; cat /app/extracted/tmp/.exfil_complete\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 8.5,
+    "keystrokes": "cat /app/extracted/var/log/apache2/access.log; echo ===; cat /app/extracted/home/deploy/.bash_history; echo ===; cat /app/extracted/root/.bash_history\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 8.5,
+    "keystrokes": "tail -50 /app/extracted/var/log/auth.log; echo ===; grep -i -E \"cron|session\" /app/extracted/var/log/syslog | head -40\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 7,
+    "offset_sec": 8.5,
+    "keystrokes": "python3 - <<'PY'\nimport base64, json\nfrom pathlib import Path\ncreds=json.loads(Path('/app/extracted/opt/ecommerce/config/.staged_creds').read_text())\nkey=Path('/app/extracted/opt/ecommerce/config/.crypto').read_text().splitlines()[-1].encode()\ndata=base64.b64decode(creds['credentials']['db_password'])\nPath('/tmp/recovered_password').write_bytes(bytes(c^key[i%len(key)] for i,c in enumerate(data)))\nPY\ncat /tmp/recovered_password; echo\n",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 9.7,
+    "keystrokes": "cat /app/extracted/root/.ssh/authorized_keys\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 9.7,
+    "keystrokes": "cat > /app/incident_report.txt << EOF\nATTACK_VECTOR: Malicious file upload via /admin/upload endpoint used to plant a PHP web shell (images/products/update.php) allowing remote command execution; SSH brute-force of the deploy account followed\nPERSISTENCE: PHP web shell (/var/www/html/images/products/update.php), cron job /etc/cron.d/system-health running /usr/local/bin/health_check, backdoor exfil script /tmp/.hidden/.sync, attacker SSH key in /root/.ssh/authorized_keys\nTIMESTAMP: 2024-11-14 14:30:22\nEXFIL_TARGET: $(cat /tmp/recovered_password)\nEOF\ncat /app/incident_report.txt\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 9.9,
+    "keystrokes": "true\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 10.0,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 10.0,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]

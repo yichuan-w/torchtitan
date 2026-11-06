@@ -1,0 +1,72 @@
+diff --git a/fvcore/transforms/transform_util.py b/fvcore/transforms/transform_util.py
+index 74a6bfc..e6fca99 100644
+--- a/fvcore/transforms/transform_util.py
++++ b/fvcore/transforms/transform_util.py
+@@ -44,9 +44,8 @@ def to_float_tensor(numpy_array: np.ndarray) -> torch.Tensor:
+     return float_tensor
+ 
+ 
+-def to_numpy(
+-    float_tensor: torch.Tensor, target_shape: list, target_dtype: np.dtype
+-) -> np.ndarray:
++def to_numpy(float_tensor: torch.Tensor, target_shape: list, target_dtype:
++    np.dtype) ->np.ndarray:
+     """
+     Convert float tensor with dimension of NxCxHxW back to numpy array.
+     Args:
+@@ -59,27 +58,36 @@ def to_numpy(
+     Returns:
+         (ndarray): converted numpy array.
+     """
+-    assert len(target_shape) in (2, 3, 4)
+-
++    assert isinstance(float_tensor, torch.Tensor)
++    
++    # Convert to numpy array
++    numpy_array = float_tensor.cpu().detach().numpy()
++    
++    # Determine the reshape operation based on target shape length
+     if len(target_shape) == 2:
+-        # 1x1xHxW -> HxW.
+-        assert float_tensor.shape[0] == 1
+-        assert float_tensor.shape[1] == 1
+-        float_tensor = float_tensor[0, 0, :, :]
++        # HxW - squeeze out N and C dimensions
++        numpy_array = numpy_array.squeeze(0).squeeze(0)
+     elif len(target_shape) == 3:
+-        assert float_tensor.shape[0] == 1
+-        # 1xCxHxW -> HxWxC.
+-        float_tensor = float_tensor[0].permute(1, 2, 0)
++        # HxWxC - squeeze out N dimension and permute
++        numpy_array = numpy_array.squeeze(0).transpose(1, 2, 0)
+     elif len(target_shape) == 4:
+-        # NxCxHxW -> NxHxWxC
+-        float_tensor = float_tensor.permute(0, 2, 3, 1)
++        # NxHxWxC - permute dimensions
++        numpy_array = numpy_array.transpose(0, 2, 3, 1)
+     else:
+         raise NotImplementedError(
+-            "Unknow target shape dimension of {}".format(target_shape)
++            f"Unknown target_shape dimension of {len(target_shape)}"
+         )
+-    if target_dtype == np.uint8:
+-        # Need to specifically call round here, notice in pytroch the round
+-        # is half to even.
+-        # https://github.com/pytorch/pytorch/issues/16498
+-        float_tensor = float_tensor.round().byte()
+-    return float_tensor.numpy()
++    
++    # Ensure the array has the correct shape
++    numpy_array = numpy_array.reshape(target_shape)
++    
++    # Convert to target dtype
++    if target_dtype == np.uint8 and numpy_array.dtype != np.uint8:
++        # If converting to uint8, ensure values are in [0, 255]
++        if numpy_array.max() <= 1.0:
++            numpy_array = (numpy_array * 255.0).clip(0, 255)
++        numpy_array = numpy_array.astype(np.uint8)
++    else:
++        numpy_array = numpy_array.astype(target_dtype)
++    
++    return numpy_array
+\ No newline at end of file

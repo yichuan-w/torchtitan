@@ -1,0 +1,121 @@
+[
+  {
+    "step_id": 3,
+    "offset_sec": 3.0,
+    "keystrokes": "ls -la /app /home/user",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 3.0,
+    "keystrokes": "python3 -c \"import flask, numpy, scipy, sqlite3; print('flask', flask.__version__); print('numpy', numpy.__version__); print('scipy', scipy.__version__)\"",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 3.0,
+    "keystrokes": "python3 -c \"import json; data=json.load(open('/home/user/raw_texts.json')); print(type(data).__name__, len(data)); print(repr(data[:3]))\"",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 3,
+    "offset_sec": 3.0,
+    "keystrokes": "printf 'hello world' | /app/embed_oracle | wc -c",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 6.5,
+    "keystrokes": "C-c",
+    "duration": 1.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 6.5,
+    "keystrokes": "ls -la /app /home/user\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 6.5,
+    "keystrokes": "python3 -c \"import flask, numpy, scipy, sqlite3; print('flask', flask.__version__); print('numpy', numpy.__version__); print('scipy', scipy.__version__)\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 6.5,
+    "keystrokes": "python3 -c \"import json; data=json.load(open('/home/user/raw_texts.json')); print(type(data).__name__, len(data)); print(repr(data[:3]))\"\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 4,
+    "offset_sec": 6.5,
+    "keystrokes": "printf 'hello world' | /app/embed_oracle | wc -c\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 8,
+    "offset_sec": 22.8,
+    "keystrokes": "cat > /home/user/pipeline.py <<'PY'\n#!/usr/bin/env python3\nimport json\nimport os\nimport sqlite3\nimport subprocess\n\nimport numpy as np\nimport sqlite_vec\nfrom scipy import stats\n\nRAW_PATH = \"/home/user/raw_texts.json\"\nDB_PATH = \"/home/user/data/embeddings.db\"\nORACLE_PATH = \"/app/embed_oracle\"\nSTATS_PATH = \"/home/user/stats.json\"\nEMBEDDING_DIM = 64\nEXPECTED_BYTES = EMBEDDING_DIM * 4\n\n\ndef get_embedding(text: str) -> bytes:\n    proc = subprocess.run(\n        [ORACLE_PATH],\n        input=text.encode(\"utf-8\"),\n        stdout=subprocess.PIPE,\n        stderr=subprocess.PIPE,\n        timeout=15,\n        check=False,\n    )\n    if proc.returncode != 0:\n        raise RuntimeError(\n            f\"Oracle failed with exit code {proc.returncode}: {proc.stderr.decode('utf-8', 'replace')}\"\n        )\n    raw = proc.stdout\n    if len(raw) != EXPECTED_BYTES:\n        raise RuntimeError(f\"Oracle returned {len(raw)} bytes, expected {EXPECTED_BYTES}\")\n    return raw\n\n\ndef main():\n    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)\n\n    with open(RAW_PATH, \"r\", encoding=\"utf-8\") as f:\n        texts = json.load(f)\n\n    conn = sqlite3.connect(DB_PATH)\n    conn.enable_load_extension(True)\n    sqlite_vec.load(conn)\n    conn.enable_load_extension(False)\n    try:\n        conn.execute(\n            \"\"\"\n            CREATE TABLE IF NOT EXISTS docs (\n                id INTEGER PRIMARY KEY,\n                text TEXT NOT NULL,\n                embedding BLOB NOT NULL\n            )\n            \"\"\"\n        )\n        conn.execute(\"DELETE FROM docs\")\n        conn.execute(\"DROP TABLE IF EXISTS docs_vec\")\n        conn.execute(\n            \"CREATE VIRTUAL TABLE docs_vec USING vec0(\"\n            \"doc_id INTEGER PRIMARY KEY, embedding FLOAT[64] distance_metric=cosine)\"\n        )\n\n        for doc_id, text in enumerate(texts, start=1):\n            embedding = get_embedding(text)\n            conn.execute(\n                \"INSERT INTO docs (id, text, embedding) VALUES (?, ?, ?)\",\n                (doc_id, text, sqlite3.Binary(embedding)),\n            )\n            conn.execute(\n                \"INSERT INTO docs_vec(doc_id, embedding) VALUES (?, ?)\",\n                (doc_id, sqlite3.Binary(embedding)),\n            )\n\n        conn.commit()\n\n        rows = conn.execute(\"SELECT id, embedding FROM docs ORDER BY id\").fetchall()\n        ids = [row[0] for row in rows]\n        matrix = np.vstack(\n            [np.frombuffer(row[1], dtype=\"<f4\") for row in rows]\n        ).astype(np.float64)\n\n        norms = np.linalg.norm(matrix, axis=1, keepdims=True)\n        normalized = matrix / np.maximum(norms, 1e-12)\n        similarity_matrix = normalized @ normalized.T\n\n        upper_i, upper_j = np.triu_indices(len(ids), k=1)\n        sims = similarity_matrix[upper_i, upper_j]\n\n        t_stat, p_value = stats.ttest_1samp(sims, 0.0)\n        mean_similarity = float(np.mean(sims))\n        ci_lower, ci_upper = stats.t.interval(\n            0.95,\n            df=len(sims) - 1,\n            loc=mean_similarity,\n            scale=stats.sem(sims),\n        )\n\n        results = {\n            \"mean_similarity\": mean_similarity,\n            \"p_value\": float(p_value),\n            \"ci_lower\": float(ci_lower),\n            \"ci_upper\": float(ci_upper),\n        }\n\n        with open(STATS_PATH, \"w\", encoding=\"utf-8\") as f:\n            json.dump(results, f, indent=2)\n            f.write(\"\\n\")\n\n        print(f\"Stored {len(rows)} documents in {DB_PATH}\")\n        print(f\"Computed {len(sims)} pairwise similarities\")\n        print(json.dumps(results, indent=2))\n    finally:\n        conn.close()\n\n\nif __name__ == \"__main__\":\n    main()\nPY\npython3 /home/user/pipeline.py\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 9,
+    "offset_sec": 26.3,
+    "keystrokes": "",
+    "duration": 2.0,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 10,
+    "offset_sec": 31.3,
+    "keystrokes": "cat > /home/user/app.py <<'PY'\n#!/usr/bin/env python3\nimport json\nimport sqlite3\nimport subprocess\n\nimport numpy as np\nimport sqlite_vec\nfrom flask import Flask, jsonify, request\n\nDB_PATH = \"/home/user/data/embeddings.db\"\nORACLE_PATH = \"/app/embed_oracle\"\nSTATS_PATH = \"/home/user/stats.json\"\nEMBEDDING_DIM = 64\nEXPECTED_BYTES = EMBEDDING_DIM * 4\n\napp = Flask(__name__)\n\n\ndef get_embedding(text):\n    proc = subprocess.run(\n        [ORACLE_PATH],\n        input=text.encode(\"utf-8\"),\n        stdout=subprocess.PIPE,\n        stderr=subprocess.PIPE,\n        timeout=15,\n        check=False,\n    )\n    if proc.returncode != 0:\n        raise RuntimeError(\n            f\"Oracle failed with exit code {proc.returncode}: \"\n            f\"{proc.stderr.decode('utf-8', 'replace')}\"\n        )\n    raw = proc.stdout\n    if len(raw) != EXPECTED_BYTES:\n        raise RuntimeError(\n            f\"Oracle returned {len(raw)} bytes; expected {EXPECTED_BYTES}\"\n        )\n    return np.frombuffer(raw, dtype=\"<f4\").astype(np.float64)\n\n\ndef open_db():\n    conn = sqlite3.connect(DB_PATH)\n    conn.enable_load_extension(True)\n    sqlite_vec.load(conn)\n    conn.enable_load_extension(False)\n    return conn\n\n\n@app.get(\"/stats\")\ndef stats():\n    with open(STATS_PATH, \"r\", encoding=\"utf-8\") as f:\n        payload = json.load(f)\n    return jsonify(payload)\n\n\n@app.post(\"/search\")\ndef search():\n    body = request.get_json(silent=False)\n    if not isinstance(body, dict):\n        return jsonify({\"error\": \"JSON object required\"}), 400\n\n    query = body.get(\"query\")\n    top_k = body.get(\"top_k\")\n    if not isinstance(query, str):\n        return jsonify({\"error\": \"query must be a string\"}), 400\n    if not isinstance(top_k, int) or isinstance(top_k, bool):\n        return jsonify({\"error\": \"top_k must be an integer\"}), 400\n    if top_k <= 0:\n        return jsonify([])\n\n    query_vec = get_embedding(query).astype(\"<f4\").tobytes()\n    conn = open_db()\n    try:\n        rows = conn.execute(\n            \"SELECT d.id, d.text, v.distance FROM docs_vec AS v \"\n            \"JOIN docs AS d ON d.id = v.doc_id \"\n            \"WHERE v.embedding MATCH ? AND k = ? ORDER BY v.distance\",\n            (query_vec, min(top_k, 50)),\n        ).fetchall()\n    finally:\n        conn.close()\n    results = [\n        {\"id\": int(doc_id), \"text\": text, \"score\": float(1.0 - distance)}\n        for doc_id, text, distance in rows\n    ]\n    return jsonify(results)\n\n\nif __name__ == \"__main__\":\n    app.run(host=\"127.0.0.1\", port=8080, debug=False, threaded=True)\nPY\nnohup python3 /home/user/app.py > /home/user/service.log 2>&1 & echo $! > /home/user/service.pid\nsleep 1\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 11,
+    "offset_sec": 34.8,
+    "keystrokes": "cat /home/user/service.pid\ncat /home/user/service.log\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 39.3,
+    "keystrokes": "python3 - <<'PY'\nimport json\nimport urllib.request\n\nwith urllib.request.urlopen('http://127.0.0.1:8080/stats') as response:\n    print('STATS_STATUS', response.status)\n    print(response.read().decode('utf-8'))\n\npayload = json.dumps({'query': 'sample sentence number 7', 'top_k': 3}).encode('utf-8')\nrequest = urllib.request.Request(\n    'http://127.0.0.1:8080/search',\n    data=payload,\n    headers={'Content-Type': 'application/json'},\n    method='POST',\n)\nwith urllib.request.urlopen(request) as response:\n    print('SEARCH_STATUS', response.status)\n    print(response.read().decode('utf-8'))\nPY\n",
+    "duration": 0.5,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 12,
+    "offset_sec": 39.3,
+    "keystrokes": "ps -p $(cat /home/user/service.pid) -o pid,stat,cmd\n",
+    "duration": 0.1,
+    "kind": "terminal_action"
+  },
+  {
+    "step_id": 13,
+    "offset_sec": 42.9,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  },
+  {
+    "step_id": 14,
+    "offset_sec": 45.9,
+    "keystrokes": "",
+    "duration": 0,
+    "kind": "completion_marker"
+  }
+]
