@@ -166,13 +166,21 @@ above all how often it passes a rewrite that is not worth anything. The
 calibration set, with the verdict each should get, uses rewrites named in
 yichuan-w/torchtitan#319 and #324:
 
-- the TLS rewrite: worth it;
-- the LZ4 rewrite: worth it by the majority of solutions;
+- the TLS rewrite: not worth it; most failures did the check the instruction
+  asks for and failed on a urllib3 pin the instruction does not state;
+- the LZ4 rewrite: not worth it; most failures loaded the library correctly at
+  runtime and failed on not finding the copy provided under `/opt`;
 - `task_001320` rev2 and rev3: leak;
 - the HAProxy rewrite: the check its author meant to add was dropped;
 - the rewrites of arm A4 (`EVOLVE_HARDER_WORK` alone) whose failures hit the time
   limit: lengthened work;
 - the 24 rewrites still at 12/12 that Yichuan read in #319.
+
+Positive cases come from 13 candidates: the 11 audit-clean rewrites at 3 to 8
+of 12 in #319 and the Bubblewrap and encoding rewrites in #324 item 5, each
+with evidence on the questions above; Zhifei's side assigns their labels. If
+fewer than 10 of them are worth it, more come from the audit-clean mixed
+rewrites of the unified pool's first rep.
 
 ### Arms under this standard
 
