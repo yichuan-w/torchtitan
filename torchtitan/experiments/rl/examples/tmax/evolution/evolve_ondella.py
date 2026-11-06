@@ -1621,7 +1621,7 @@ _LEDGER_LOCK = threading.Lock()
 
 def _ledger_entry(sig: Signal, outcome: str, **extra) -> dict:
     d = sig.data or {}
-    return {
+    entry = {
         "stamp": layout.stamp(),
         "signal": sig.sid,
         "task": sig.task,
@@ -1632,6 +1632,52 @@ def _ledger_entry(sig: Signal, outcome: str, **extra) -> dict:
         "outcome": outcome,
         **extra,
     }
+    if d.get("direction") == "easier" and isinstance(d.get("attempts"), list):
+        entry["endings"] = easier_endings(sig.run, d["attempts"])
+    return entry
+
+
+# How an attempt that ran out of room ends, by the limit it hit.
+LIMIT_ENDINGS = {
+    "hit_context_limit": "context",
+    "hit_time_budget": "time",
+    "hit_max_turns": "turns",
+}
+
+
+def easier_endings(run: layout.Run, attempts: list) -> dict:
+    """How the attempts behind an easier signal ended, as raw counts.
+
+    Recorded on every ledger line of an easier signal so that the routing of
+    a 0/k by its cause (#322) can be chosen and re-thresholded from the ledger
+    without rereading the records; it changes no routing. `scored` counts the
+    attempts the trainer judged (not infra-failed, not rule-terminated), the
+    same set as the signal's `total`; `context`, `time` and `turns` count
+    those that ended at that limit, and `shadow_passed` those whose
+    unsubmitted work the verifier passed anyway. `unreadable` counts records
+    that could not be read and are in none of the others.
+    """
+    counts = dict.fromkeys(
+        ("scored", "context", "time", "turns", "shadow_passed", "unreadable"), 0
+    )
+    for rel in attempts:
+        try:
+            head = _record_header(run.path / rel)
+        except (OSError, ValueError):
+            counts["unreadable"] += 1
+            continue
+        if (
+            head.get("infra_failed")
+            or head.get("finish_reason") in RULE_TERMINATED_REASONS
+        ):
+            continue
+        counts["scored"] += 1
+        limit = LIMIT_ENDINGS.get(str(head.get("finish_reason")))
+        if limit:
+            counts[limit] += 1
+        if (head.get("shadow_reward") or 0) > 0:
+            counts["shadow_passed"] += 1
+    return counts
 
 
 def _append_ledger(root: layout.Root, entries: list[dict]) -> None:
@@ -2172,6 +2218,11 @@ def _record_header(path: Path) -> dict:
     if head is None:
         full = rollout_record.read_header(path)
         head = {k: full[k] for k in _HEADER_KEYS if k in full}
+        # The verifier's verdict on an attempt that ended without submitting
+        # (rollouter shadow_grade_unsubmitted); absent when none ran.
+        shadow = (full.get("verifier") or {}).get("shadow") or {}
+        if shadow.get("reward") is not None:
+            head["shadow_reward"] = shadow["reward"]
         if path in _RECORD_MTIMES:
             _RECORD_HEADERS[path] = head
     return head
