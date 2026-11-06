@@ -18,6 +18,11 @@
 #   WORKERS=64 MAX_ROUNDS=6 MAX_ATTEMPTS=2 ATTEMPTS_SINCE=$(date -u +%Y%m%d-%H%M) \
 #   [CLAUDE_PROXY=1] [LOOP_ENV=<file>] [EVOLVE_AGENT_TIMEOUT=7200] bash offline_drive.sh
 #
+# STREAM_DONE names a file whose appearance says SELECTED is complete. Until it
+# exists, a round that finds nothing to stage waits for more signals instead of
+# ending the drive, and does not count toward MAX_ROUNDS: evolve_bench.py
+# pipeline grows SELECTED while the eval that makes its signals still runs.
+#
 # LOOP_ENV names a file sourced last, after evolveloop_env.sh and claude_env.sh,
 # for a provider neither of them knows (OPENAI_API_KEY / SYNTH_API_BASE /
 # SYNTH_MODEL for another OpenAI-compatible endpoint). It has to come last:
@@ -114,8 +119,10 @@ probe_provider() {
   echo "http=$code $(head -c 300 "$body" 2>/dev/null | tr '\n' ' ')"
   [ "$code" = 200 ]
 }
-L "start workers=$WORKERS max_rounds=$MAX_ROUNDS max_attempts=$MAX_ATTEMPTS since=$ATTEMPTS_SINCE checkout=$TT@$(git -C "$TT" rev-parse --short HEAD) model=${SYNTH_MODEL:-gpt-5.6-sol} api_base=${SYNTH_API_BASE:-openai} agent_timeout=${EVOLVE_AGENT_TIMEOUT:-2400} sock_dir=${EVOLVE_SOCK_DIR:-/tmp} tmpdir=${TMPDIR:-/tmp}"
-for k in $(seq 1 "$MAX_ROUNDS"); do
+L "start stream_done=${STREAM_DONE:-} workers=$WORKERS max_rounds=$MAX_ROUNDS max_attempts=$MAX_ATTEMPTS since=$ATTEMPTS_SINCE checkout=$TT@$(git -C "$TT" rev-parse --short HEAD) model=${SYNTH_MODEL:-gpt-5.6-sol} api_base=${SYNTH_API_BASE:-openai} agent_timeout=${EVOLVE_AGENT_TIMEOUT:-2400} sock_dir=${EVOLVE_SOCK_DIR:-/tmp} tmpdir=${TMPDIR:-/tmp}"
+k=0
+while [ "$k" -lt "$MAX_ROUNDS" ]; do
+  k=$((k + 1))
   # a round already running over this root (the lock names its pid) finishes first
   while pid=$(sed -n 's/.* pid=\([0-9]*\) .*/\1/p' "$TRL_BASE/evolution/loop.lock" 2>/dev/null) \
         && [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; do sleep 60; done
@@ -133,8 +140,12 @@ for k in $(seq 1 "$MAX_ROUNDS"); do
   L "round $k: $out"
   n=$(printf '%s' "$out" | sed -n 's/^staged \([0-9]*\) signals.*/\1/p')
   if [ "${n:-0}" -eq 0 ]; then
-    L "nothing left to restage; done"
     rmdir "$TRL_BASE/runs/$name/signals" "$TRL_BASE/runs/$name/rollouts" "$TRL_BASE/runs/$name" 2>/dev/null
+    if [ -n "${STREAM_DONE:-}" ] && [ ! -e "$STREAM_DONE" ]; then
+      L "round $k: nothing staged yet and $STREAM_DONE absent; waiting for signals"
+      k=$((k - 1)); sleep 300; continue
+    fi
+    L "nothing left to restage; done"
     break
   fi
   L "round $k: running --once --workers $WORKERS"

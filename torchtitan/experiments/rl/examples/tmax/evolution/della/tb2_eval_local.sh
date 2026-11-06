@@ -87,24 +87,30 @@ export SWE_PROMPT_DATA=$SWE_TB2_DATA
 export SWE_DP_SHARD=1 SWE_GEN_DP=1 SWE_GEN_BACKEND=vllm_native
 export SWE_ROLLOUT_CONCURRENCY=${SWE_ROLLOUT_CONCURRENCY:-445} SWE_NUM_ROLLOUT_WORKERS=8
 export SWE_GPU_MEM_LIMIT=${SWE_GPU_MEM_LIMIT:-0.85} SWE_MAX_NUM_SEQS=256 SWE_GEN_PREFIX_CACHE=1
-export SWE_MAX_CONTEXT_LEN=63488
+export SWE_MAX_CONTEXT_LEN=${SWE_MAX_CONTEXT_LEN:-63488}
 # Rows that declare no timeout (TerminalWorld holdouts) get this budget; TB-2.0
 # rows declare their own. 3600 is what training gives the same rows.
 export SWE_TIME_BUDGET_SEC=${SWE_TIME_BUDGET_SEC:-3600}
 # TMAX_AGENT=miniswe scores the policy under the mini-swe-agent harness instead.
 export TMAX_AGENT=${TMAX_AGENT:-terminus} TMAX_EXEC_TIMEOUT_SEC=120 TMAX_TERMINUS_MAX_TURNS=120
-export TMAX_TURN_MAX_TOKENS=32768
+# The bench's recipes set the per-turn cap (training's is 16384); 32768 is what
+# evals launched without one have run.
+export TMAX_TURN_MAX_TOKENS=${TMAX_TURN_MAX_TOKENS:-32768}
 export TT_DAYTONA_CPU=1 TT_DAYTONA_MEM_GB=2 TT_DAYTONA_DISK_GB=2
 # per rollout-worker process: 16 x 8 workers = 128 creates in flight per eval
 export TT_DAYTONA_CREATE_CONCURRENCY=${TT_DAYTONA_CREATE_CONCURRENCY:-16} TT_DAYTONA_EPHEMERAL=1
 export TT_DAYTONA_CREATE_RETRIES=${TT_DAYTONA_CREATE_RETRIES:-8} TT_DAYTONA_LABEL=tb2_eval_local
 export RL_GPUS=${RL_GPUS:-$OFF,$((OFF+1))} RL_GPU_OFFSET=$OFF
+NUM_GENERATORS=1
 export PATH=/scratch/gpfs/TRIDAO/al9080/titan-rl/bin:$PATH
 export PYTHONPATH=$TRL_TT${PYTHONPATH:+:$PYTHONPATH}
 
 TT_COMMIT=$(git -C "$TRL_TT" rev-parse --short HEAD)
 [ -z "$(git -C "$TRL_TT" status --porcelain --untracked-files=no)" ] || TT_COMMIT=$TT_COMMIT-dirty
-python - "$EVAL" "$STAMP" "$TT_COMMIT" "$CKPT" "$RUN_NAME" "$STEP" <<'PY'
+# What the generators ran on and what was scored: two evals are comparable only
+# on the same GPU type, generator count and evalset bytes (EVOLVE_BENCH.md).
+GPU_NAMES=$(nvidia-smi --query-gpu=name --format=csv,noheader -i "$(tr , '\n' <<< "$RL_GPUS" | sort -u | paste -sd , -)" 2>/dev/null | sort -u | paste -sd ';' -)
+python - "$EVAL" "$STAMP" "$TT_COMMIT" "$CKPT" "$RUN_NAME" "$STEP" "$NUM_GENERATORS" "$GPU_NAMES" <<'PY'
 import os
 import sys
 from pathlib import Path
@@ -113,7 +119,7 @@ from pathlib import Path
 sys.path.insert(0, os.path.join(os.environ["TRL_TT"], "torchtitan/experiments/rl/examples/tmax"))
 import layout  # noqa: E402
 
-eval_dir, started, tt_commit, ckpt, run_name, step = sys.argv[1:7]
+eval_dir, started, tt_commit, ckpt, run_name, step, num_generators, gpu_names = sys.argv[1:9]
 prefixes = ("SWE_", "TMAX_", "TT_DAYTONA", "RL_", "TRL_", "CUDA_VISIBLE", "WANDB_PROJECT")
 layout.write_json_atomic(Path(eval_dir) / "launch.json", {
     "eval": Path(eval_dir).name,
@@ -124,7 +130,11 @@ layout.write_json_atomic(Path(eval_dir) / "launch.json", {
     "checkpoint": ckpt or None,
     "run": run_name,
     "step": int(step),
+    "host": os.uname().nodename,
     "gpus": os.environ["RL_GPUS"],
+    "gpu_names": gpu_names or None,
+    "num_generators": int(num_generators),
+    "evalset_sha256": layout.sha256_file(Path(os.environ["SWE_TB2_DATA"])),
     "env": {k: v for k, v in os.environ.items() if k.startswith(prefixes)},
 })
 PY
@@ -136,6 +146,6 @@ cd "$EVAL"
 exec python -m torchtitan.experiments.rl.train \
     --module torchtitan.experiments.rl.examples.tmax \
     --config rl_grpo_qwen3_5_9b_tmax_tb2_eval \
-    --num-generators 1 \
+    --num-generators "$NUM_GENERATORS" \
     --dump_folder "$EVAL/trainer" \
     --hf_assets_path "$HF_ASSETS"

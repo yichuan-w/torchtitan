@@ -1,0 +1,171 @@
+task_id	defect_class	fixed	note
+task_000078_704c9ecc	wrong_reference_answer		verifier expects p=5.556e-13; scipy.stats.fisher_exact on the stated table gives 5.033e-14
+task_000607_a15537ed	hackable		writing [] to the output passed the verifier
+task_003787_156cb610	unsolvable		the verifier demands a hash no input can produce
+rts_task_c005db1813b454fd2b579297	external_network		the grader clones github.com/jrogue/sample.git
+pyro-ppl__numpyro-1914	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+rts_task_020ad1689cad3626497b56fe	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+rts_task_062c48c4e03486aab7ff1909	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+rts_task_0e80e89c4dcb4386ccb28bb9	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+rts_task_48df84de654aa6cc91465b6f	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+rts_task_64c57d1e84b4f7457cd48d6b	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+rts_task_6ba244b698500a5585a1f154	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+rts_task_70973a62de04b95fa960a073	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+rts_task_75542adcd1bb4680a7cdedc0	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+rts_task_7be15613a8f6e653a6c64eb1	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+rts_task_7c2c9533c50d05a84a2b2980	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+rts_task_8535af318208ec7e4cbdd873	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+rts_task_86fc9ae7ab9a99c8d46262aa	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+rts_task_8bc9362364eccd860637ab4f	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+rts_task_9bea742175cbc6b155920a37	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+rts_task_a1fb5d219782b2ad9fd0ccbe	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+rts_task_a48bb6a87568de6f4342d7e0	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+rts_task_abd2d2db375ec35a34770513	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+rts_task_ad7d91f8736c2607f4dd916b	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+rts_task_b6b02584385fd4ad601f40ce	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+rts_task_ba953cb11fa97ee52fe7ef3c	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+rts_task_c005db1813b454fd2b579297	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+rts_task_c908e2ac29d8388fff4c4d55	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+rts_task_d3290515a5700373e22d7dad	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+rts_task_d964e9090f1dde3103b00380	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+rts_task_dfea171657e568b9e4d21591	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+rts_task_f11853d9765a4a3c191f8018	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+rts_task_fe9b38379292388dd5e39009	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+task_000078_704c9ecc	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+task_000185_d6f0bac7	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+task_000269_3b0056a6	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+task_000283_b8c17c0d	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+task_000305_847de7e5	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+task_000322_52e0a9fe	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+task_000386_43121cfd	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+task_000476_14b909cc	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+task_000576_0dbfb38a	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+task_000607_a15537ed	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+task_000651_7d72ef55	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+task_000660_1a27985b	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+task_000680_ff6ac094	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+task_000766_d807ec60	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+task_000918_17d9e1bd	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+task_000999_563abc34	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+task_001293_5525a528	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+task_001552_7ed8f9bf	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+task_002076_68e6fa9e	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+task_002382_b76aee61	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+task_002586_51207d88	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+task_002599_c0a64d58	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+task_002782_8ddf86de	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+task_003054_604bca66	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+task_003103_c5ee5fa5	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+task_003109_dc7395ac	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+task_003386_05a05def	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+task_003588_e3556b7c	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+task_003637_8afed63a	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+task_003787_156cb610	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+tw_14495	audit_20261026_exclude		Source: DATA_AUDIT_20261026.md section 1; Debian Jessie tmux cannot report the Terminus pid/socket.
+software-engineering_20260508_045740_011	audit_20261026_exclude		Source: DATA_AUDIT_20261026.md section 1; process killing plus 1 GB memory takes the terminal down.
+software-engineering_20260417_112147_020	audit_20261026_exclude		Source: DATA_AUDIT_20261026.md section 1; 72/72 solved and the verifier is always passing.
+data-querying_20260508_045800_001	audit_20261026_resource		Source: DATA_AUDIT_20261026.md section 2; now=2/2/2; suggested=mem:8; oom_suspect and sandbox loss.
+data-science_20260607_104421_004	audit_20261026_resource		Source: DATA_AUDIT_20261026.md section 2; now=1/1/1; suggested=disk:4; the agent fills disk and the verifier venv breaks.
+task_002324_f03c9c85	audit_20261026_resource		Source: DATA_AUDIT_20261026.md section 2; now=1/1/1; suggested=mem:4; service task loses its sandbox under memory pressure.
+software-engineering_20260614_141608_024	audit_20261026_resource		Source: DATA_AUDIT_20261026.md section 2; now=1/1/1; suggested=mem:4; the verifier is OOM-killed.
+system-administration_20260601_053159_008	audit_20261026_resource		Source: DATA_AUDIT_20261026.md section 2; now=1/1/1; suggested=cpu:2,mem:4,disk:4; multi-service daemon task.
+system-administration_20260615_143301_008	audit_20261026_resource		Source: DATA_AUDIT_20261026.md section 2; now=1/1/1; suggested=cpu:2,mem:4,disk:4; telnet/login server.
+pymc-devs__pymc-7637	audit_20261026_resource		Source: DATA_AUDIT_20261026.md section 2; now=1/2/4; suggested=cpu:4; 600 s command timeouts on 1 CPU.
+optimization_20260606_172622_001	audit_20261026_resource		Source: DATA_AUDIT_20261026.md section 2; suggested=cpu:unspecified; benchmark/brute-force timeouts; raise CPU.
+mathematics_20260511_015840_001	audit_20261026_resource		Source: DATA_AUDIT_20261026.md section 2; suggested=cpu:unspecified; benchmark/brute-force timeouts; raise CPU.
+software-engineering_20260416_133458_003	audit_20261026_resource		Source: DATA_AUDIT_20261026.md section 2; suggested=cpu:unspecified; benchmark/brute-force/build timeouts; raise CPU.
+software-engineering_20260604_004411_011	audit_20261026_resource		Source: DATA_AUDIT_20261026.md section 2; suggested=cpu:unspecified; benchmark/brute-force/build timeouts; raise CPU.
+software-engineering_20260508_045557_011	audit_20261026_resource		Source: DATA_AUDIT_20261026.md section 2; suggested=cpu:unspecified; benchmark/brute-force/build timeouts; raise CPU.
+tw_100135	audit_20261026_resource		Source: DATA_AUDIT_20261026.md section 5; sandbox_lost 6; suggested=mem:unspecified.
+system-administration_20260610_111702_002	audit_20261026_resource		Source: DATA_AUDIT_20261026.md section 5; sandbox_lost 5; suggested=mem:unspecified.
+tw_338534	audit_20261026_resource		Source: DATA_AUDIT_20261026.md section 5; command_disk_exhausted; suggested=disk:4; audit places it in the 1-2 GB disk cluster.
+tw_18271	audit_20261026_resource		Source: DATA_AUDIT_20261026.md section 5; command_disk_exhausted; suggested=disk:4; audit places it in the 1-2 GB disk cluster.
+data-processing_20260528_174918_003	audit_20261026_never_solved		Source: DATA_AUDIT_20261026.md section 3; zero solved in every group.
+data-science_20260612_191200_002	audit_20261026_never_solved		Source: DATA_AUDIT_20261026.md section 3; zero solved in every group.
+data-science_20260617_210354_003	audit_20261026_never_solved		Source: DATA_AUDIT_20261026.md section 3; zero solved in every group.
+debugging_20260508_204815_005	audit_20261026_never_solved		Source: DATA_AUDIT_20261026.md section 3; zero solved in every group.
+file-operations_20260415_182321_004	audit_20261026_never_solved		Source: DATA_AUDIT_20261026.md section 3; zero solved in every group.
+file-operations_20260416_172928_002	audit_20261026_never_solved		Source: DATA_AUDIT_20261026.md section 3; zero solved in every group.
+file-operations_20260425_072438_002	audit_20261026_never_solved		Source: DATA_AUDIT_20261026.md section 3; zero solved in every group.
+file-operations_20260501_172213_004	audit_20261026_never_solved		Source: DATA_AUDIT_20261026.md section 3; zero solved in every group.
+file-operations_20260602_105139_002	audit_20261026_never_solved		Source: DATA_AUDIT_20261026.md section 3; zero solved in every group.
+file-operations_20260604_004411_003	audit_20261026_never_solved		Source: DATA_AUDIT_20261026.md section 3; zero solved in every group.
+file-operations_20260605_015435_002	audit_20261026_never_solved		Source: DATA_AUDIT_20261026.md section 3; zero solved in every group.
+file-operations_20260611_112034_004	audit_20261026_never_solved		Source: DATA_AUDIT_20261026.md section 3; zero solved in every group.
+games_20260604_002443_001	audit_20261026_never_solved		Source: DATA_AUDIT_20261026.md section 3; zero solved in every group.
+machine-learning_20260508_180627_002	audit_20261026_never_solved		Source: DATA_AUDIT_20261026.md section 3; zero solved in every group.
+mathematics_20260422_235114_002	audit_20261026_never_solved		Source: DATA_AUDIT_20261026.md section 3; zero solved in every group.
+mathematics_20260511_015840_001	audit_20261026_never_solved		Source: DATA_AUDIT_20261026.md section 3; zero solved in every group.
+mathematics_20260606_172606_002	audit_20261026_never_solved		Source: DATA_AUDIT_20261026.md section 3; zero solved in every group.
+mathematics_20260610_112157_001	audit_20261026_never_solved		Source: DATA_AUDIT_20261026.md section 3; zero solved in every group.
+optimization_20260606_172622_001	audit_20261026_never_solved		Source: DATA_AUDIT_20261026.md section 3; zero solved in every group.
+personal-assistant_20260414_211453_001	audit_20261026_never_solved		Source: DATA_AUDIT_20261026.md section 3; zero solved in every group.
+scientific-computing_20260513_204848_004	audit_20261026_never_solved		Source: DATA_AUDIT_20261026.md section 3; zero solved in every group.
+scientific-computing_20260603_181444_003	audit_20261026_never_solved		Source: DATA_AUDIT_20261026.md section 3; zero solved in every group.
+scientific-computing_20260604_144210_001	audit_20261026_never_solved		Source: DATA_AUDIT_20261026.md section 3; zero solved in every group.
+security_20260514_012509_001	audit_20261026_never_solved		Source: DATA_AUDIT_20261026.md section 3; zero solved in every group.
+security_20260528_174918_002	audit_20261026_never_solved		Source: DATA_AUDIT_20261026.md section 3; zero solved in every group.
+security_20260603_181444_007	audit_20261026_never_solved		Source: DATA_AUDIT_20261026.md section 3; zero solved in every group.
+security_20260604_003113_003	audit_20261026_never_solved		Source: DATA_AUDIT_20261026.md section 3; zero solved in every group.
+security_20260604_193356_002	audit_20261026_never_solved		Source: DATA_AUDIT_20261026.md section 3; zero solved in every group.
+software-engineering_20260419_023954_005	audit_20261026_never_solved		Source: DATA_AUDIT_20261026.md section 3; zero solved in every group.
+software-engineering_20260419_112101_004	audit_20261026_never_solved		Source: DATA_AUDIT_20261026.md section 3; zero solved in every group.
+software-engineering_20260429_103257_026	audit_20261026_never_solved		Source: DATA_AUDIT_20261026.md section 3; zero solved in every group.
+software-engineering_20260501_051538_013	audit_20261026_never_solved		Source: DATA_AUDIT_20261026.md section 3; zero solved in every group.
+software-engineering_20260503_030115_014	audit_20261026_never_solved		Source: DATA_AUDIT_20261026.md section 3; zero solved in every group.
+software-engineering_20260508_045740_011	audit_20261026_never_solved		Source: DATA_AUDIT_20261026.md section 3; zero solved in every group.
+software-engineering_20260508_180627_010	audit_20261026_never_solved		Source: DATA_AUDIT_20261026.md section 3; zero solved in every group.
+software-engineering_20260509_205636_022	audit_20261026_never_solved		Source: DATA_AUDIT_20261026.md section 3; zero solved in every group.
+software-engineering_20260601_053159_004	audit_20261026_never_solved		Source: DATA_AUDIT_20261026.md section 3; zero solved in every group.
+software-engineering_20260604_004411_014	audit_20261026_never_solved		Source: DATA_AUDIT_20261026.md section 3; zero solved in every group.
+software-engineering_20260604_193056_015	audit_20261026_never_solved		Source: DATA_AUDIT_20261026.md section 3; zero solved in every group.
+software-engineering_20260606_172554_016	audit_20261026_never_solved		Source: DATA_AUDIT_20261026.md section 3; zero solved in every group.
+software-engineering_20260610_111012_016	audit_20261026_never_solved		Source: DATA_AUDIT_20261026.md section 3; zero solved in every group.
+software-engineering_20260610_112157_021	audit_20261026_never_solved		Source: DATA_AUDIT_20261026.md section 3; zero solved in every group.
+software-engineering_20260613_152233_015	audit_20261026_never_solved		Source: DATA_AUDIT_20261026.md section 3; zero solved in every group.
+software-engineering_20260613_152233_017	audit_20261026_never_solved		Source: DATA_AUDIT_20261026.md section 3; zero solved in every group.
+software-engineering_20260614_141608_024	audit_20261026_never_solved		Source: DATA_AUDIT_20261026.md section 3; zero solved in every group.
+system-administration_20260601_053159_005	audit_20261026_never_solved		Source: DATA_AUDIT_20261026.md section 3; zero solved in every group.
+system-administration_20260601_053159_008	audit_20261026_never_solved		Source: DATA_AUDIT_20261026.md section 3; zero solved in every group.
+system-administration_20260604_002443_004	audit_20261026_never_solved		Source: DATA_AUDIT_20261026.md section 3; zero solved in every group.
+system-administration_20260606_172606_004	audit_20261026_never_solved		Source: DATA_AUDIT_20261026.md section 3; zero solved in every group.
+system-administration_20260610_111012_007	audit_20261026_never_solved		Source: DATA_AUDIT_20261026.md section 3; zero solved in every group.
+system-administration_20260611_205750_004	audit_20261026_never_solved		Source: DATA_AUDIT_20261026.md section 3; zero solved in every group.
+system-administration_20260615_143301_008	audit_20261026_never_solved		Source: DATA_AUDIT_20261026.md section 3; zero solved in every group.
+system-administration_20260615_143956_008	audit_20261026_never_solved		Source: DATA_AUDIT_20261026.md section 3; zero solved in every group.
+video-processing_20260604_144210_001	audit_20261026_never_solved		Source: DATA_AUDIT_20261026.md section 3; zero solved in every group.
+pallets__werkzeug-2596	audit_20261026_never_solved		Source: DATA_AUDIT_20261026.md section 3; zero solved in every group.
+pyccel__pyccel-2038	audit_20261026_never_solved		Source: DATA_AUDIT_20261026.md section 3; zero solved in every group.
+pymc-devs__pytensor-1231	audit_20261026_never_solved		Source: DATA_AUDIT_20261026.md section 3; zero solved in every group.
+rts_task_0b9b2bac6586b91383a541a9	audit_20261026_never_solved		Source: DATA_AUDIT_20261026.md section 3; zero solved in every group.
+tw_14495	audit_20261026_never_solved		Source: DATA_AUDIT_20261026.md section 3; zero solved in every group.
+tw_733601	audit_20261026_never_solved		Source: DATA_AUDIT_20261026.md section 3; zero solved in every group.
+data-science_20260506_213248_004	audit_20261026_near_always		Source: DATA_AUDIT_20261026.md section 4; at least 11/12 solved in every group.
+mathematics_20260418_044216_001	audit_20261026_near_always		Source: DATA_AUDIT_20261026.md section 4; at least 11/12 solved in every group.
+pallets__markupsafe.620c06c9.func_basic__09grfhrm	audit_20261026_near_always		Source: DATA_AUDIT_20261026.md section 4; at least 11/12 solved in every group.
+software-engineering_20260414_091921_009	audit_20261026_near_always		Source: DATA_AUDIT_20261026.md section 4; at least 11/12 solved in every group.
+software-engineering_20260417_112147_020	audit_20261026_near_always		Source: DATA_AUDIT_20261026.md section 4; at least 11/12 solved in every group.
+task_000022_21389603	audit_20261026_near_always		Source: DATA_AUDIT_20261026.md section 4; at least 11/12 solved in every group.
+task_000092_f4073751	audit_20261026_near_always		Source: DATA_AUDIT_20261026.md section 4; at least 11/12 solved in every group.
+task_002064_da683645	audit_20261026_near_always		Source: DATA_AUDIT_20261026.md section 4; at least 11/12 solved in every group.
+task_006486_83be373e	audit_20261026_near_always		Source: DATA_AUDIT_20261026.md section 4; at least 11/12 solved in every group.
+tw_229615	audit_20261026_near_always		Source: DATA_AUDIT_20261026.md section 4; at least 11/12 solved in every group.
+task_003890_44be0a93	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+task_004300_d95264b2	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+task_004812_68a1963b	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+task_005110_21a8e234	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+task_005278_e150eff8	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+task_005412_1a7d91ac	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+task_005968_01db9842	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+task_007919_9f671c59	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+task_008507_de9e4b80	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+task_009085_092b7aa8	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+task_009491_a219a910	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+tw_101812	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+tw_11181	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+tw_125967	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+tw_15324	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+tw_245032	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+tw_321921	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+tw_436604	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
+machine-learning_20260618_093107_001	audit_20261024_broken		in data_agentpick_fast_audited.json's exclude list (wrong answers, impossible tasks, rewards without the work, live third-party repos, agent-plantable tests)
