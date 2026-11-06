@@ -165,7 +165,7 @@ def test_hop_collect_stages_the_next_hop(tmp_path):
         _record(comb / "validation_rollouts" / "A0__t" / f"g-5-r{i}.jsonl", "A0__t", 1, 1.0, group=-5)
     (comb / "launch.json").write_text(json.dumps({"env": {"SWE_TB2_DATA": str(tmp_path / "hop1.jsonl")}}))
     ec.hop_collect(argparse.Namespace(bench=bench, chain="c", hop=1, eval=[comb]))
-    run = root / "chain" / "hop2-signals"
+    (run,) = (root / "chain").glob("hop2-signals-*")
     sig = json.loads(next((run / "signals").iterdir()).read_text())
     assert sig["task"] == "t" and sig["rev"] == 1 and sig["direction"] == "harder" and sig["total"] == 12
     assert ec.task_hops(root, "t", "12/12")[0]["band"] == "12/12"

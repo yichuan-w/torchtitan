@@ -589,13 +589,10 @@ def launch(a: argparse.Namespace) -> None:
             eb.run_arm(bench=a.bench, set_name=a.chain, arm_path=Path(info["arm_file"]), log=log,
                        workers=a.workers, no_auto_eval=True)
             continue
-        run = root / "chain" / f"hop{a.hop}-signals"
-        if not (run / "selected.json").exists():
-            print(f"{label}: no {run}/selected.json (hop-collect --hop {a.hop - 1} writes it); skipped")
-            continue
-        unit = f"bench-{root.name}-hop{a.hop}"
-        if subprocess.run(["systemctl", "--user", "is-active", "--quiet", unit]).returncode == 0:
-            print(f"{label}: {unit} is running; skipped")
+        runs = [r for r in sorted((root / "chain").glob(f"hop{a.hop}-signals*"))
+                if (r / "selected.json").exists() and not (r / "launched").exists()]
+        if not runs:
+            print(f"{label}: no unlaunched hop{a.hop}-signals* run (hop-collect --hop {a.hop - 1} writes them)")
             continue
         arm = eb.load_arm(Path(info["arm_file"]))
         if a.workers:
@@ -604,9 +601,13 @@ def launch(a: argparse.Namespace) -> None:
         rec = json.load(open(root / "bench_arm.json"))
         if rec["arm_commit"] != head:
             raise SystemExit(f"{root} ran {rec['arm_commit'][:12]}, {tt} is now at {head[:12]}")
-        eb._start_unit(unit, root, eb._drive_env(root, arm, eb.DRIVE_PINS, run, run / "selected.json"),
-                       ["bash", str(eb.DRIVE)], log)
-        print(f"{label}: {unit} started over {run}")
+        for run in runs:
+            # One drive per batch; drives on one root take turns on its loop lock.
+            unit = f"bench-{root.name}-{run.name}"
+            eb._start_unit(unit, root, eb._drive_env(root, arm, eb.DRIVE_PINS, run, run / "selected.json"),
+                           ["bash", str(eb.DRIVE)], log)
+            (run / "launched").write_text(f"{unit} {layout.stamp()}\n")
+            print(f"{label}: {unit} started over {run}")
 
 
 # --------------------------------------------------------------------- hop-evalset
@@ -688,8 +689,14 @@ def hop_collect(a: argparse.Namespace) -> None:
             tally[this.get("band", this["state"])] += 1
             if this["state"] == "measured" and next_direction(this["band"]):
                 cont.append(tid)
-        print(f"{label}: hop {a.hop} {dict(tally)}; {len(cont)} continue")
-        run = root / "chain" / f"hop{a.hop + 1}-signals"
+        # A hop measured in several partial evals gets one signal run per batch;
+        # a task already signalled by an earlier batch is left out of this one.
+        done = set()
+        for prev in (root / "chain").glob(f"hop{a.hop + 1}-signals*/selected.json"):
+            done |= set(json.load(open(prev)))
+        cont = [t for t in cont if t not in done]
+        print(f"{label}: hop {a.hop} {dict(tally)}; {len(cont)} continue (new this batch)")
+        run = root / "chain" / f"hop{a.hop + 1}-signals-{a.eval[-1].name[:16]}"
         if run.exists():
             print(f"{label}: {run} exists; not rewritten")
             continue
