@@ -42,6 +42,8 @@ def test_on_adds_the_rule_to_the_author_prompt(tmp_path, monkeypatch):
     prompt = " ".join(_author_prompt(tmp_path, monkeypatch).split())
     assert "It never gives the result for an input the task itself uses" in prompt
     assert "withdraw it rather than keep it or update its numbers" in prompt
+    assert "whoever wrote it and whether or not `traces/history/since-original.diff` shows it" in prompt
+    assert "\"Keep the original task's wording\" does not cover it" in prompt
     # The rule sits after the checked-behaviours note it qualifies.
     assert prompt.index("WHAT YOUR SCRATCH TESTS CHECK") < prompt.index(
         "It never gives the result for an input the task itself uses"

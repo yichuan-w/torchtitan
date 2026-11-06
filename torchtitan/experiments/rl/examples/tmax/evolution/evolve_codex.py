@@ -2466,7 +2466,11 @@ statement: state it in the instruction, or drop the entry."""
 # must print 3"). Later harder rewrites kept that sentence as the task's wording
 # and swapped in each new operand; students hard-coded it. Of 1,520 accepted
 # real-guidance harder rewrites in 111e, 7 added such a sentence, 2 of them in
-# this repair step. Off, every prompt is unchanged.
+# this repair step. In the 7-parent bench slice the first wording left the
+# sentence in place on every accepted task_001320 p1/p2 rewrite: the parents'
+# since-original.diff is empty, so the authors read it as the original task's
+# wording and kept it under "Keep the original task's wording". Off, every prompt
+# is unchanged.
 def _no_worked_answers() -> bool:
     return os.environ.get("EVOLVE_NO_WORKED_ANSWERS", "0") == "1"
 
@@ -2478,9 +2482,11 @@ deliverable may get. It never gives the result for an input the task itself
 uses: an operand in a shipped file, an input your scratch tests run, the
 reproduction case from your sources. Such a sentence hands the student the
 value the check expects, and printing that value passes without the work. This
-holds for such a sentence an earlier rewrite added too: withdraw it rather than
-keep it or update its numbers. Where a check needs that result, the verifier
-computes it from the environment."""
+holds for every such sentence already in the instruction, whoever wrote it and
+whether or not `traces/history/since-original.diff` shows it: withdraw it rather
+than keep it or update its numbers. "Keep the original task's wording" does not
+cover it: withdrawing it takes back an answer, not help. Where a check needs that
+result, the verifier computes it from the environment."""
 
 
 _REPAIR_JOB = """Your rewrite did not survive the caller's check. It rebuilt the
