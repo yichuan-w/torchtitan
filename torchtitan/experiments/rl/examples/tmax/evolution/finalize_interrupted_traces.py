@@ -19,6 +19,11 @@ outcomes. Account-auth links left by stopped sessions are removed without
 touching their targets. Records that already finished retain their status.
 
     finalize_interrupted_traces.py --stopped-loop-pid <pid>     (TRL_BASE set)
+    finalize_interrupted_traces.py [--except-task <task> ...]  (TRL_BASE set)
+
+--task / --except-task scope the walk to some tasks: when each task has a loop
+process of its own (evolve_ondella.py --task), a task whose process is still
+alive must not be touched, its auth links included.
 """
 
 from __future__ import annotations
@@ -103,13 +108,28 @@ def _subdirs(path: Path) -> list[Path]:
         return []
 
 
+def _in_scope(name: str, tasks, except_tasks) -> bool:
+    if tasks is not None and name not in tasks:
+        return False
+    return not (except_tasks and name in except_tasks)
+
+
 def open_rewrites(
-    root: layout.Root, *, include: tuple[layout.RewriteDir, ...] = ()
+    root: layout.Root,
+    *,
+    include: tuple[layout.RewriteDir, ...] = (),
+    tasks=None,
+    except_tasks=(),
 ) -> list[tuple[str, layout.RewriteDir]]:
     """(task id, rewrite) for every rewrite the ledger has not closed, plus
-    ``include``. Lists every task's rewrites/, in parallel."""
+    ``include``. Lists every task's rewrites/, in parallel. ``tasks`` (when
+    not None) and ``except_tasks`` scope it by task directory name."""
     closed = closed_rewrites(root)
-    tasks = _subdirs(root.evolution.tasks)
+    tasks = [
+        t
+        for t in _subdirs(root.evolution.tasks)
+        if _in_scope(t.name, tasks, except_tasks)
+    ]
     with ThreadPoolExecutor(SCAN_WORKERS, thread_name_prefix="finalize-scan") as pool:
         listed = list(pool.map(lambda t: _subdirs(t / "rewrites"), tasks))
     found = {
@@ -128,6 +148,8 @@ def finalize_interrupted(
     *,
     stopped_loop_pid: int | None = None,
     include: tuple[layout.RewriteDir, ...] | list[layout.RewriteDir] = (),
+    tasks=None,
+    except_tasks=(),
 ) -> dict[str, int]:
     """Mark what a stopped loop left ``running`` under every open rewrite.
 
@@ -203,7 +225,9 @@ def finalize_interrupted(
                     }
                 )
 
-    candidates = open_rewrites(root, include=tuple(include))
+    candidates = open_rewrites(
+        root, include=tuple(include), tasks=tasks, except_tasks=except_tasks
+    )
     with ThreadPoolExecutor(SCAN_WORKERS, thread_name_prefix="finalize") as pool:
         # list() re-raises the first failure, as the serial loop did.
         list(pool.map(one, candidates))
@@ -212,10 +236,17 @@ def finalize_interrupted(
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    parser.add_argument("--stopped-loop-pid", required=True, type=int)
+    parser.add_argument("--stopped-loop-pid", type=int)
+    parser.add_argument("--task", action="append", help="only this task (repeatable)")
+    parser.add_argument(
+        "--except-task", action="append", default=[], help="not this task (repeatable)"
+    )
     args = parser.parse_args()
     counts = finalize_interrupted(
-        layout.Root.from_env(), stopped_loop_pid=args.stopped_loop_pid
+        layout.Root.from_env(),
+        stopped_loop_pid=args.stopped_loop_pid,
+        tasks=set(args.task) if args.task is not None else None,
+        except_tasks=set(args.except_task),
     )
     print(json.dumps({"outcome": "finalize_summary", **counts}, sort_keys=True))
     return int(counts["failed"] > 0)

@@ -55,11 +55,14 @@ Usage:
   evolve_ondella.py --interval 120 --workers 16    continuous
   evolve_ondella.py --once --dry --only <task>     handle, publish nothing
   evolve_ondella.py --signal <run>/<task>--g<N>    replay one handled signal (dry)
+  evolve_ondella.py --task <task>                  one task's pending signals, in a
+                                                   process of its own (see acquire_task_lock)
 """
 
 from __future__ import annotations
 
 import argparse
+import contextlib
 import difflib
 import fcntl
 import json
@@ -767,6 +770,56 @@ def acquire_singleton(lock_path: Path) -> int:
         target=_heartbeat, args=(fd,), daemon=True, name="evolve-lock-heartbeat"
     ).start()
     return fd
+
+
+def acquire_task_lock(root: layout.Root, task: str) -> tuple[int, int]:
+    """The locks of a loop that handles one task (--task): a shared hold on
+    loop.lock and the task's own singleton lock.
+
+    One process per task lets each rewrite run in a systemd unit of its own,
+    so stopping whatever dispatched it does not kill it. Processes of
+    different tasks run side by side over one root; two of the same task do
+    not (acquire_singleton on evolution/locks/<task>.lock). The shared flock on
+    loop.lock keeps a whole-root loop out while any of them runs, and keeps
+    them out while one does: its exclusive flock conflicts with a shared one.
+    Folds stay serial across the processes under _publish_lock.
+    """
+    global _PUBLISH_LOCK
+    path = root.evolution.loop_lock
+    path.parent.mkdir(parents=True, exist_ok=True)
+    root_fd = os.open(path, os.O_RDWR | os.O_CREAT, 0o644)
+    try:
+        fcntl.flock(root_fd, fcntl.LOCK_SH | fcntl.LOCK_NB)
+    except OSError:
+        holder = os.pread(root_fd, 4096, 0).decode(errors="replace").strip()
+        os.close(root_fd)
+        raise SystemExit(
+            f"evolve_ondella: a whole-root loop runs over {path.parent} "
+            f"({holder or 'holder unknown'}); --task {task} would race it"
+        ) from None
+    task_fd = acquire_singleton(path.parent / "locks" / f"{layout.safe(task)}.lock")
+    _PUBLISH_LOCK = path.parent / "publish.lock"
+    return root_fd, task_fd
+
+
+# Set by acquire_task_lock: the file whose exclusive flock serializes folding,
+# closing and the status/lineage snapshot across the per-task processes of one
+# root (a mix version is read, extended and published as one step). None for a
+# whole-root loop, which is the only writer of its root.
+_PUBLISH_LOCK: Path | None = None
+
+
+@contextlib.contextmanager
+def _publish_lock():
+    if _PUBLISH_LOCK is None:
+        yield
+        return
+    fd = os.open(_PUBLISH_LOCK, os.O_RDWR | os.O_CREAT, 0o644)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        yield
+    finally:
+        os.close(fd)
 
 
 # --------------------------------------------------------------------------
@@ -2205,7 +2258,8 @@ class _Closer:
                 batch, self._queue = self._queue, []
                 self._working = True
             try:
-                self._close_batch(batch)
+                with _publish_lock():
+                    self._close_batch(batch)
             except BaseException as error:  # noqa: BLE001 -- re-raised by the coordinator
                 log.exception("fold/close of %d rewrites failed: %s", len(batch), error)
                 with self._cv:
@@ -2256,6 +2310,10 @@ class _StatusRefresher:
 
     def start(self, active_tasks: set[str]) -> None:
         if self._thread is not None and self._thread.is_alive():
+            return
+        if _PUBLISH_LOCK is not None:
+            # A one-task process (--task): its active set is one task, and the
+            # status rebuilt when it exits, under _publish_lock, covers it.
             return
         self._thread = threading.Thread(
             target=self._refresh, args=(set(active_tasks),), name="evolve-status", daemon=True
@@ -2585,6 +2643,11 @@ def main() -> None:
         metavar="RUN/TASK--gN",
         help="replay this signal whether or not the ledger closed it; " "implies --dry",
     )
+    ap.add_argument(
+        "--task",
+        help="handle this task's pending signals and exit, locking the task "
+        "rather than the root (acquire_task_lock); implies --once",
+    )
     args = ap.parse_args()
     root = layout.Root.from_env()
     # Before the lock and the log: a root whose epoch is shorter than the
@@ -2602,9 +2665,17 @@ def main() -> None:
         os.environ[rw_workspace.TOOL_BIN_ENV] = str(tool_bin)
     # Before the log file is even opened: a refused second instance must not
     # write "loop up" into the log the first one owns.
-    _lock_fd = acquire_singleton(
-        root.evolution.loop_lock
-    )  # noqa: F841 -- held for the process lifetime
+    if args.task:
+        if args.only or args.limit or args.dry or args.signal:
+            raise SystemExit("--task takes none of --only, --limit, --dry, --signal")
+        if rw_workspace.configured_root(root) is not None:
+            # recover() publishes every task's node-local rewrites.
+            raise SystemExit("--task does not support EVOLVE_WORK_ROOT")
+        _lock_fd = acquire_task_lock(root, args.task)  # noqa: F841 -- held for life
+    else:
+        _lock_fd = acquire_singleton(
+            root.evolution.loop_lock
+        )  # noqa: F841 -- held for the process lifetime
 
     logging.basicConfig(
         level=logging.INFO,
@@ -2645,7 +2716,11 @@ def main() -> None:
         t0 = time.monotonic()
         # The ledger leaves open what may still read `running`; what recover
         # just published is examined whatever the ledger says.
-        recovered = finalize_interrupted(root, include=published)
+        recovered = finalize_interrupted(
+            root,
+            include=published,
+            tasks={layout.safe(args.task)} if args.task else None,
+        )
         log.info(
             "startup: finalized orphaned records in %.1fs: %s",
             time.monotonic() - t0,
@@ -2670,20 +2745,26 @@ def main() -> None:
     )
 
     dry = args.dry or bool(args.signal)
-    if args.once or args.only or dry:
+    if args.once or args.only or dry or args.task:
         r = run_round(
             root,
-            only=args.only,
+            only=args.task or args.only,
             limit=args.limit,
-            workers=args.workers,
+            workers=1 if args.task else args.workers,
             dry=dry,
             signal=args.signal,
         )
-        log.info("round done%s: %s", " (dry)" if dry else "", r)
+        log.info(
+            "round done%s%s: %s",
+            " (dry)" if dry else "",
+            f" (task {args.task})" if args.task else "",
+            r,
+        )
         if not dry:
-            rebuild_status(root)
-            if r.get("handled"):
-                _snapshot_lineage(root, f"once: {r}")
+            with _publish_lock():
+                rebuild_status(root)
+                if r.get("handled"):
+                    _snapshot_lineage(root, f"once: {r}")
         return
     log.info(
         "evolve loop up: pid=%d root=%s interval=%ds workers=%d simplify=%s",
