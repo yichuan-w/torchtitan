@@ -618,6 +618,10 @@ def hop_evalset(a: argparse.Namespace) -> Path:
     d, chain = _load_chain(a.bench, a.chain)
     entry = _set_tasks(a.bench, a.chain)
     rows, waiting = [], collections.Counter()
+    hop_dir = d / "hops" / f"hop{a.hop}"
+    # Rows an earlier evalset of this hop already sent out (a partial eval topped up later).
+    sent = {(eb._iid(r), int(r["metadata"].get("rev") or 0))
+            for p in sorted((hop_dir / "evalsets").glob("hop*.jsonl")) for r in eb._rows(p)}
     for label, root in sorted(_arm_roots(chain).items()):
         if not eb._drive_finished(root) and not a.allow_running:
             raise SystemExit(f"{label}: the newest offline_drive log of {root} does not end in 'finished'")
@@ -636,6 +640,9 @@ def hop_evalset(a: argparse.Namespace) -> Path:
             r = live.get(tid)
             if r is None or int(r["metadata"].get("rev") or 0) != last["rev"]:
                 raise SystemExit(f"{label} {tid}: live mix is not at hop {a.hop}'s rev {last['rev']}")
+            if (f"{label}__{tid}", last["rev"]) in sent and not a.remeasure:
+                waiting[(label, "already_sent")] += 1
+                continue
             r = json.loads(json.dumps(r))
             md = r["metadata"]
             md["bench_orig_instance_id"] = md["instance_id"]
@@ -645,7 +652,8 @@ def hop_evalset(a: argparse.Namespace) -> Path:
             rows.append(r)
     if waiting:
         print(f"waiting: {dict(waiting)}")
-    hop_dir = d / "hops" / f"hop{a.hop}"
+    if not rows:
+        raise SystemExit(f"no rows to send for hop {a.hop}; {dict(waiting)}")
     n = len(list((hop_dir / "evalsets").glob("hop*.jsonl"))) if (hop_dir / "evalsets").exists() else 0
     path = hop_dir / "evalsets" / f"hop{a.hop}-{chr(ord('a') + n)}.jsonl"
     m = eb._write_evalset(path, rows, student_harness=chain["harness"],
