@@ -174,13 +174,13 @@ yichuan-w/torchtitan#319 and #324:
 - the HAProxy rewrite: the check its author meant to add was dropped;
 - the rewrites of arm A4 (`EVOLVE_HARDER_WORK` alone) whose failures hit the time
   limit: lengthened work;
-- the 24 rewrites still at 12/12 that Yichuan read in #319.
+- the 24 rewrites still at 12/12 that Yichuan read in #319: not worth it.
 
-Positive cases come from 13 candidates: the 11 audit-clean rewrites at 3 to 8
+Cases that should be judged worth it come from 13 candidates: the 11 audit-clean rewrites at 3 to 8
 of 12 in #319 and the Bubblewrap and encoding rewrites in #324 item 5, each
 with evidence on the questions above; Zhifei's side assigns their labels. If
 fewer than 10 of them are worth it, more come from the audit-clean mixed
-rewrites of the unified pool's first rep.
+rewrites of the first rep over this standard's pool.
 
 ### Arms under this standard
 
