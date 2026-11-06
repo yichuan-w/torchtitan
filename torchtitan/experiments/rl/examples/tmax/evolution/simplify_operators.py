@@ -16,9 +16,12 @@ the retained goals -- are stated once, below.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 CALIBRATION_GUIDANCE = """Compare two intervention strengths by the observed decisions
 they remove and the decisions left along the complete path to submission.
@@ -61,10 +64,28 @@ oracle and untouched-state checks establish only candidate validity.
 
 
 # The limits a training attempt runs under, from the launcher's environment
-# (runbook/rltrain.env); a rewrite sized for other limits misses the band.
-STUDENT_TURNS = int(os.environ.get("TMAX_TERMINUS_MAX_TURNS", "120"))
-STUDENT_CONTEXT = int(os.environ.get("SWE_MAX_CONTEXT_LEN", "79872"))
-STUDENT_SECONDS = int(os.environ.get("SWE_TIME_BUDGET_SEC", "7200"))
+# (runbook/rltrain.env); a rewrite sized for other limits misses the band, so a
+# loop started without them warns instead of quoting the defaults silently.
+_STUDENT_LIMITS = {
+    "TMAX_TERMINUS_MAX_TURNS": "120",
+    "SWE_MAX_CONTEXT_LEN": "79872",
+    "SWE_TIME_BUDGET_SEC": "7200",
+}
+_UNSET_LIMITS = [k for k in _STUDENT_LIMITS if not os.environ.get(k)]
+if _UNSET_LIMITS:
+    logger.warning(
+        f"student limits unset, rewrites will quote defaults: "
+        f"{', '.join(f'{k}={_STUDENT_LIMITS[k]}' for k in _UNSET_LIMITS)}"
+    )
+
+
+def _limit(name: str) -> int:
+    return int(os.environ.get(name) or _STUDENT_LIMITS[name])
+
+
+STUDENT_TURNS = _limit("TMAX_TERMINUS_MAX_TURNS")
+STUDENT_CONTEXT = _limit("SWE_MAX_CONTEXT_LEN")
+STUDENT_SECONDS = _limit("SWE_TIME_BUDGET_SEC")
 
 
 def student_budget() -> str:
