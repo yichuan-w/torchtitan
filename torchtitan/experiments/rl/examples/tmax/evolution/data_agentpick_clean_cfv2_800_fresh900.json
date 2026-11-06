@@ -4,7 +4,7 @@
     {
       "name": "agentpick-clean-fast",
       "repo": "Fzz1/tb-training-mix-agentpick",
-      "revision": "094e515e4d740a6ca417547c802eee3e2944e974",
+      "revision": "8a33cc17b7acac2065694475a968a20b2736ce60",
       "adapter": "tmax_reaudit",
       "metadata": "data/clean_fast.parquet",
       "archives": [
@@ -23,7 +23,7 @@
     {
       "name": "agentpick-calibforge-clean-fast",
       "repo": "Fzz1/tb-training-mix-agentpick",
-      "revision": "094e515e4d740a6ca417547c802eee3e2944e974",
+      "revision": "8a33cc17b7acac2065694475a968a20b2736ce60",
       "adapter": "tmax_reaudit",
       "metadata": "data/calibforge_clean_fast.parquet",
       "archives": [
@@ -45,7 +45,7 @@
     {
       "name": "calibforge-clean-v2",
       "repo": "Fzz1/tb-full-data",
-      "revision": "aa1738b6b779eaac68cdfa6dffe43baef6a8a894",
+      "revision": "b83b846c3d65103aca8b1592818cc9b31e636f38",
       "adapter": "tmax_reaudit",
       "metadata": "data/calibforge_1030c800_fast.parquet",
       "archives": [
@@ -57,7 +57,7 @@
     {
       "name": "calibforge-fresh900",
       "repo": "Fzz1/tb-full-data",
-      "revision": "aa1738b6b779eaac68cdfa6dffe43baef6a8a894",
+      "revision": "b83b846c3d65103aca8b1592818cc9b31e636f38",
       "adapter": "tmax_reaudit",
       "metadata": "data/calibforge_fresh900_fast.parquet",
       "archives": [
