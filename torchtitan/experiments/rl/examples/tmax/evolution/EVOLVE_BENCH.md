@@ -181,6 +181,40 @@ AN (`EVOLVE_NO_WORKED_ANSWERS`) and ASR (`EVOLVE_HARDER_STATE_RESULT`) are all
 concluded again under this standard. Results measured before it are no longer
 grounds for a decision.
 
+#### AK: `EVOLVE_EASIER_KEEP_CHECKS`
+
+Branch `evolve-easier-keep-checks` (b6675e62, cut from 1ee4fd7c). The setting
+rewrites three sentences the blind verifier of an easier rewrite is given;
+harder rewrites get the same prompts as A0. The defect it targets: in 1030c, 35
+of 2,407 accepted rewrites (28 of them easier) had a verifier that accepts a
+wrong answer the instruction still rules out (#324, `full_regress/` on
+`yichuan/evolve-samples-1030c`).
+
+- Settings: A0's, that is `EVOLVE_HARDER_QUIET=0 EVOLVE_PEER_CONTEXT=0`, plus
+  `EVOLVE_EASIER_KEEP_CHECKS=1`. A0 runs with the same two set to 0 and the
+  new one unset.
+- Pool: the easier tasks of the pool, both students, 3 reps. The harder half
+  is not rewritten again; its prompts are A0's.
+- Regression slice: the input revisions of the 28 confirmed easier regressions
+  of 1030c, each rewritten easier once per rep by A0 and by AK from the same
+  1030c signal traces. This slice is audited only, not measured at k=12,
+  because those traces come from the 1030c student; like the 7-task leak
+  slice for AN, it only counts the defect.
+- Counted, per arm and rep: clean_mixed on the easier tasks (the decision
+  number, sign test against A0 as above); grader regressions, using #324's
+  rule: an Opus judge, blind to the arm, must write a concrete wrong solution
+  that the input revision's verifier rejects, the rewrite's verifier accepts,
+  and the rewrite's instruction does not permit. Candidates come from #324's
+  extractor (deleted test functions, deleted assertions, deleted shell check
+  lines). The count is also split into supplied work, anti-shortcut checks
+  and reported defects, read from `run/verifier-changes.md`. Also counted:
+  LEAKY and UNFAIR from the standard audit, easier rewrites still at 0/12, and
+  the acceptance rate. Keeping more inherited checks can raise UNFAIR or 0/12,
+  so AK does not win if either rises past A0's rep-to-rep difference.
+- Expected size: at 1030c's easier rate (28 of 1,378, 2%), the pool alone
+  yields a handful of regressions per arm, too few for a sign test. The slice
+  carries the regression comparison and clean_mixed carries the decision.
+
 ## The task set
 
 `data_evolve_bench.json` is a `data_release.py` config over
