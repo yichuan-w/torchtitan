@@ -65,6 +65,32 @@ def test_evolution_ratio(
         assert len(signal["attempts"]) == total
 
 
+def test_frozen_row_raises_no_signal(monkeypatch, tmp_path):
+    monkeypatch.setenv("TRL_RUN_DIR", str(tmp_path))
+    monkeypatch.setenv("SWE_EVOLUTION_SIGNALS", "1")
+    worker = object.__new__(rollouter.TMaxRollouter)
+    worker._reward_mode = "sparse"
+    worker._evolution_harder_ratio = 1.0
+    worker._evolution_easier_ratio = 0.0
+    worker._evolution_min_scored = 2
+    sample = SimpleNamespace(
+        instance_id="task~orig", rev=0, image="image", evolve_frozen=True
+    )
+    siblings = [
+        Rollout(
+            group_id=3,
+            rollout_id=i,
+            status=RolloutStatus.COMPLETED,
+            reward=0.0,
+            turns=[object()],
+            diagnostics={"record": f"attempt-{i}.jsonl"},
+        )
+        for i in range(4)
+    ]
+    worker._maybe_emit_evolution_signal(sample, siblings)
+    assert not list(tmp_path.glob("signals/*.json"))
+
+
 @pytest.mark.parametrize("ratio", [0, -0.1, 1.01, float("nan"), float("inf")])
 def test_invalid_ratio_fails_before_dataset_loading(ratio):
     with pytest.raises(ValueError, match="evolution_harder_ratio"):

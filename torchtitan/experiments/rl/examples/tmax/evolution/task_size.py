@@ -160,24 +160,27 @@ def violations(seed: dict, new: dict, *, require_growth: bool = True) -> list[st
     has no length to count a rung from, so only its assertions bound the
     rewrite."""
     out = []
+    # A seed may carry scaled caps (EVOLVE_HARDER_WORK, harder_work.size_caps).
+    max_added = seed.get("max_added", MAX_ADDED)
+    max_asserts = seed.get("max_added_asserts", MAX_ADDED_ASSERTS)
     s, n = seed["solution_lines"], new["solution_lines"]
     if s is not None and require_growth and n < s + MIN_ADDED:
         out.append(
             f"the reference solution has {n} lines against the seed's {s}; a harder task "
             f"in operator mode requires at least {MIN_ADDED} more"
         )
-    if s is not None and n > s + MAX_ADDED:
+    if s is not None and n > s + max_added:
         out.append(
             f"the reference solution has {n} lines against the seed's {s}; one rung is at "
-            f"most {MAX_ADDED} more (in this corpus the 0/16 share doubles once a task "
+            f"most {max_added} more (in this corpus the 0/16 share doubles once a task "
             f"outgrows the 14-20 line band, and rewrites that grew to 125 lines scored "
             f"0/16 five times in six)"
         )
     sa, na = seed["verifier_asserts"], new["verifier_asserts"]
-    if na > sa + MAX_ADDED_ASSERTS:
+    if na > sa + max_asserts:
         out.append(
             f"the verifier has {na} assertions against the seed's {sa}; one requirement is "
-            f"two or three, so at most {MAX_ADDED_ASSERTS} more"
+            f"two or three, so at most {max_asserts} more"
         )
     return out
 

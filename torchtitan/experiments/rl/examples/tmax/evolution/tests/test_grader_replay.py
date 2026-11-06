@@ -248,3 +248,112 @@ def test_a_vanillux_record_replays_its_bash_commands(tmp_path):
         ("completion_marker", 5),
         ("completion_marker", 6),
     ]
+
+
+def _harder(tmp_path, monkeypatch, *, test_sh: str, mode: str = "reject", **extra):
+    """A root at r0, a harder signal on it, process_one that accepts a rewrite
+    writing ``test_sh``, and the grading probe."""
+    root = tl._root(tmp_path, monkeypatch)
+    monkeypatch.setenv("SWE_POLICY_CANARY_K", "0")
+    monkeypatch.setattr(od, "HARDER_GRADER_REPLAY", mode)
+    tl._signal(root, direction="harder")
+    tl._stub(monkeypatch, **extra)
+    accept = od.fb.process_one
+
+    def rewrite(rw, *args, **kwargs):
+        rec = accept(rw, *args, **kwargs)
+        (rw.package / "tests" / "test.sh").write_text(test_sh)
+        return rec
+
+    monkeypatch.setattr(od.fb, "process_one", rewrite)
+    calls: list = []
+    monkeypatch.setattr(od.fb, "daytona_probe", _grader(calls))
+    return root, calls
+
+
+def test_harder_rewrite_every_final_still_passes_is_rejected(tmp_path, monkeypatch):
+    root, calls = _harder(tmp_path, monkeypatch, test_sh="echo 1 > /app/reward.txt\n")
+    # Besides the k/k group the signal names (two "ls /app" finals).
+    _final(root, group=3)
+    _final(root, group=4, idx=1)
+
+    h = _handle(root)
+
+    assert h["status"] == "rejected" and h["meta"]["stage"] == "not_harder"
+    replay = h["meta"]["harder_replay"]
+    assert replay["ok"] is False
+    assert (replay["finals_held"], replay["finals_broken"]) == (4, 0)
+    assert "still pass" in replay["why"]
+
+
+def test_harder_rewrite_that_breaks_a_final_is_accepted(tmp_path, monkeypatch):
+    root, calls = _harder(tmp_path, monkeypatch, test_sh="strict\necho 1\n")
+    # The strict grader breaks the signal's two "ls /app" finals and this
+    # "narrow" one, and leaves the "general" one standing.
+    _final(root, group=3)
+    _final(root, group=4, idx=1, keys="echo general > /app/report.txt\n")
+
+    h = _handle(root)
+
+    assert h["status"] == "accepted"
+    replay = h["meta"]["harder_replay"]
+    assert replay["ok"] is True
+    assert (replay["finals_held"], replay["finals_broken"]) == (1, 3)
+
+
+def test_harder_replay_in_record_mode_only_records(tmp_path, monkeypatch):
+    root, calls = _harder(
+        tmp_path, monkeypatch, test_sh="echo 1 > /app/reward.txt\n", mode="record"
+    )
+    _final(root, group=3)
+
+    h = _handle(root)
+
+    assert h["status"] == "accepted"
+    assert h["meta"]["harder_replay"]["ok"] is False
+
+
+def test_harder_instruction_only_rewrite_is_not_replayed(tmp_path, monkeypatch):
+    root, calls = _harder(
+        tmp_path, monkeypatch, test_sh="echo 1 > /app/reward.txt\n", changed=["instruction"]
+    )
+    _final(root, group=3)
+
+    h = _handle(root)
+
+    assert h["status"] == "accepted"
+    assert h["meta"]["harder_replay"] == {"ok": True, "skipped": "instruction_only"}
+    assert calls == []
+
+
+def test_harder_replay_is_off_by_default(tmp_path, monkeypatch):
+    root, calls = _harder(tmp_path, monkeypatch, test_sh="echo 1 > /app/reward.txt\n", mode="")
+    _final(root, group=3)
+
+    h = _handle(root)
+
+    assert h["status"] == "accepted" and "harder_replay" not in h["meta"]
+    assert calls == []
+    monkeypatch.delenv(grader_replay.HARDER_ENV, raising=False)
+    assert grader_replay.harder_mode() == ""
+    monkeypatch.setenv(grader_replay.HARDER_ENV, "1")
+    with pytest.raises(ValueError):
+        grader_replay.harder_mode()
+
+
+@pytest.mark.parametrize(
+    "verdicts,ok",
+    [
+        (["pass", "pass"], False),
+        (["pass", "stricter"], True),
+        (["unreplayable", "error"], True),  # nothing replayed to a verdict
+        ([], True),
+    ],
+)
+def test_harder_verdict_reads_only_finals(verdicts, ok):
+    results = [{"name": f"f{i}", "kind": "final", "verdict": v} for i, v in enumerate(verdicts)]
+    # A reference left standing does not decide.
+    results.append({"name": "parent_reference", "kind": "parent_reference", "verdict": "pass"})
+    out = grader_replay.harder_verdict({"ok": True, "results": results})
+    assert out["ok"] is ok
+    assert out["references"] == {"parent_reference": "pass"}

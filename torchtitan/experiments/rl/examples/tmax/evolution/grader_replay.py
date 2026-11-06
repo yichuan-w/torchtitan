@@ -81,6 +81,54 @@ def enabled(default: str = "0") -> bool:
     return os.environ.get(ENV, default) == "1"
 
 
+# The same replay for a harder rewrite, with the verdict turned round: a
+# harder version should fail some of what the parent's grader passed. The
+# parent of a harder rewrite was solved every attempt, so its passing finals
+# are the student's own path; if every one replayed still passes under the
+# rewrite, the change does not touch that path and the version's first
+# training group comes back all-solve (issue #313: about a third of 111e's
+# harder rewrites did). Unset runs nothing; "record" replays and records the
+# verdict; "reject" also rejects such a rewrite as ``not_harder``.
+HARDER_ENV = "EVOLVE_HARDER_GRADER_REPLAY"
+HARDER_MODES = ("", "record", "reject")
+
+
+def harder_mode() -> str:
+    mode = os.environ.get(HARDER_ENV, "")
+    if mode not in HARDER_MODES:
+        raise ValueError(f"{HARDER_ENV} must be record, reject or unset, not {mode!r}")
+    return mode
+
+
+def harder_verdict(replay: dict) -> dict:
+    """``check``'s result read for a harder rewrite.
+
+    A final whose verdict is ``stricter`` (fails here, still passes in the
+    parent) is one the rewrite broke; ``pass`` is one it left standing;
+    ``unreplayable`` and ``error`` say nothing either way. Only finals decide:
+    a reference solution is the author's path, not the student's, and a
+    rewrite that changes the environment can leave the old reference
+    unrunnable for reasons unrelated to difficulty. ``ok`` is False only when
+    at least one final replayed to a verdict and none of them broke."""
+    results = replay.get("results", [])
+    finals = [r for r in results if r["kind"] == "final"]
+    broken = [r["name"] for r in finals if r["verdict"] == "stricter"]
+    held = [r["name"] for r in finals if r["verdict"] == "pass"]
+    out = {
+        **{k: v for k, v in replay.items() if k not in ("ok", "why")},
+        "finals_broken": len(broken),
+        "finals_held": len(held),
+        "references": {r["kind"]: r["verdict"] for r in results if r["kind"] != "final"},
+        "ok": bool(broken) or not held,
+    }
+    if not out["ok"]:
+        out["why"] = (
+            f"all {len(held)} replayed passing final(s) of the parent still pass "
+            f"under the rewrite: {', '.join(held)}"
+        )[:300]
+    return out
+
+
 def passing_finals(root: layout.Root, task_id: str, rev: int) -> list[Path]:
     """Training records of ``task_id`` at ``rev`` that scored 1, oldest first.
 
