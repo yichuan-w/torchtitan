@@ -2518,6 +2518,33 @@ def _sub_words(text: str, old: str, new: str) -> str:
     return out
 
 
+# EVOLVE_HARDER_STATE_RESULT=1 (#319, default off): a harder change states in
+# the instruction the result it is now checked on. In the 122B harder slice, 47
+# new checks never reached the shipped verifier; in 28 the instruction did not
+# state the requirement or only hinted at it, so the blind verifier, which reads
+# only the instruction and the environment, could not check it. "State any new
+# requirement" read as optional where the change is a difficulty in the
+# environment, and the same guidance rules out edge-case clauses and a longer
+# instruction. Real guidance only (not calibration, not student guidance). Off,
+# every prompt is unchanged.
+def _harder_state_result() -> bool:
+    return os.environ.get("EVOLVE_HARDER_STATE_RESULT", "0") == "1"
+
+
+_STATE_RESULT = (
+    "State any new requirement the way a user would, in a sentence or two -- "
+    "the goal and the deliverable.",
+    "Whatever the changed task is now checked on that the instruction does not\n"
+    "already ask for -- a result, an output, a behaviour a user would notice --\n"
+    "state in the instruction the way a user would, in a sentence or two: the goal\n"
+    "and the deliverable, never how to get there or what goes wrong on the way.\n"
+    "The verifier is written from the instruction and the environment alone, so a\n"
+    "result the instruction does not state is not checked and the change never\n"
+    "reaches the student's grade. Stating that result is not the edge-case clause\n"
+    "or the longer instruction ruled out above.",
+)
+
+
 def _harder_quiet_text(text: str) -> str:
     """The real-guidance harder prompt under EVOLVE_HARDER_QUIET."""
     return _sub_words(text, *_QUIET_REPLAY)
@@ -4115,11 +4142,20 @@ def evolve_agentic(
     keep_verifier = job == "easier" and plan_is_instruction_only(task.get("_intervention_plan"))
     blind = job in ("harder", "easier") and VERIFIER_AUTHOR == "blind" and not keep_verifier
     quiet = _harder_quiet() and job == "harder" and not calibration and HARDER_GUIDANCE == "real"
+    state_result = (
+        _harder_state_result() and job == "harder" and not calibration and HARDER_GUIDANCE == "real"
+    )
+
+    def _harder_flags(text: str) -> str:
+        if quiet:
+            text = _harder_quiet_text(text)
+        if state_result:
+            text = _sub_words(text, *_STATE_RESULT)
+        return text
+
     prompt = (
         {
-            "harder": _harder_work_text(_harder_aim((
-                lambda text: _harder_quiet_text(text) if quiet else text
-            )((_HARDER_JOB_BLIND if blind else _HARDER_JOB).format(
+            "harder": _harder_work_text(_harder_aim(_harder_flags((_HARDER_JOB_BLIND if blind else _HARDER_JOB).format(
                 solved=solved,
                 attempts=attempts_n,
                 guidance=_calibration_guidance(solved, attempts_n)
