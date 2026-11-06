@@ -620,25 +620,6 @@
    "source": "#319 6694518301 (Andy's labels on the 13 candidates of 6694392442): 8 failures all on the new m4 check; 4 successes switch to i686; audit clean"
   },
   {
-   "name": "PC-burnash__gspread.a8be3b96.func_pm_ctrl_shuffle__o621cgb3-cand",
-   "group": "candidate13",
-   "root": "bench/arms/evb122b-h50--b50c-PC-r1",
-   "task": "burnash__gspread.a8be3b96.func_pm_ctrl_shuffle__o621cgb3",
-   "rewrite": "20261105-191804Z--harder",
-   "after": {
-    "evals": [
-     "bench/combo/evals/20261105-200219Z--base-Qwen3.5-122B-A10B-step0-combo1",
-     "bench/combo/evals/20261105-222043Z--base-Qwen3.5-122B-A10B-step0-combo2"
-    ],
-    "label": "PC__{task}"
-   },
-   "expect": {
-    "worth": true,
-    "category": "meaningful"
-   },
-   "source": "#319 6694518301 (Andy's labels on the 13 candidates of 6694392442): 9 failures all on the new test; 3 successes use fullmatch; audit WEAK with no defects (instruction states the property, not the function or method)"
-  },
-  {
    "name": "A1-model-training_20260413_174325_003-cand",
    "group": "candidate13",
    "root": "bench/arms/evb122b-h50--b50c-A1-r1",
@@ -747,6 +728,168 @@
     "category": null
    },
    "source": "#319 6694518301 (Andy's labels on the 13 candidates of 6694392442): 4 of 5 successes only reorder the encoding fallback, no per-file judgement"
+  },
+  {
+   "name": "pool122b-A0-burnash__gspread.a8be3b96.func_pm_ctrl_shuffle__o621cgb3",
+   "group": "candidate_pool_r1",
+   "root": "bench/arms/pool-122b--pool122b-A0-r1",
+   "task": "burnash__gspread.a8be3b96.func_pm_ctrl_shuffle__o621cgb3",
+   "rewrite": "20261106-105348Z--harder",
+   "after": {
+    "evals": [
+     "bench/evals/20261106-143823Z--base-Qwen3.5-122B-A10B-step0-122b-01"
+    ],
+    "label": "A0__{task}"
+   },
+   "expect": {
+    "worth": true,
+    "category": "meaningful"
+   },
+   "source": "#319 6696587663 (Andy's labels on the second batch, 6696446291) #2: 8 failures all DID NOT RAISE (tested the wrong object); 4 successes fix the CELL_ADDR_RE match; audit WEAK, no defects; replaces PC gspread"
+  },
+  {
+   "name": "pool122b-AQ2-data-science_20260604_003814_006",
+   "group": "candidate_pool_r1",
+   "root": "bench/arms/pool-122b--pool122b-AQ2-r1",
+   "task": "data-science_20260604_003814_006",
+   "rewrite": "20261106-105421Z--easier",
+   "after": {
+    "evals": [
+     "bench/evals/20261106-143823Z--base-Qwen3.5-122B-A10B-step0-122b-01"
+    ],
+    "label": "AQ2__{task}"
+   },
+   "expect": {
+    "worth": true,
+    "category": "meaningful"
+   },
+   "source": "#319 6696587663 (Andy's labels on the second batch, 6696446291) #8: supplies the decimal-point requirement the grader had and the instruction lacked, says what not how; 4 failures on the original merge-column / quoted-field work; audit clean"
+  },
+  {
+   "name": "pool122b-A0-rts_task_f08f705c2d22a4b7a9e6e8fd",
+   "group": "candidate_pool_r1",
+   "root": "bench/arms/pool-122b--pool122b-A0-r1",
+   "task": "rts_task_f08f705c2d22a4b7a9e6e8fd",
+   "rewrite": "20261106-155959Z--harder",
+   "after": {
+    "evals": [
+     "bench/evals/20261106-171848Z--base-Qwen3.5-122B-A10B-step0-122b-06"
+    ],
+    "label": "A0__{task}"
+   },
+   "expect": {
+    "worth": false,
+    "category": null
+   },
+   "source": "#319 6696587663 (Andy's labels on the second batch, 6696446291) #1: 6 of 11 successes bypass the YAML 1.1 octal judgement with a regex and int()"
+  },
+  {
+   "name": "pool122b-A0-rts_task_c005db1813b454fd2b579297",
+   "group": "candidate_pool_r1",
+   "root": "bench/arms/pool-122b--pool122b-A0-r1",
+   "task": "rts_task_c005db1813b454fd2b579297",
+   "rewrite": "20261106-155959Z--easier",
+   "after": {
+    "evals": [
+     "bench/evals/20261106-171848Z--base-Qwen3.5-122B-A10B-step0-122b-06"
+    ],
+    "label": "A0__{task}"
+   },
+   "expect": {
+    "worth": false,
+    "category": null
+   },
+   "source": "#319 6696587663 (Andy's labels on the second batch, 6696446291) #3: half the failures hit an unrepaired implied requirement (keep the remote tag); 2 hit checks the rewrite added"
+  },
+  {
+   "name": "pool122b-A0-rts_task_96a22e8b553ac94c19c977e9",
+   "group": "candidate_pool_r1",
+   "root": "bench/arms/pool-122b--pool122b-A0-r1",
+   "task": "rts_task_96a22e8b553ac94c19c977e9",
+   "rewrite": "20261106-143817Z--easier",
+   "after": {
+    "evals": [
+     "bench/evals/20261106-155114Z--base-Qwen3.5-122B-A10B-step0-122b-04"
+    ],
+    "label": "A0__{task}"
+   },
+   "expect": {
+    "worth": false,
+    "category": null
+   },
+   "source": "#319 6696587663 (Andy's labels on the second batch, 6696446291) #4: all 12 do the core import; pass/fail is only whether gzip -k was used"
+  },
+  {
+   "name": "pool122b-AQ2-scientific-computing_20260513_204536_003",
+   "group": "candidate_pool_r1",
+   "root": "bench/arms/pool-122b--pool122b-AQ2-r1",
+   "task": "scientific-computing_20260513_204536_003",
+   "rewrite": "20261106-160029Z--harder",
+   "after": {
+    "evals": [
+     "bench/evals/20261106-171848Z--base-Qwen3.5-122B-A10B-step0-122b-06"
+    ],
+    "label": "AQ2__{task}"
+   },
+   "expect": {
+    "worth": false,
+    "category": null
+   },
+   "source": "#319 6696587663 (Andy's labels on the second batch, 6696446291) #6: the one failure is a DP bug, not the new judgement"
+  },
+  {
+   "name": "pool122b-AN2-security_20260428_101637_007",
+   "group": "candidate_pool_r1",
+   "root": "bench/arms/pool-122b--pool122b-AN2-r1",
+   "task": "security_20260428_101637_007",
+   "rewrite": "20261106-164813Z--harder",
+   "after": {
+    "evals": [
+     "bench/evals/20261106-181643Z--base-Qwen3.5-122B-A10B-step0-122b-09"
+    ],
+    "label": "AN2__{task}"
+   },
+   "expect": {
+    "worth": false,
+    "category": null
+   },
+   "source": "#319 6696587663 (Andy's labels on the second batch, 6696446291) #9: the 3 failures drop the leaf certificate's SAN; none fails on the new judgement"
+  },
+  {
+   "name": "pool122b-AN2-rts_task_f08f705c2d22a4b7a9e6e8fd",
+   "group": "candidate_pool_r1",
+   "root": "bench/arms/pool-122b--pool122b-AN2-r1",
+   "task": "rts_task_f08f705c2d22a4b7a9e6e8fd",
+   "rewrite": "20261106-160200Z--harder",
+   "after": {
+    "evals": [
+     "bench/evals/20261106-171848Z--base-Qwen3.5-122B-A10B-step0-122b-06"
+    ],
+    "label": "AN2__{task}"
+   },
+   "expect": {
+    "worth": false,
+    "category": null
+   },
+   "source": "#319 6696587663 (Andy's labels on the second batch, 6696446291) #10: the one success happened to use zstandard.open, no multi-frame judgement; second negative of the data-processing kind"
+  },
+  {
+   "name": "pool122b-AN2-software-engineering_20260430_081156_005",
+   "group": "candidate_pool_r1",
+   "root": "bench/arms/pool-122b--pool122b-AN2-r1",
+   "task": "software-engineering_20260430_081156_005",
+   "rewrite": "20261106-171907Z--easier",
+   "after": {
+    "evals": [
+     "bench/evals/20261106-181643Z--base-Qwen3.5-122B-A10B-step0-122b-09"
+    ],
+    "label": "AN2__{task}"
+   },
+   "expect": {
+    "worth": false,
+    "category": null
+   },
+   "source": "#319 6696587663 (Andy's labels on the second batch, 6696446291) #12: README hands over the System ID to code page table, doing the core judgement"
   }
  ]
 }
