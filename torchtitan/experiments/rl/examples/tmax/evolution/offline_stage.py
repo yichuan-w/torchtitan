@@ -152,7 +152,19 @@ def main() -> None:
             f"signal={name}/{tid}--g{v['group']} solved={data['solved']}/{data['total']} "
             f"attempts={len(data['attempts'])} staged"
         )
-    log_line(f"done signals={n_sig} records={n_rec} skipped={n_skip}")
+    # Reference-only groups a bench set froze beside its signals (evolve_bench
+    # freeze --reference-first-group): staged into the same run, so
+    # EVOLVE_PEER_CONTEXT picks its in-band peers from the signal's run.
+    n_ref = 0
+    ref_list = os.path.join(src, "reference.json")
+    if n_sig and os.path.exists(ref_list):
+        for rel in json.load(open(ref_list)):
+            s, d = os.path.join(src, rel), os.path.join(dst, rel)
+            os.makedirs(os.path.dirname(d), exist_ok=True)
+            os.link(s, d)
+            n_ref += 1
+        log_line(f"reference records={n_ref} staged")
+    log_line(f"done signals={n_sig} records={n_rec} reference={n_ref} skipped={n_skip}")
     print(
         f"staged {n_sig} signals, {n_rec} rollout records into {dst} (skipped {n_skip}); log {log.name}"
     )

@@ -50,6 +50,7 @@ from __future__ import annotations
 import argparse
 import collections
 import json
+import os
 import random
 import re
 import shutil
@@ -378,9 +379,48 @@ def admit(a: argparse.Namespace) -> None:
     if a.dry_run:
         print(f"dry run: {len(admitted_ids)} would be admitted; nothing frozen")
         return
+    refs = [r.resolve() for r in a.reference_first_group or []]
+    if a.reference_eval:
+        refs.append(reference_run(d, a.reference_eval, a.reference_band, set(admitted_ids)))
     eb.freeze(bench=a.bench, name=a.chain, run=None, evals=[e.resolve() for e in a.eval], first_group=[],
               selected=None, release=None, mix=adm_mix, sources=sorted((d / "sources").iterdir()),
-              log=eb._log_for(a.bench, "chain-freeze"), recipe=chain["recipe"])
+              log=eb._log_for(a.bench, "chain-freeze"), recipe=chain["recipe"],
+              reference_first_group=refs, reference_band=a.reference_band, reference_k=a.reference_k or None)
+
+
+def reference_run(d: Path, evals: list[Path], band_: str, exclude: set[str]) -> Path:
+    """The chain student's in-band eval groups as a training-run-shaped
+    directory freeze --reference-first-group reads: one group per task that
+    came out inside ``band_`` with every attempt graded, renumbered to a
+    positive group id because EVOLVE_PEER_CONTEXT's record pattern (g<N>-r<i>)
+    skips the negative ids evals use."""
+    out = d / "reference-run"
+    if out.exists():
+        shutil.rmtree(out)
+    lo, hi = (int(x) for x in band_.split("-"))
+    (out / "inputs").mkdir(parents=True)
+    (out / "rollouts").mkdir()
+    shutil.copy2(d / "mix.jsonl", out / "inputs" / "mix.jsonl")
+    n = 0
+    for ev in evals:
+        if not (out / "launch.json").exists():
+            shutil.copy2(ev / "launch.json", out / "launch.json")
+        for tid, hs in sorted(_eval_tasks(ev).items()):
+            m = measure(hs, rev=0)
+            if tid in exclude or m["infra"] or not lo <= m["passed"] <= hi or (out / "rollouts" / tid).exists():
+                continue
+            n += 1
+            group = 900000 + n
+            for i, h in enumerate(sorted(hs, key=lambda h: int(h.get("rollout") or 0))):
+                lines = Path(h["_path"]).read_text().splitlines(keepends=True)
+                head = json.loads(lines[0])
+                head.update(group=group, rollout=i)
+                lines[0] = json.dumps(head) + "\n"
+                dst = out / "rollouts" / tid / f"g{group}-r{i}.jsonl"
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                dst.write_text("".join(lines))
+    print(f"{out}: {n} in-band ({band_}) reference groups from {[e.name for e in evals]}")
+    return out
 
 
 # ------------------------------------------------------------------- the hop state
@@ -592,6 +632,16 @@ def hop_collect(a: argparse.Namespace) -> None:
         run.parent.mkdir(exist_ok=True)
         subprocess.run([sys.executable, str(_EVO / "eval_signal_run.py"), "--arm", str(root), "--out", str(run),
                         "--tasks", *cont], check=True)
+        # The set's reference-only groups go into every hop's signal run, which
+        # offline_stage.py stages beside the signals (EVOLVE_PEER_CONTEXT reads the signal's run).
+        set_run = a.bench / "sets" / a.chain / "runs" / a.chain
+        if (set_run / "reference.json").exists():
+            refs = json.load(open(set_run / "reference.json"))
+            for rel in refs:
+                (run / rel).parent.mkdir(parents=True, exist_ok=True)
+                os.link(set_run / rel, run / rel)
+            shutil.copy2(set_run / "reference.json", run / "reference.json")
+            print(f"{label}: {len(refs)} reference records into {run}")
 
 
 # -------------------------------------------------------------------- audit-bundle
@@ -960,6 +1010,12 @@ def main() -> None:
     ad.add_argument("--chain", required=True)
     ad.add_argument("--eval", type=Path, nargs="+", required=True)
     ad.add_argument("--cap", type=int, default=0, help="admit fill tasks (in fill order) only up to this chain size")
+    ad.add_argument("--reference-first-group", type=Path, nargs="*",
+                    help="training runs whose in-band rev-0 first groups become EVOLVE_PEER_CONTEXT references")
+    ad.add_argument("--reference-eval", type=Path, nargs="*",
+                    help="evals of the chain's student whose in-band groups become references")
+    ad.add_argument("--reference-band", default="3-8")
+    ad.add_argument("--reference-k", type=int, default=0, help="graded attempts a reference group must have")
     ad.add_argument("--dry-run", action="store_true")
     la = sub.add_parser("launch", help="start hop h's drive in every arm root")
     la.add_argument("--chain", required=True)

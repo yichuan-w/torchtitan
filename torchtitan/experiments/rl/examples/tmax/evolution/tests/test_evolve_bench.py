@@ -783,3 +783,57 @@ def test_rest_evalset_is_what_the_done_evals_did_not_score(tmp_path):
     assert eb.eval_env(rest, "terminus", {})["SWE_TB2_DATA"] == str(rest)
     with pytest.raises(SystemExit, match="exists"):
         eb.rest_evalset(es, [ev], eb.Log(tmp_path / "r.log"))
+
+
+def test_freeze_reference_groups_are_staged_beside_signals_never_as_signals(tmp_path, monkeypatch):
+    """--reference-first-group (#319): a training run's in-band rev-0 first
+    groups go into the set's run as reference-only records, and offline_stage
+    links them into the staged run, so EVOLVE_PEER_CONTEXT finds its peers."""
+    import subprocess
+
+    monkeypatch.setattr(eb, "_bench_commit", lambda: "test")
+    src = tmp_path / "corpus"
+    rows = [_row(t, test=f"test {t}") for t in ("h1", "p1", "p2", "p3")]
+    for r in rows:
+        _pkg(src / "tasks" / r["label"], test=r["metadata"]["tmax"]["test_sh"])
+    mix = _jsonl(tmp_path / "mix.jsonl", rows[:1])
+    recipe = "train-111c-122b"
+    ev = _eval(tmp_path, "base", mix, {"h1": "P" * 12})
+    launch = json.load(open(ev / "launch.json"))
+    launch["env"] = {**eb.STUDENT_RECIPES[recipe], "SWE_BENCH_RECIPE": recipe, "TMAX_AGENT": "terminus",
+                     "SWE_TB2_DATA": str(mix)}
+    (ev / "launch.json").write_text(json.dumps(launch))
+    run = tmp_path / "train" / "runs" / "big"
+    (run / "rollouts").mkdir(parents=True)
+    (run / "launch.json").write_text(json.dumps({"tt_commit": "t", "env": {"TMAX_AGENT": "terminus"}}))
+    _jsonl(run / "inputs" / "mix.jsonl", rows)
+
+    def group(t, g, solved, n=12):
+        for i in range(n):
+            p = run / "rollouts" / t / f"g{g}-r{i}.jsonl"
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(json.dumps({"task": t, "rev": 0, "group": g, "reward": 1.0 if i < solved else 0.0}) + "\n")
+
+    group("h1", 1, 12)  # a signal task: never a reference
+    group("p1", 5, 4)   # in band
+    group("p2", 6, 10)  # above the band
+    group("p3", 7, 8)   # in band
+    out = eb.freeze(bench=tmp_path / "bench", name="s", run=None, evals=[ev], first_group=[], selected=None,
+                    recipe=recipe, reference_first_group=[run], reference_band="3-8",
+                    release=None, mix=mix, sources=[src], log=eb.Log(tmp_path / "f.log"))
+    m, _ = eb.load_set(out, verify=True)
+    assert m["directions"] == {"harder": 1}
+    assert sorted(m["reference"]["groups"]) == ["p1", "p3"]
+    refs = json.load(open(out / "runs" / "s" / "reference.json"))
+    assert len(refs) == 24 and all(r.startswith(("rollouts/p1/", "rollouts/p3/")) for r in refs)
+    assert sorted(p.name for p in (out / "runs" / "s" / "signals").iterdir()) == ["h1--g-1.json"]
+
+    root = tmp_path / "root"
+    (root / "evolution" / "tasks").mkdir(parents=True)
+    subprocess.run([sys.executable, str(Path(eb.__file__).with_name("offline_stage.py")), "--run",
+                    str(out / "runs" / "s"), "--selected", str(out / "selected.json"), "--root", str(root),
+                    "--name", "s.offline1"], check=True, capture_output=True, text=True)
+    staged = root / "runs" / "s.offline1"
+    assert sorted(p.name for p in (staged / "rollouts").iterdir()) == ["h1", "p1", "p3"]
+    assert len(list((staged / "rollouts" / "p1").iterdir())) == 12
+    assert sorted(p.name for p in (staged / "signals").iterdir()) == ["h1--g-1.json"]

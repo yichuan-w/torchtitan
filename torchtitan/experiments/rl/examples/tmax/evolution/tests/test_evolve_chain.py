@@ -154,6 +154,9 @@ def test_hop_collect_stages_the_next_hop(tmp_path):
     (chain / "chain.json").write_text(json.dumps({"arms": {"A0": {"root": str(root)}}, "harness": "terminus"}))
     (bench / "sets" / "c").mkdir(parents=True)
     (bench / "sets" / "c" / "manifest.json").write_text(json.dumps({"measured": {"t": {"solved": 12, "graded": 12}}}))
+    set_run = bench / "sets" / "c" / "runs" / "c"
+    _record(set_run / "rollouts" / "p" / "g900001-r0.jsonl", "p", 0, 1.0, group=900001)
+    (set_run / "reference.json").write_text(json.dumps(["rollouts/p/g900001-r0.jsonl"]))
     comb = tmp_path / "evals" / "20261106-010000Z--hop1"
     row = {"label": "A0__t", "metadata": {"instance_id": "A0__t", "bench_orig_instance_id": "t", "bench_group": "A0",
                                          "rev": 1, "tmax": {"test_sh": "x"}}}
@@ -172,6 +175,7 @@ def test_hop_collect_stages_the_next_hop(tmp_path):
          "--skip-accepted", "--only-failed", "--max-attempts", "2", "--attempts-since", "20261106-0100"],
         check=True, capture_output=True, text=True).stdout
     assert out.startswith("staged 1 signals, 12 rollout records")
+    assert (root / "runs" / "hop2.offline1" / "rollouts" / "p" / "g900001-r0.jsonl").exists()
 
 
 def test_audit_bundle_hop2_gives_each_variant_its_own_original(tmp_path):
