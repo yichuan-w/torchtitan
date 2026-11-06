@@ -1,4 +1,4 @@
-"""EVOLVE_PEER_CONTEXT=1 (beta, default off): show a rewrite's author where the
+"""EVOLVE_PEER_CONTEXT=1 (beta, default on): show a rewrite's author where the
 student's ability stands now, as a few other tasks it partially solves.
 
 A harder or easier author otherwise sees only this task's own groups. With the
@@ -49,7 +49,7 @@ _cache_lock = threading.Lock()
 
 
 def enabled() -> bool:
-    return os.environ.get("EVOLVE_PEER_CONTEXT", "0") == "1"
+    return os.environ.get("EVOLVE_PEER_CONTEXT", "1") == "1"
 
 
 def _band(total: int) -> tuple[int, int]:

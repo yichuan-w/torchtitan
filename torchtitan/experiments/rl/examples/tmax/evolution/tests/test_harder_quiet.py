@@ -34,7 +34,7 @@ def _flat(text: str) -> str:
 
 
 def test_off_leaves_the_harder_prompt_unchanged(tmp_path, monkeypatch):
-    monkeypatch.delenv("EVOLVE_HARDER_QUIET", raising=False)
+    monkeypatch.setenv("EVOLVE_HARDER_QUIET", "0")
     monkeypatch.delenv("EVOLVE_NO_WORKED_ANSWERS", raising=False)
     off = _author_prompt(tmp_path / "off", monkeypatch)
     flat = _flat(off)

@@ -74,6 +74,9 @@ SCENARIOS = {
 def test_default_harder_prompt_is_unchanged(tmp_path, monkeypatch, name) -> None:
     for flag in FLAGS:
         monkeypatch.delenv(flag, raising=False)
+    # The goldens are the A0 prompt; QUIET and PEER_CONTEXT default on.
+    for flag in ("EVOLVE_HARDER_QUIET", "EVOLVE_PEER_CONTEXT"):
+        monkeypatch.setenv(flag, "0")
     blind, history = SCENARIOS[name]
     rw = tb._rewrite(tmp_path, monkeypatch)
     sessions: list = []

@@ -2484,7 +2484,7 @@ keep it or update its numbers. Where a check needs that result, the verifier
 computes it from the environment."""
 
 
-# EVOLVE_HARDER_QUIET=1 (#319, default off; turns EVOLVE_NO_WORKED_ANSWERS on
+# EVOLVE_HARDER_QUIET=1 (#319, default on; turns EVOLVE_NO_WORKED_ANSWERS on
 # too): a harder change counts only where its wrong result passes the checks
 # the successful attempts ran on their own work. In combo1 of the 122B harder
 # slice, the rewrites still at 12/12 mostly failed loudly (a traceback, a FAIL
@@ -2495,7 +2495,7 @@ computes it from the environment."""
 # instruction rule first tried here was withdrawn. Applies to the real guidance
 # only (not calibration, not student guidance). Off, every prompt is unchanged.
 def _harder_quiet() -> bool:
-    return os.environ.get("EVOLVE_HARDER_QUIET", "0") == "1"
+    return os.environ.get("EVOLVE_HARDER_QUIET", "1") == "1"
 
 
 _QUIET_REPLAY = (

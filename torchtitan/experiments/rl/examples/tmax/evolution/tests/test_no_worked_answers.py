@@ -31,6 +31,7 @@ def _author_prompt(tmp_path, monkeypatch) -> str:
 
 def test_off_leaves_the_author_prompt_and_the_blocked_job_unchanged(tmp_path, monkeypatch):
     monkeypatch.delenv("EVOLVE_NO_WORKED_ANSWERS", raising=False)
+    monkeypatch.setenv("EVOLVE_HARDER_QUIET", "0")
     prompt = _author_prompt(tmp_path, monkeypatch)
     assert "WHAT YOUR SCRATCH TESTS CHECK" in prompt
     assert ec._NO_WORKED_ANSWER_NOTE.strip() not in prompt

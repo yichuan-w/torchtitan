@@ -49,7 +49,9 @@ def _instruction(root, task, rev=0):
     (d / "instruction.md").write_text(f"Do {task}.\n")
 
 
-def test_off_by_default():
+def test_on_by_default(monkeypatch):
+    assert pc.enabled()
+    monkeypatch.setenv("EVOLVE_PEER_CONTEXT", "0")
     assert not pc.enabled()
 
 
@@ -151,8 +153,7 @@ import test_evolve_lineage as tl  # noqa: E402
 def test_loop_stages_peers_only_under_the_flag(tmp_path, monkeypatch, flag):
     root = tl._root(tmp_path, monkeypatch)
     monkeypatch.setenv("SWE_POLICY_CANARY_K", "0")
-    if flag:
-        monkeypatch.setenv("EVOLVE_PEER_CONTEXT", "1")
+    monkeypatch.setenv("EVOLVE_PEER_CONTEXT", "1" if flag else "0")
     tl._stub(monkeypatch)
     run = root.run(tl.RUN)
     for i in range(12):
