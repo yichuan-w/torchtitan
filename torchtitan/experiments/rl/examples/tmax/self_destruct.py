@@ -16,7 +16,11 @@ commands match one of the rules below; the command alone proves nothing.
 
 The rules are the ones measured on 1026b's 531 masked training rollouts; ones
 with no hit or with false matches there (``pkill sleep``, one-letter pkill
-patterns, ``rm`` of shared libraries, ``halt``) are left out.
+patterns, ``rm`` of shared libraries, ``halt``) are left out. Run 114's audit of
+14 unmatched failures added path-qualified ``tmux kill-server``, removing the
+harness's tmux directory, firewall lockouts, and two kinds of evidence that do
+not depend on the last turns: ``sh`` gone from the sandbox and the pane shell
+killed by SIGXFSZ after an earlier ``ulimit -f``.
 """
 
 from __future__ import annotations
@@ -72,11 +76,13 @@ SELF_DESTRUCT_RULES: dict[str, re.Pattern[str]] = {
         # The harness's tmux server or session; the server retitles itself
         # "tmux: server", so a bare `pkill server` kills it (not under
         # TT_NEUTRAL_TMUX, where the rule only fires if the sandbox died anyway).
+        # The pane's $TMUX points any tmux client at the harness's server, a
+        # freshly built one too (`/usr/local/bin/tmux kill-server`, run 114).
         "tmux_kill": _SEP
-        + r"tmux\s+kill-server\b"
+        + r"(?:\S*/)?tmux\s+kill-server\b"
         + r"|"
         + _SEP
-        + r"tmux\s+kill-session(?:\s+-t\s+['\"]?terminus[^\s;'\"]*['\"]?)?"
+        + r"(?:\S*/)?tmux\s+kill-session(?:\s+-t\s+['\"]?terminus[^\s;'\"]*['\"]?)?"
         r"(?=\s*(?:;|&|\||\n|$|2>))"
         + r"|"
         + _SEP
@@ -104,11 +110,33 @@ SELF_DESTRUCT_RULES: dict[str, re.Pattern[str]] = {
         # `/` among other operands: `rm -rf /git/old /app /tmp/test / 2>/dev/null`.
         + r"|"
         + _SEP
-        + r"rm\s+(?=[^\n;&|]*\s-\S*r)[^\n;&|]*\s(?:/|/\*)" + _END
+        + r"rm(?=[^\n;&|]*\s-\S*r)\s+[^\n;&|]*\s(?:/|/\*)" + _END
         # `find / ... -delete` with no name filter deletes the harness's files too.
         + r"|"
         + _SEP
         + r"find\s+/\s(?:(?!-i?name\b|-i?path\b|-i?regex\b)[^\n;|&])*-delete\b",
+        # The harness's tmux directory (socket, pinned client and its loader):
+        # /var/tmp/tmux-<hex> before TT_TMUX_USR_LIB, /usr/lib/tmux-<hex> after.
+        # Cleanups took it with `rm -rf /var/tmp/* /tmp/*` or by name (run 114).
+        "rm_harness_dir": _SEP
+        + r"rm(?=[^\n;&|]*\s-\S*[rR])\s+[^\n;&|]*\s['\"]?"
+        r"(?:/var/tmp(?:/(?:\.?\*|tmux-[^\s;&|'\"]*|terminus-[^\s;&|'\"]*))?"
+        r"|/usr(?:/lib(?:/(?:\*|tmux-[^\s;&|'\"]*|terminus-[^\s;&|'\"]*))?)?)"
+        r"/?['\"]?\*?" + _END + r"|" + _SEP
+        + r"find\s+(?:/var/tmp|/usr/lib)/?\s(?:(?!-i?name\b|-i?path\b|-i?regex\b)"
+        r"[^\n;|&])*(?:-delete\b|-exec\s+rm\b)",
+        # A firewall that drops all inbound traffic cuts the sandbox API off
+        # too. Rules scoped to a source, port or interface ban something else.
+        "firewall_lockout": _SEP
+        + r"(?:ip6?tables|iptables-legacy|iptables-nft)\b"
+        r"(?![^\n;&|]*\s(?:-s|--source|--src|--dport|--destination-port|-i)\s)"
+        r"[^\n;&|]*\bINPUT\b[^\n;&|]*\b(?:DROP|REJECT)\b"
+        + r"|"
+        + _SEP
+        + r"ufw\s+(?:--force\s+)?(?:enable|default\s+(?:deny|reject))\b"
+        + r"|"
+        + _SEP
+        + r"nft\b[^\n&|]*\bpolicy\s+drop\b",
         "machine_down": _SEP + r"(?:reboot|poweroff|shutdown)" + _END,
         # A loop that rm -rf's every top-level directory. (Loops over /proc that kill
         # are left out: most filter by name first, 16 of 18 on the 1026b evals.)
@@ -116,6 +144,49 @@ SELF_DESTRUCT_RULES: dict[str, re.Pattern[str]] = {
         r"\brm\s+-\S*r\S*\s+\"?\$\{?\1\b",
     }.items()
 }
+
+
+# Rules over every command of the episode, not just the last turns: their effect
+# waits for a later write. `ulimit -f 0` in the pane shell makes its next
+# redirect raise SIGXFSZ, which kills the shell (run 114: set 4 turns earlier).
+EPISODE_RULES: dict[str, re.Pattern[str]] = {
+    "file_size_limit": re.compile(
+        _SEP + r"ulimit\s+(?:-\S+\s+)*-[a-zA-Z]*f[a-zA-Z]*\s+\d+" + _END, re.M
+    ),
+}
+
+# Starting fail2ban whose action, written into a config file earlier in the
+# episode, inserts a DROP-all chain into INPUT (run 114). Starting it is common
+# (24 of 2,400 sampled 111e/114 rollouts, all fine), so it counts only when the
+# episode, heredoc bodies included, wrote a DROP or REJECT rule.
+_FAIL2BAN_START = re.compile(
+    _SEP
+    + r"(?:fail2ban-server\b(?![^\n;&|]*\s(?:-t|--test|-h|--help|-V|--version)\b)"
+    r"|fail2ban-client\s+(?:-\S+\s+)*(?:start|restart|reload)\b"
+    r"|service\s+fail2ban\s+(?:start|restart)\b"
+    r"|systemctl\s+(?:-\S+\s+)*(?:start|restart|enable\s+--now)\s+fail2ban\b)",
+    re.M,
+)
+_DROP_RULE = re.compile(r"\b(?:ip6?tables\S*|nft)\b[^\n]*\b(?:DROP|REJECT|drop|reject)\b")
+
+# Failures whose own evidence names the agent, whatever its last command was.
+# Daytona runs every command through `sh`; it is missing only once the agent
+# removed it (a debian/rules `rm -rf $(DESTDIR)/usr` with DESTDIR empty, run 114).
+_SH_MISSING = re.compile(r'exec: "sh": executable file not found')
+# SIGXFSZ: no one sets RLIMIT_FSIZE in a sandbox but the agent.
+_SIGXFSZ = "25"
+
+
+def match_failure_evidence(
+    error: str = "", terminal_events: Sequence[dict] = ()
+) -> str | None:
+    """``"<rule>: <evidence>"`` when the failure itself proves the agent did it."""
+    if _SH_MISSING.search(error or ""):
+        return 'system_removed: exec: "sh": executable file not found'
+    for event in terminal_events or ():
+        if event.get("kind") == "shell_exited" and str(event.get("signal")) == _SIGXFSZ:
+            return "file_size_limit: pane shell killed by SIGXFSZ (signal 25)"
+    return None
 
 
 def last_turn_commands(captured: Sequence[Any], num_turns: int = 2) -> list[str]:
@@ -147,11 +218,12 @@ def last_turn_commands(captured: Sequence[Any], num_turns: int = 2) -> list[str]
     return commands
 
 
-def match_self_destruct(commands: Sequence[str]) -> str | None:
-    """``"<rule>: <command line>"`` for the first matching command, or None."""
+def _match_rules(
+    commands: Sequence[str], rules: dict[str, re.Pattern[str]]
+) -> str | None:
     for command in commands:
         text = _HEREDOC.sub("\n", html.unescape(command))
-        for name, rule in SELF_DESTRUCT_RULES.items():
+        for name, rule in rules.items():
             hit = rule.search(text)
             if hit is not None:
                 start = text.rfind("\n", 0, hit.start()) + 1
@@ -159,3 +231,27 @@ def match_self_destruct(commands: Sequence[str]) -> str | None:
                 line = text[start : end if end >= 0 else len(text)].strip()
                 return f"{name}: {line}"[:200]
     return None
+
+
+def match_self_destruct(
+    commands: Sequence[str],
+    *,
+    episode_commands: Sequence[str] = (),
+    error: str = "",
+    terminal_events: Sequence[dict] = (),
+) -> str | None:
+    """``"<rule>: <command line or evidence>"`` for the first match, or None.
+
+    ``commands`` are the last turns' (see ``last_turn_commands``);
+    ``episode_commands`` every turn's, for ``EPISODE_RULES``; ``error`` and
+    ``terminal_events`` the failure's own evidence."""
+    matched = _match_rules(commands, SELF_DESTRUCT_RULES)
+    if matched is None and any(
+        _DROP_RULE.search(html.unescape(command)) for command in episode_commands
+    ):
+        matched = _match_rules(commands, {"firewall_lockout": _FAIL2BAN_START})
+    return (
+        matched
+        or match_failure_evidence(error, terminal_events)
+        or _match_rules(episode_commands, EPISODE_RULES)
+    )

@@ -80,7 +80,7 @@ def test_pinned_client_survives_a_shadowing_tmux(tmp_path) -> None:
         return SimpleNamespace(return_code=p.returncode, stdout=p.stdout, stderr=p.stderr)
 
     term = TerminalLifecycle(execute)
-    term.directory = str(tmp_path / "term")
+    term.candidates = [str(tmp_path / "term")]
     asyncio.run(term.prepare())
     asyncio.run(term.pin_tmux())
     if not term.tmux_command:

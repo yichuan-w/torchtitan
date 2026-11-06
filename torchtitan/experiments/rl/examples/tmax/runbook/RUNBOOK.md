@@ -776,6 +776,7 @@ these are the variables that touch them.
 | `TT_TERMINAL_ISOLATION` | unset | `1` | cgroup split of the student from the control plane (see "The student and the control plane are separate cgroups"). `0` skips it. |
 | `TT_CONTROL_MEMORY_MIN` | unset | `128M` | `memory.min` of the control cgroup: reclaim leaves the daemon, harness shells and tmux server this much. |
 | `TT_CONTROL_CPU_WEIGHT` | unset | `10000` | `cpu.weight` of the control cgroup against the student's default 100. |
+| `TT_TMUX_USR_LIB` | unset | `1` | the harness tmux directory (socket, pinned tmux client, `tmux-session` link) is `/usr/lib/tmux-<hex>` instead of `/var/tmp/tmux-<hex>`, where agents' `rm -rf /var/tmp/*` and security cleanups deleted it (run 114: 3 rollouts lost the terminal). Falls back to `/var/tmp` when `/usr/lib` is not writable. `0` restores `/var/tmp`. |
 
 ### Performance and capacity
 

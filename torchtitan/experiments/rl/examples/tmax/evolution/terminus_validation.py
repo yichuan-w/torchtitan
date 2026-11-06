@@ -217,7 +217,8 @@ class TerminalProbe:
             # Terminus gives each session's tmux server its own TMUX_TMPDIR;
             # earlier sessions' servers may still be alive beside it.
             find = (
-                "sock=; for s in /var/tmp/tmux-*/tmux-*/default "
+                "sock=; for s in /usr/lib/tmux-*/tmux-*/default "
+                "/var/tmp/tmux-*/tmux-*/default /usr/lib/terminus-*/tmux-*/default "
                 "/var/tmp/terminus-*/tmux-*/default; do "
                 f'[ -S "$s" ] && tmux -S "$s" has-session -t {session} '
                 '2>/dev/null && sock=$s && break; done; [ -n "$sock" ] || exit 3'

@@ -89,6 +89,22 @@ def _stub_rollouter(monkeypatch, **kwargs):
         # Eval run r1026bs300 g64c400k-fix (2026-10-28).
         "rm -rf /git/server_old /app -rf /tmp/test / 2>/dev/null; ls -la /",
         'pkill -9 -f "term|ssh" ',
+        # Run 114 (2026-11-05): the 14-case sandbox_failed audit.
+        "/usr/local/bin/tmux list-sessions; /usr/local/bin/tmux kill-server; echo ok",
+        "/app/local/bin/tmux kill-server",
+        "rm -rf /var/tmp/tmux-6e0737a200aa4614bcd0220535c38f76; echo done",
+        "rm -rf /var/tmp/tmux-c2c2b9bc1aff4fc1baee4d37633ee3c8/",
+        "rm -rf /var/tmp/* /tmp/* 2>/dev/null; rm -f /var/cache/apt/archives/*.deb",
+        'rm -rf "/var/tmp/"*',
+        "rm -rf /usr/lib/tmux-6e0737a200aa4614bcd0220535c38f76",
+        "rm -rf /usr",
+        "find /var/tmp -type f -delete",
+        "iptables -P INPUT DROP",
+        "iptables -I INPUT -j DROP",
+        "ufw --force enable",
+        "ufw default deny incoming",
+        "nft add chain inet filter input '{ type filter hook input priority 0; policy drop; }'",
+        "rm -rf /tmp/x /",
     ],
 )
 def test_self_destruct_commands_match(command: str) -> None:
@@ -129,10 +145,78 @@ def test_self_destruct_commands_match(command: str) -> None:
         "rm -f /tmp/a /",
         "pkill -f terraform-provider",
         "pkill -f 'python serve.py'",
+        "/usr/local/bin/tmux kill-session -t test",
+        "rm /var/tmp/.system_check",
+        "rm -rf /var/tmp/build",
+        "rm -f /var/tmp/*",
+        "rm -rf /usr/local",
+        "rm -rf /usr/lib/python3/dist-packages/foo",
+        "find /var/tmp -name '*.log' -delete",
+        "iptables -A INPUT -s 198.51.100.47 -j DROP",
+        "iptables -A INPUT -p tcp --dport 8080 -j DROP",
+        "iptables -L INPUT",
+        "service fail2ban start",
+        "fail2ban-client -t",
+        "ulimit -f 0",
+        "ufw status",
     ],
 )
 def test_ordinary_commands_do_not_match(command: str) -> None:
     assert match_self_destruct([command]) is None
+
+
+_F2B_ACTION = (
+    "cat > /etc/fail2ban/action.d/custom-ban.conf << 'EOF'\n[Definition]\n"
+    "actionstart = iptables -I FAIL2BAN-CUSTOM -j DROP\n"
+    "              iptables -I INPUT -j FAIL2BAN-CUSTOM\nEOF\n"
+)
+
+
+def test_fail2ban_start_counts_only_after_a_drop_rule() -> None:
+    last = ["fail2ban-server -b &\n", "fail2ban-client status\n"]
+    assert match_self_destruct(last) is None
+    assert match_self_destruct(last, episode_commands=["ls\n", *last]) is None
+    assert match_self_destruct(
+        last, episode_commands=[_F2B_ACTION, *last]
+    ) == "firewall_lockout: fail2ban-server -b &"
+    assert match_self_destruct(
+        ["fail2ban-server -t\n"], episode_commands=[_F2B_ACTION]
+    ) is None
+
+
+def test_file_size_limit_anywhere_in_the_episode() -> None:
+    ulimit = "ulimit -f 0 2>/dev/null; cat a.gz | gzip -dc > /tmp/r.tar || true\n"
+    assert match_self_destruct(["echo x >> f\n"]) is None
+    assert match_self_destruct(
+        ["echo x >> f\n"], episode_commands=[ulimit, "ls\n", "echo x >> f\n"]
+    ).startswith("file_size_limit: ulimit -f 0")
+    assert match_self_destruct(
+        [], episode_commands=["ulimit -f unlimited\n", "ulimit -n 4096\n"]
+    ) is None
+
+
+def test_failure_evidence_names_the_agent() -> None:
+    sh_gone = (
+        "_SandboxExecutionError: TimeoutError: daytona exec status unavailable "
+        "after 235s (launch exit=-1 result='exec: \"sh\": executable file not "
+        "found in $PATH')"
+    )
+    assert match_self_destruct(["make install\n"], error=sh_gone).startswith(
+        "system_removed:"
+    )
+    sigxfsz = [{"kind": "shell_exited", "signal": "25", "exit_status": None}]
+    assert match_self_destruct([], terminal_events=sigxfsz).startswith(
+        "file_size_limit:"
+    )
+    # SIGKILL is also the OOM killer's; it names no one.
+    sigkill = [{"kind": "shell_exited", "signal": "9", "exit_status": None}]
+    assert match_self_destruct([], terminal_events=sigkill) is None
+    # Run 114 g1222: the platform lost the sandbox during a heredoc write.
+    assert match_self_destruct(
+        ["cat > /app/process_supervisor.py << 'EOF'\nimport os\nEOF\n"],
+        episode_commands=["ls\n"],
+        error="_SandboxExecutionError: DaytonaError: Failed to execute command: ",
+    ) is None
 
 
 def _turn(content) -> CapturedTurn:
@@ -242,6 +326,19 @@ def test_destroyed_sandbox_is_scored_zero(monkeypatch, group_id: int) -> None:
 
 
 _ORDINARY_REPLY = '<response><commands><keystrokes>ls\n</keystrokes></commands></response>'
+
+
+def test_sigxfsz_shell_death_is_scored_as_self_destruct(monkeypatch) -> None:
+    rollouter = _stub_rollouter(monkeypatch, ctrf_result=None)
+    events = [{"kind": "shell_exited", "signal": "25", "source": "tmux"}]
+    _agent_raising(
+        monkeypatch, TerminalUnavailable("terminal_signal_unknown", events)
+    )
+    _, _, _, reason, diagnostics = _run(
+        rollouter, [_turn([{"type": "text", "text": _ORDINARY_REPLY}])], group_id=-1
+    )
+    assert reason == "sandbox_destroyed"
+    assert diagnostics.failure["matched"].startswith("file_size_limit:")
 
 
 def test_lost_sandbox_with_ordinary_last_command_stays_masked_in_eval(

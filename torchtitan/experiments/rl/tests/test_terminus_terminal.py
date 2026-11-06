@@ -205,19 +205,80 @@ def test_unrelated_command_does_not_probe_terminal():
     probe.assert_not_awaited()
 
 
-def test_each_terminal_has_a_directory_outside_tmp():
+def test_each_terminal_has_a_directory_outside_tmp(monkeypatch):
+    monkeypatch.delenv("TT_TMUX_USR_LIB", raising=False)
     first, _ = terminal()
     second, _ = terminal()
     assert first.directory != second.directory
-    assert first.directory.startswith("/var/tmp/tmux-")
+    assert first.directory.startswith("/usr/lib/tmux-")
     assert first.server_link == first.directory + "/tmux-session"
+    name = first.directory.rsplit("/", 1)[1]
+    assert first.candidates == [f"/usr/lib/{name}", f"/var/tmp/{name}"]
+
+
+def test_usr_lib_directory_can_be_turned_off(monkeypatch):
+    monkeypatch.setenv("TT_TMUX_USR_LIB", "0")
+    lifecycle, _ = terminal()
+    assert lifecycle.directory.startswith("/var/tmp/tmux-")
+    assert lifecycle.candidates == [lifecycle.directory]
+    assert lifecycle.server_link == lifecycle.directory + "/tmux-session"
 
 
 def test_neutral_tmux_names_can_be_turned_off(monkeypatch):
     monkeypatch.setenv("TT_NEUTRAL_TMUX", "0")
+    monkeypatch.setenv("TT_TMUX_USR_LIB", "0")
     lifecycle, _ = terminal()
     assert lifecycle.directory.startswith("/var/tmp/terminus-")
     assert lifecycle.server_link == ""
+
+
+def test_prepare_uses_usr_lib(monkeypatch):
+    monkeypatch.delenv("TT_TMUX_USR_LIB", raising=False)
+    lifecycle = TerminalLifecycle(None)
+    primary = lifecycle.candidates[0]
+    lifecycle.execute = AsyncMock(return_value=result(primary + "\n"))
+    asyncio.run(lifecycle.prepare())
+    script = lifecycle.execute.call_args.args[0]
+    assert script.index(f"mkdir -m 700 -p {primary}") < script.index("/var/tmp/")
+    assert lifecycle.prepared and lifecycle.directory == primary
+    assert lifecycle.server_link == primary + "/tmux-session"
+    assert lifecycle.events == []
+
+
+def test_prepare_falls_back_to_var_tmp(monkeypatch):
+    monkeypatch.delenv("TT_TMUX_USR_LIB", raising=False)
+    lifecycle = TerminalLifecycle(None)
+    fallback = lifecycle.candidates[1]
+    lifecycle.execute = AsyncMock(return_value=result(fallback + "\n"))
+    asyncio.run(lifecycle.prepare())
+    assert lifecycle.directory == fallback
+    assert lifecycle.server_link == fallback + "/tmux-session"
+    assert [e["kind"] for e in lifecycle.events] == ["terminal_directory_fallback"]
+
+
+@pytest.mark.parametrize("response", [result(code=1), result("/elsewhere\n")])
+def test_prepare_fails_closed(monkeypatch, response):
+    lifecycle = TerminalLifecycle(AsyncMock(return_value=response))
+    with pytest.raises(TerminalUnavailable, match="terminal_directory_creation_failed"):
+        asyncio.run(lifecycle.prepare())
+    assert not lifecycle.prepared
+
+
+def test_prepare_runs_in_a_shell(tmp_path, monkeypatch):
+    """The fallback chain is valid sh: an unwritable first candidate is skipped."""
+    import subprocess
+
+    async def execute(cmd):
+        p = subprocess.run(["sh", "-c", cmd], capture_output=True, text=True)
+        return result(p.stdout, p.returncode, p.stderr)
+
+    blocked = tmp_path / "ro"
+    blocked.write_text("")  # a file, so mkdir -p under it fails
+    lifecycle = TerminalLifecycle(execute)
+    lifecycle.candidates = [str(blocked / "tmux-x"), str(tmp_path / "tmux-x")]
+    asyncio.run(lifecycle.prepare())
+    assert lifecycle.directory == str(tmp_path / "tmux-x")
+    assert (tmp_path / "tmux-x").is_dir()
 
 
 # --- isolation and evidence -----------------------------------------------
