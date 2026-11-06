@@ -34,3 +34,9 @@ expected output into the task's instruction, and an acceptance check for that pa
 first. He ruled that the first step is to find why the agent did it (its notes, its session, the
 prompt sentence that led there) and change what it is told; an acceptance check backs that up for
 what the prompt cannot control.
+
+**A task that repeated rewrites leave unchanged stays in training** (2026-11-05). The question was
+what to do with a task whose consecutive rewrites in one direction all leave it where it was (still
+all-fail after several easier rewrites, still all-pass after several harder ones): retire it, pause
+sampling it, or hand it to the data side. He ruled that it is not retired; it keeps being sampled
+as usual. How often this happens is reported by EvolveBench as a measure, not acted on.
