@@ -31,6 +31,7 @@ import argparse
 import glob
 import json
 import os
+import re
 import shutil
 import sys
 import time
@@ -49,7 +50,7 @@ def main() -> None:
     ap.add_argument(
         "--skip-accepted",
         action="store_true",
-        help="skip tasks with an accepted revision (r1+)",
+        help="skip tasks already revised past the revision the signal's attempts ran on",
     )
     ap.add_argument("--only-failed", action="store_true")
     ap.add_argument("--max-attempts", type=int, default=2)
@@ -84,9 +85,22 @@ def main() -> None:
     n_sig = n_rec = n_skip = 0
     for tid, v in sorted(sel.items()):
         task_dir = os.path.join(a.root, "evolution", "tasks", tid)
-        if a.skip_accepted and os.path.isdir(os.path.join(task_dir, "r1")):
+        sig = f"{tid}--g{v['group']}.json"
+        data = json.load(open(os.path.join(src, "signals", sig)))
+        # A signal answers the revision its attempts ran on (rev 0 for a first
+        # rewrite, rev 1 when the attempts were on r1), so it is superseded only
+        # by a revision newer than that one.
+        newest = max(
+            (
+                int(d[1:])
+                for d in (os.listdir(task_dir) if os.path.isdir(task_dir) else [])
+                if re.fullmatch(r"r\d+", d)
+            ),
+            default=0,
+        )
+        if a.skip_accepted and newest > data.get("rev", 0):
             n_skip += 1
-            log_line(f"task={tid} skipped: r1 exists")
+            log_line(f"task={tid} skipped: r{newest} is newer than the signal's rev {data.get('rev', 0)}")
             continue
         if a.only_failed:
             rws = sorted(
@@ -108,8 +122,6 @@ def main() -> None:
                     f"task={tid} skipped: {len(tried)} attempts since {a.attempts_since} (newest {st})"
                 )
                 continue
-        sig = f"{tid}--g{v['group']}.json"
-        data = json.load(open(os.path.join(src, "signals", sig)))
         # A harder signal (all attempts solved) or an easier one (none solved):
         # the loop picks the job from the signal, and simplify runs only when
         # SWE_EVOLVE_SIMPLIFY is on.
