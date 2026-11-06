@@ -1,0 +1,258 @@
+task_id,source,rollouts,oom_rollouts,oom_kill_events,max_mem_peak_mb,mem_quota_gb,max_disk_end_mb,disk_quota_gb,disk_end_ge95_rollouts,enospc_rollouts,agent_enospc_rollouts,oom_rollouts_at_current_quota,disk_end_ge95_at_current_quota,mem_peak_ge95_no_oom_rollouts,quotas_seen_mem_disk_gb
+machine-learning_20260604_193356_001,calibforge-fresh900,24,22,82,8192,8,814,10,0,0,0,22,0,1,8/10
+mathematics_20260605_015435_001,calibforge-fresh900,24,14,55,1024,1,954,1,0,0,0,14,0,0,1/1
+mathematics_20260417_112147_001,calibforge-fresh900,24,13,18,1024,1,170,1,0,0,0,13,0,1,1/1
+system-administration_20260603_181444_004,calibforge-fresh900,12,12,238,8192,8,3741,10,0,0,0,12,0,0,8/10
+machine-learning_20260616_094815_001,calibforge-fresh900,12,11,32,8192,8,653,10,0,0,0,11,0,0,8/10
+mathematics_20260508_153434_003,calibforge-fresh900,24,11,19,1024,1,283,1,0,0,0,11,0,0,1/1
+mathematics_20260510_054909_004,calibforge-fresh900,12,11,35,1024,1,655,1,0,0,0,11,0,0,1/1
+software-engineering_20260503_182123_003,calibforge-clean-v2,24,11,49,2048,2,104,1,0,0,0,11,0,0,2/1
+games_20260509_205636_001,calibforge-fresh900,12,10,28,1024,1,239,1,0,0,0,10,0,0,1/1
+mathematics_20260501_051538_001,calibforge-fresh900,12,9,22,1024,1,10,1,0,0,0,9,0,0,1/1
+mathematics_20260413_174325_002,calibforge-clean-v2,12,8,8,6144,6,127,10,0,0,0,8,0,0,6/10
+mathematics_20260514_012509_002,calibforge-clean-v2,24,8,9,3072,3,239,2,0,0,0,8,0,0,3/1 3/2
+software-engineering_20260513_204536_001,calibforge-fresh900,12,8,12,8192,8,2338,10,0,0,0,8,0,0,8/10
+machine-learning_20260604_003113_001,agentpick-calibforge-clean-fast,12,7,203,16384,16,2628,10,0,0,0,7,0,0,16/10
+mathematics_20260616_094815_004,agentpick-calibforge-clean-fast,24,7,12,6144,6,1659,10,0,0,0,7,0,1,6/10
+jax-ml__jax-28022,agentpick-clean-fast,12,6,15,11264,11,25,4,0,0,0,6,0,0,11/4
+mathematics_20260414_091921_001,calibforge-clean-v2,12,6,6,2048,2,239,1,0,0,0,6,0,0,2/1
+mathematics_20260508_153434_002,calibforge-fresh900,12,6,7,1024,1,239,1,0,0,0,6,0,0,1/1
+software-engineering_20260510_053611_009,calibforge-fresh900,12,6,11,1024,1,239,1,0,0,0,6,0,0,1/1
+software-engineering_20260604_144210_014,calibforge-clean-v2,24,6,7,2048,2,10,2,0,0,0,0,0,0,2/1
+Cog-Creators__Red-DiscordBot.33e0eac7.combine_module__9p10bve9,agentpick-clean-fast,22,5,7,11264,11,17,4,0,0,0,5,0,0,11/4
+mathematics_20260604_004411_002,calibforge-clean-v2,24,5,5,4096,4,898,10,0,0,0,5,0,0,4/10
+mathematics_20260604_144210_002,calibforge-fresh900,12,5,7,1024,2,475,2,0,0,0,0,0,0,1/1
+machine-learning_20260606_153537_001,calibforge-clean-v2,12,4,7,16384,16,10048,10,1,0,1,4,1,0,16/10
+mathematics_20260414_211453_001,calibforge-fresh900,24,4,4,1024,2,239,2,0,0,0,0,0,0,1/1 2/2
+mathematics_20260510_005520_004,calibforge-fresh900,24,4,5,2048,2,239,2,0,0,0,4,0,0,1/1 2/2
+scientific-computing_20260611_112034_002,calibforge-fresh900,12,4,5,1024,1,423,1,0,0,0,4,0,1,1/1
+security_20260604_193356_002,agentpick-calibforge-clean-fast,24,4,4,2048,2,730,20,0,0,0,4,0,0,2/20
+security_20260606_172606_007,calibforge-fresh900,12,4,6,1024,2,33,2,0,0,0,0,0,0,1/1
+software-engineering_20260414_091921_021,calibforge-fresh900,12,4,7,1024,1,130,1,0,0,0,4,0,0,1/1
+software-engineering_20260613_152233_023,calibforge-fresh900,12,4,29,1024,2,10,2,0,0,0,0,0,0,1/1
+tw_327279,agentpick-clean-fast,24,4,5,3072,3,2345,3,0,0,0,4,0,1,3/3
+software-engineering_20260601_053159_010,calibforge-fresh900,24,3,11,2048,2,2048,2,1,1,2,0,1,2,1/1 2/2
+data-querying_20260416_031414_001,calibforge-fresh900,24,3,9,1024,1,301,1,0,0,0,3,0,1,1/1
+debugging_20260508_204815_005,agentpick-calibforge-clean-fast,24,3,4,1024,1,238,1,0,0,0,3,0,0,1/1
+file-operations_20260508_045920_003,calibforge-clean-v2,24,3,3,2048,2,240,1,0,0,0,3,0,0,2/1
+file-operations_20260616_094815_003,calibforge-fresh900,12,3,3,1024,2,66,2,0,0,0,0,0,0,1/1
+games_20260422_235124_001,calibforge-fresh900,12,3,3,1024,1,279,1,0,0,0,3,0,0,1/1
+mathematics_20260415_094424_002,calibforge-clean-v2,12,3,3,1024,1,414,1,0,0,0,3,0,0,1/1
+mathematics_20260419_023954_002,calibforge-fresh900,24,3,3,1024,2,239,2,0,0,0,0,0,0,1/1
+mathematics_20260510_130518_002,calibforge-clean-v2,24,3,3,2048,2,239,1,0,0,0,3,0,0,2/1
+mathematics_20260611_205750_002,calibforge-fresh900,12,3,3,1024,1,603,1,0,0,0,3,0,0,1/1
+pyro-ppl__numpyro-1918,agentpick-clean-fast,12,3,5,3072,3,14,4,0,0,0,3,0,0,3/4
+security_20260610_111012_005,calibforge-fresh900,12,3,3,8192,8,1586,10,0,0,0,3,0,0,8/10
+software-engineering_20260428_101637_012,calibforge-fresh900,12,3,4,1024,1,232,1,0,0,0,3,0,1,1/1
+software-engineering_20260509_205636_022,agentpick-calibforge-clean-fast,24,3,19,2048,2,97,2,0,0,0,1,0,0,2/1 2/2
+software-engineering_20260604_002443_021,agentpick-calibforge-clean-fast,24,3,4,4096,4,17,10,0,0,0,3,0,0,4/10
+software-engineering_20260604_004411_026,agentpick-calibforge-clean-fast,24,3,29,1024,2,10,2,0,0,0,0,0,0,1/1 2/2
+software-engineering_20260604_144210_010,calibforge-fresh900,24,3,18,1024,2,13,2,0,0,0,0,0,0,1/1 2/2
+software-engineering_20260614_141608_024,agentpick-calibforge-clean-fast,12,3,3,11264,11,18,10,0,0,0,3,0,1,11/10
+mathematics_20260612_191200_001,calibforge-fresh900,24,2,2,2048,2,1024,2,4,0,1,1,0,2,1/1 2/2
+software-engineering_20260604_194036_010,calibforge-clean-v2,24,2,3,2048,2,2048,2,1,1,2,2,1,3,1/1 2/2
+data-science_20260610_112157_003,calibforge-fresh900,24,2,2,1024,2,394,2,0,0,3,0,0,3,1/1
+borgbackup__borg-8872,agentpick-clean-fast,12,2,2,1024,1,61,4,0,0,0,2,0,0,1/4
+data-querying_20260610_111702_001,calibforge-fresh900,12,2,2,1024,2,10,2,0,0,0,0,0,0,1/1
+data-science_20260413_173854_007,calibforge-fresh900,12,2,4,8192,8,706,10,0,0,0,2,0,0,8/10
+data-science_20260508_204815_006,calibforge-clean-v2,12,2,3,1024,1,27,1,0,0,0,2,0,0,1/1
+debugging_20260417_145736_002,calibforge-fresh900,12,2,2,1024,1,240,1,0,0,0,2,0,0,1/1
+debugging_20260508_045740_005,calibforge-clean-v2,22,2,2,1024,1,278,1,0,0,0,2,0,0,1/1
+debugging_20260509_154924_005,calibforge-fresh900,24,2,2,1024,2,247,2,0,0,0,0,0,0,1/1
+debugging_20260604_193356_005,calibforge-fresh900,12,2,3,1024,2,10,2,0,0,0,0,0,0,1/1
+file-operations_20260604_194036_004,calibforge-fresh900,24,2,2,1024,1,10,1,0,0,0,2,0,0,1/1
+file-operations_20260611_112034_002,calibforge-clean-v2,12,2,2,1024,2,69,2,0,0,0,0,0,0,1/1
+file-operations_20260617_051646_004,calibforge-fresh900,12,2,2,1024,2,10,2,0,0,0,0,0,0,1/1
+games_20260508_153434_001,calibforge-clean-v2,12,2,9,6144,6,239,5,0,0,0,2,0,0,6/5
+games_20260510_005520_001,calibforge-clean-v2,12,2,6,6144,6,237,5,0,0,0,2,0,0,6/5
+machine-learning_20260415_094424_003,agentpick-calibforge-clean-fast,12,2,3,16384,16,969,10,0,0,0,2,0,0,16/10
+mathematics_20260422_235114_001,calibforge-clean-v2,12,2,2,8192,8,310,10,0,0,0,2,0,0,8/10
+mathematics_20260429_103257_002,calibforge-fresh900,24,2,3,1024,1,247,1,0,0,0,2,0,0,1/1
+mathematics_20260508_204815_004,calibforge-clean-v2,24,2,6,1024,1,239,1,0,0,0,2,0,0,1/1
+scientific-computing_20260513_204536_003,agentpick-calibforge-clean-fast,24,2,3,2048,2,237,2,0,0,0,1,0,0,1/1 2/2
+scientific-computing_20260604_193356_006,calibforge-clean-v2,12,2,6,2048,2,898,1,0,0,0,2,0,0,2/1
+scientific-computing_20260614_141608_002,calibforge-fresh900,12,2,2,1024,1,422,1,0,0,0,2,0,0,1/1
+software-engineering_20260419_023954_022,calibforge-fresh900,24,2,2,1024,1,259,1,0,0,0,2,0,0,1/1
+software-engineering_20260427_204204_014,calibforge-fresh900,12,2,38,1024,2,237,2,0,0,0,0,0,0,1/1
+software-engineering_20260507_173144_012,calibforge-clean-v2,21,2,5,2048,2,97,1,0,0,0,2,0,0,2/1
+software-engineering_20260604_003814_023,calibforge-fresh900,12,2,2,1024,2,10,2,0,0,0,0,0,0,1/1
+software-engineering_20260606_172622_016,calibforge-fresh900,24,2,2,1024,2,10,2,0,0,0,0,0,0,1/1 2/2
+software-engineering_20260615_143956_023,calibforge-fresh900,24,2,2,1024,2,17,2,0,0,0,0,0,0,1/1 2/2
+software-engineering_20260617_104707_017,calibforge-clean-v2,12,2,3,2048,2,85,1,0,0,0,2,0,0,2/1
+task_000841_29b88124,agentpick-clean-fast,24,2,3,2048,2,20,2,0,0,0,2,0,0,1/1 2/2
+task_003899_3e4bce86,agentpick-clean-fast,24,2,4,2048,2,120,2,0,0,0,2,0,0,1/1 2/2
+tobymao__sqlglot.036601ba.lm_rewrite__28ucmg0j,agentpick-clean-fast,24,2,31,2048,2,9,4,0,0,0,2,0,0,2/4
+tw_12315,agentpick-clean-fast,12,2,2,2048,2,2170,8,0,0,0,2,0,9,2/8
+vanvalenlab__deepcell-tf-673,agentpick-clean-fast,24,2,2,3072,3,156,8,0,0,0,2,0,1,3/8
+video-processing_20260604_144210_001,agentpick-calibforge-clean-fast,12,2,2,3072,3,15,2,0,0,0,2,0,0,3/2
+security_20260430_081156_002,calibforge-fresh900,24,1,1,1026,1,1024,1,3,4,10,1,3,9,1/1
+games_20260610_111702_001,calibforge-clean-v2,12,1,2,1024,1,968,1,0,0,2,1,0,2,1/1
+video-processing_20260414_211453_001,calibforge-clean-v2,24,1,1,1024,1,965,1,0,0,2,1,0,5,1/1
+software-engineering_20260618_093107_010,calibforge-fresh900,12,1,2,1024,2,18,2,0,0,1,0,0,1,1/1
+d0c-s4vage__pfp-126,agentpick-clean-fast,24,1,1,1024,1,13,4,0,0,0,1,0,0,1/4
+data-processing_20260413_174325_004,calibforge-clean-v2,17,1,1,1024,1,237,1,0,0,0,1,0,0,1/1
+data-processing_20260416_020953_004,calibforge-fresh900,12,1,1,1024,1,238,1,0,0,0,1,0,1,1/1
+data-processing_20260419_023954_004,calibforge-fresh900,24,1,1,1024,1,237,1,0,0,0,1,0,0,1/1
+data-processing_20260509_205636_004,calibforge-fresh900,12,1,2,1024,1,238,1,0,0,0,1,0,0,1/1
+data-processing_20260528_174918_001,agentpick-calibforge-clean-fast,24,1,1,1024,2,24,2,0,0,0,0,0,0,1/1
+data-processing_20260604_193356_001,calibforge-fresh900,24,1,1,1024,1,10,1,0,0,0,1,0,0,1/1
+data-processing_20260615_143956_001,calibforge-clean-v2,12,1,1,1024,1,10,1,0,0,0,1,0,0,1/1
+data-processing_20260617_104707_001,calibforge-clean-v2,24,1,2,2048,2,10,2,0,0,0,1,0,0,1/1 2/2
+data-querying_20260508_045800_001,agentpick-calibforge-clean-fast,12,1,1,16384,16,5077,10,0,0,0,1,0,9,16/10
+data-querying_20260511_015840_001,agentpick-calibforge-clean-fast,12,1,2,1024,1,238,1,0,0,0,1,0,3,1/1
+data-science_20260508_045800_006,calibforge-clean-v2,24,1,1,1024,1,237,1,0,0,0,1,0,0,1/1
+data-science_20260511_015840_007,calibforge-fresh900,12,1,1,1024,1,238,1,0,0,0,1,0,0,1/1
+debugging_20260602_105139_005,calibforge-clean-v2,24,1,1,1024,1,105,1,0,0,0,1,0,0,1/1
+debugging_20260606_172554_005,calibforge-fresh900,12,1,1,1024,1,10,1,0,0,0,1,0,0,1/1
+debugging_20260610_111702_004,calibforge-clean-v2,12,1,1,1024,2,10,2,0,0,0,0,0,0,1/1
+debugging_20260617_210354_002,calibforge-fresh900,24,1,1,1024,2,10,2,0,0,0,0,0,0,1/1
+file-operations_20260414_080620_004,calibforge-fresh900,24,1,1,1024,1,285,1,0,0,0,1,0,0,1/1
+file-operations_20260425_072438_002,agentpick-calibforge-clean-fast,12,1,1,1024,1,239,1,0,0,0,1,0,0,1/1
+file-operations_20260501_172213_004,agentpick-calibforge-clean-fast,24,1,1,1024,1,239,1,0,0,0,1,0,0,1/1
+file-operations_20260507_093408_004,calibforge-clean-v2,24,1,1,1024,1,239,1,0,0,0,1,0,0,1/1
+file-operations_20260508_045800_002,calibforge-fresh900,12,1,1,1024,1,239,1,0,0,0,1,0,0,1/1
+file-operations_20260513_204744_001,calibforge-fresh900,12,1,1,1024,1,245,1,0,0,0,1,0,0,1/1
+file-operations_20260514_011125_002,calibforge-fresh900,24,1,1,1024,2,247,2,0,0,0,0,0,0,1/1 2/2
+file-operations_20260601_053159_003,calibforge-clean-v2,24,1,1,1024,2,474,2,0,0,0,0,0,0,1/1 2/2
+file-operations_20260603_181444_001,calibforge-clean-v2,24,1,1,1024,1,10,1,0,0,0,1,0,0,1/1
+file-operations_20260604_144210_003,calibforge-fresh900,12,1,1,1024,2,10,2,0,0,0,0,0,0,1/1
+file-operations_20260605_015435_002,agentpick-calibforge-clean-fast,12,1,1,2048,2,15,2,0,0,0,0,0,0,2/1
+file-operations_20260611_205750_002,calibforge-clean-v2,24,1,1,1024,2,10,2,0,0,0,0,0,0,1/1
+file-operations_20260612_191200_003,calibforge-fresh900,24,1,1,1024,1,76,1,0,0,0,1,0,0,1/1
+file-operations_20260617_051646_002,agentpick-calibforge-clean-fast,12,1,1,1024,2,10,2,0,0,0,0,0,0,1/1
+games_20260510_062946_001,calibforge-fresh900,12,1,1,1024,1,237,1,0,0,0,1,0,0,1/1
+games_20260511_150433_001,agentpick-calibforge-clean-fast,12,1,2,2048,2,241,1,0,0,0,1,0,0,2/1
+machine-learning_20260528_174918_002,calibforge-fresh900,24,1,1,1024,1,680,1,0,0,0,1,0,1,1/1
+machine-learning_20260612_191200_003,calibforge-fresh900,12,1,6,1024,1,10,1,0,0,0,1,0,0,1/1
+machine-learning_20260613_152233_002,calibforge-fresh900,12,1,1,1024,1,147,1,0,0,0,1,0,0,1/1
+mathematics_20260415_002933_003,calibforge-clean-v2,12,1,1,1024,1,26,1,0,0,0,1,0,0,1/1
+mathematics_20260422_235114_002,agentpick-calibforge-clean-fast,24,1,2,6144,6,621,10,0,0,0,1,0,1,6/10
+mathematics_20260503_030115_001,agentpick-calibforge-clean-fast,24,1,1,1024,1,417,1,0,0,0,1,0,0,1/1
+mathematics_20260503_182123_002,calibforge-clean-v2,24,1,1,1024,1,335,1,0,0,0,1,0,0,1/1
+mathematics_20260509_111805_002,calibforge-fresh900,24,1,1,1024,1,397,1,0,0,0,1,0,0,1/1
+mathematics_20260511_015840_002,calibforge-fresh900,12,1,1,1024,2,416,2,0,0,0,0,0,0,1/1
+mathematics_20260513_204536_002,calibforge-clean-v2,12,1,1,1024,1,409,1,0,0,0,1,0,0,1/1
+mathematics_20260513_205011_001,agentpick-calibforge-clean-fast,24,1,1,1024,1,97,1,0,0,0,1,0,0,1/1
+mathematics_20260514_011856_002,calibforge-fresh900,12,1,2,1024,1,680,1,0,0,0,1,0,0,1/1
+mathematics_20260603_181444_004,calibforge-fresh900,12,1,1,1024,1,10,1,0,0,0,1,0,0,1/1
+mathematics_20260606_172606_002,agentpick-calibforge-clean-fast,12,1,1,4096,4,150,10,0,0,0,1,0,0,4/10
+mathematics_20260613_152233_004,calibforge-fresh900,24,1,1,1024,1,194,1,0,0,0,1,0,0,1/1
+model-training_20260415_182321_004,calibforge-fresh900,24,1,1,8192,8,643,10,0,0,0,1,0,1,8/10
+model-training_20260419_182351_004,calibforge-clean-v2,24,1,1,8192,8,4132,10,0,0,0,1,0,0,8/10
+model-training_20260611_112034_001,calibforge-fresh900,24,1,2,1024,1,21,1,0,0,0,1,0,1,1/1
+personal-assistant_20260414_211453_001,agentpick-calibforge-clean-fast,24,1,1,1024,1,237,1,0,0,0,1,0,0,1/1
+personal-assistant_20260605_015435_001,calibforge-clean-v2,12,1,2,1024,1,10,1,0,0,0,1,0,0,1/1
+personal-assistant_20260610_111702_001,calibforge-clean-v2,12,1,1,1024,1,17,1,0,0,0,1,0,0,1/1
+pymc-devs__pytensor-1231,agentpick-clean-fast,24,1,1,2048,2,466,4,0,0,0,1,0,0,1/4 2/4
+scientific-computing_20260419_023954_006,calibforge-clean-v2,12,1,1,1024,1,362,1,0,0,0,1,0,0,1/1
+scientific-computing_20260503_030115_008,calibforge-clean-v2,24,1,1,8192,8,502,10,0,0,0,1,0,0,8/10
+scientific-computing_20260508_045920_003,calibforge-fresh900,24,1,1,1024,1,418,1,0,0,0,1,0,0,1/1
+scientific-computing_20260510_130518_002,calibforge-fresh900,21,1,28,8192,8,1349,10,0,0,0,1,0,0,8/10
+scientific-computing_20260528_174918_002,calibforge-clean-v2,12,1,1,1024,1,377,1,0,0,0,1,0,0,1/1
+scientific-computing_20260604_004411_004,calibforge-fresh900,24,1,2,1024,1,853,1,0,0,0,1,0,1,1/1
+security_20260427_204204_002,agentpick-calibforge-clean-fast,12,1,1,1024,2,308,2,0,0,0,0,0,0,1/1
+security_20260430_081156_003,agentpick-calibforge-clean-fast,12,1,14,1024,1,97,1,0,0,0,1,0,0,1/1
+security_20260508_045920_006,agentpick-calibforge-clean-fast,24,1,1,1024,1,253,1,0,0,0,1,0,1,1/1
+security_20260528_174918_002,agentpick-calibforge-clean-fast,12,1,1,1024,2,395,2,0,0,0,0,0,0,1/1
+security_20260605_015435_002,calibforge-clean-v2,12,1,1,1024,1,278,1,0,0,0,1,0,0,1/1
+security_20260606_153537_001,calibforge-fresh900,24,1,1,1024,1,10,1,0,0,0,1,0,0,1/1
+security_20260606_172606_006,agentpick-calibforge-clean-fast,12,1,1,1024,2,478,2,0,0,0,0,0,0,1/1
+security_20260610_111012_003,calibforge-fresh900,24,1,2,1024,2,10,2,0,0,0,0,0,0,1/1 2/2
+security_20260612_191200_006,calibforge-clean-v2,15,1,1,6144,6,1653,10,0,0,0,1,0,0,6/10
+software-engineering_20260413_174325_015,calibforge-fresh900,24,1,1,1024,2,277,2,0,0,0,0,0,0,1/1
+software-engineering_20260413_174325_025,calibforge-fresh900,24,1,7,1024,1,237,1,0,0,0,1,0,0,1/1
+software-engineering_20260415_002933_026,calibforge-clean-v2,24,1,1,2048,2,239,2,0,0,0,1,0,0,1/1 2/2
+software-engineering_20260415_182321_006,calibforge-clean-v2,24,1,1,11264,11,245,10,0,0,0,1,0,1,11/10
+software-engineering_20260416_172928_003,calibforge-fresh900,24,1,1,1024,1,97,1,0,0,0,1,0,0,1/1
+software-engineering_20260418_044216_025,calibforge-fresh900,24,1,4,1024,1,239,1,0,0,0,1,0,0,1/1
+software-engineering_20260420_020307_021,agentpick-calibforge-clean-fast,23,1,1,6144,6,253,5,0,0,0,1,0,0,6/5
+software-engineering_20260425_072438_010,calibforge-fresh900,12,1,1,1024,2,239,2,0,0,0,0,0,0,1/1
+software-engineering_20260429_103257_014,calibforge-fresh900,12,1,1,1024,1,245,1,0,0,0,1,0,0,1/1
+software-engineering_20260430_081156_013,agentpick-calibforge-clean-fast,24,1,1,2048,2,274,2,0,0,0,1,0,0,2/2
+software-engineering_20260503_182123_026,calibforge-clean-v2,12,1,2,1024,1,79,1,0,0,0,1,0,0,1/1
+software-engineering_20260507_170334_014,calibforge-fresh900,12,1,2,1024,2,305,2,0,0,0,0,0,0,1/1
+software-engineering_20260507_172207_002,agentpick-calibforge-clean-fast,24,1,1,4096,4,2233,4,0,0,0,1,0,1,4/4
+software-engineering_20260508_045557_021,calibforge-clean-v2,24,1,1,1024,2,237,2,0,0,0,0,0,0,1/1 2/2
+software-engineering_20260508_161717_016,calibforge-clean-v2,24,1,1,1024,1,239,1,0,0,0,1,0,0,1/1
+software-engineering_20260510_062946_026,calibforge-fresh900,12,1,1,1024,1,239,1,0,0,0,1,0,0,1/1
+software-engineering_20260511_015840_026,calibforge-clean-v2,12,1,4,1024,1,247,1,0,0,0,1,0,0,1/1
+software-engineering_20260528_174918_021,calibforge-fresh900,16,1,1,1024,1,127,1,0,0,0,1,0,0,1/1
+software-engineering_20260601_053159_018,calibforge-fresh900,24,1,1,1024,2,163,2,0,0,0,0,0,0,1/1 2/2
+software-engineering_20260602_105139_004,calibforge-fresh900,24,1,1,2048,2,12,2,0,0,0,1,0,0,1/1 2/2
+software-engineering_20260604_193056_026,calibforge-clean-v2,12,1,1,1024,2,17,2,0,0,0,0,0,0,1/1
+software-engineering_20260610_111012_014,agentpick-calibforge-clean-fast,12,1,1,1024,2,62,2,0,0,0,0,0,0,1/1
+software-engineering_20260610_112157_007,calibforge-fresh900,12,1,1,1024,1,10,1,0,0,0,1,0,0,1/1
+software-engineering_20260610_112157_021,agentpick-calibforge-clean-fast,12,1,1,1024,1,18,1,0,0,0,1,0,0,1/1
+software-engineering_20260610_112157_022,calibforge-clean-v2,12,1,1,1024,1,10,1,0,0,0,1,0,0,1/1
+software-engineering_20260611_205750_006,calibforge-fresh900,24,1,1,1024,1,10,1,0,0,0,1,0,0,1/1
+software-engineering_20260611_210349_003,calibforge-fresh900,24,1,1,1024,1,17,1,0,0,0,1,0,0,1/1
+software-engineering_20260611_210349_014,calibforge-clean-v2,20,1,2,4096,4,10,10,0,0,0,1,0,0,4/10
+software-engineering_20260613_152233_022,agentpick-calibforge-clean-fast,12,1,1,1024,1,12,1,0,0,0,1,0,0,1/1
+software-engineering_20260614_141608_004,calibforge-fresh900,24,1,1,1024,2,163,2,0,0,0,0,0,0,1/1 2/2
+software-engineering_20260615_105532_014,agentpick-calibforge-clean-fast,24,1,1,1024,1,17,1,0,0,0,1,0,0,1/1
+software-engineering_20260617_104707_021,calibforge-fresh900,24,1,1,2048,2,10,2,0,0,0,1,0,0,1/1 2/2
+software-engineering_20260617_210354_023,calibforge-fresh900,12,1,1,8192,8,10,10,0,0,0,1,0,0,8/10
+task_000104_cc500ca7,agentpick-clean-fast,12,1,4,1024,1,14,1,0,0,0,1,0,0,1/1
+tobymao__sqlglot.036601ba.lm_rewrite__croj8akp,agentpick-clean-fast,24,1,16,2048,2,10,4,0,0,0,1,0,0,2/4
+tw_383451,agentpick-clean-fast,24,1,3,2048,2,710,2,0,0,0,1,0,0,1/1 2/2
+scientific-computing_20260504_125558_004,calibforge-fresh900,24,0,0,1024,1,995,1,12,0,0,0,12,11,1/1
+scientific-computing_20260501_051538_007,calibforge-fresh900,24,0,0,1025,1,1024,1,6,0,5,0,6,17,1/1
+data-science_20260415_123352_002,calibforge-fresh900,12,0,0,1024,1,991,1,4,4,0,0,4,10,1/1
+scientific-computing_20260419_023954_007,calibforge-clean-v2,24,0,0,1024,1,1024,1,4,0,4,0,4,14,1/1
+system-administration_20260606_172622_003,calibforge-fresh900,24,0,0,1025,2,1024,2,2,2,2,0,0,3,1/1
+scientific-computing_20260510_125534_002,calibforge-fresh900,24,0,0,968,1,1004,1,2,0,0,0,2,0,1/1
+scientific-computing_20260415_123352_002,calibforge-fresh900,24,0,0,1024,1,993,1,1,2,0,0,1,4,1/1
+system-administration_20260604_194036_003,calibforge-fresh900,24,0,0,1024,1,1024,1,1,1,3,0,1,5,1/1
+data-science_20260415_182321_001,calibforge-fresh900,12,0,0,1024,1,986,1,1,1,1,0,1,7,1/1
+security_20260413_173854_002,calibforge-fresh900,15,0,0,1024,1,997,1,1,1,1,0,1,1,1/1
+software-engineering_20260429_103257_001,calibforge-fresh900,12,0,0,1024,1,1023,1,1,1,1,0,1,6,1/1
+scientific-computing_20260604_004411_002,calibforge-fresh900,24,0,0,1026,1,983,1,1,0,19,0,1,20,1/1
+scientific-computing_20260415_094424_002,calibforge-fresh900,13,0,0,1024,1,1022,1,1,0,1,0,1,8,1/1
+scientific-computing_20260416_020953_007,calibforge-fresh900,12,0,0,1024,1,1024,1,1,0,1,0,1,1,1/1
+scientific-computing_20260416_172928_004,calibforge-clean-v2,24,0,0,1024,2,1018,2,1,0,0,0,0,1,1/1
+scientific-computing_20260511_015840_002,calibforge-fresh900,12,0,0,1024,1,992,1,1,0,0,0,1,5,1/1
+model-training_20260510_125534_001,agentpick-calibforge-clean-fast,24,0,0,4097,4,8379,10,0,0,21,0,0,21,4/10
+data-science_20260606_153537_002,calibforge-fresh900,24,0,0,1024,2,971,2,0,0,20,0,0,18,1/1
+task_003986_4e4c690f,agentpick-clean-fast,12,0,0,4099,4,6153,10,0,0,12,0,0,11,4/10
+model-training_20260604_144210_001,calibforge-fresh900,12,0,0,6360,8,8907,10,0,0,10,0,0,0,8/10
+task_000037_6b3061e0,agentpick-clean-fast,12,0,0,6146,6,7612,8,0,0,8,0,0,6,6/8
+huggingface__transformers-36497,agentpick-clean-fast,12,0,0,1053,1,2956,4,0,0,7,0,0,7,1/4
+task_000151_eed227cf,agentpick-clean-fast,24,0,0,4101,4,793,5,0,0,6,0,0,4,4/5
+data-science_20260605_015435_008,calibforge-fresh900,12,0,0,1024,1,863,1,0,0,5,0,0,3,1/1
+data-science_20260617_210354_008,calibforge-fresh900,12,0,0,1024,1,932,1,0,0,5,0,0,5,1/1
+software-engineering_20260604_003814_016,calibforge-fresh900,24,0,0,184,2,17,2,0,0,5,0,0,0,1/1 2/2
+model-training_20260604_002443_002,agentpick-calibforge-clean-fast,12,0,0,4100,4,6598,10,0,0,4,0,0,4,4/10
+data-science_20260604_003814_002,calibforge-fresh900,24,0,0,1037,1,926,1,0,0,3,0,0,7,1/1
+model-training_20260610_112157_003,agentpick-calibforge-clean-fast,12,0,0,4099,4,6445,10,0,0,3,0,0,2,4/10
+file-operations_20260610_111702_003,agentpick-calibforge-clean-fast,12,0,0,1024,1,849,1,0,0,2,0,0,2,1/1
+file-operations_20260618_093107_004,calibforge-fresh900,24,0,0,1024,2,754,2,0,0,2,0,0,2,1/1
+model-training_20260419_112101_001,agentpick-calibforge-clean-fast,12,0,0,4097,4,4623,10,0,0,2,0,0,2,4/10
+model-training_20260604_002443_001,calibforge-clean-v2,24,0,0,8192,8,5520,10,0,0,2,0,0,1,8/10
+security_20260509_202829_002,calibforge-fresh900,12,0,0,1024,1,945,1,0,0,2,0,0,2,1/1
+software-engineering_20260613_152233_015,agentpick-calibforge-clean-fast,24,0,0,1024,2,19,2,0,0,2,0,0,1,1/1 2/2
+file-operations_20260415_123352_002,calibforge-fresh900,12,0,0,1024,1,245,1,0,0,1,0,0,1,1/1
+machine-learning_20260604_144210_001,agentpick-calibforge-clean-fast,24,0,0,1027,1,184,1,0,0,1,0,0,1,1/1
+machine-learning_20260604_144210_002,calibforge-fresh900,24,0,0,1024,1,919,1,0,0,1,0,0,1,1/1
+mathematics_20260415_123352_004,calibforge-fresh900,24,0,0,1024,1,778,1,0,0,1,0,0,1,1/1
+model-training_20260507_170334_001,calibforge-clean-v2,12,0,0,4096,4,4676,10,0,0,1,0,0,1,4/10
+model-training_20260605_015435_001,calibforge-clean-v2,12,0,0,8192,8,11354,15,0,0,1,0,0,7,8/15
+model-training_20260617_210354_004,calibforge-fresh900,12,0,0,1024,2,833,2,0,0,1,0,0,1,1/1
+scientific-computing_20260604_003814_004,calibforge-fresh900,24,0,0,1024,1,864,1,0,0,1,0,0,2,1/1
+scientific-computing_20260604_194036_004,calibforge-fresh900,24,0,0,1024,1,971,1,0,0,1,0,0,2,1/1
+scientific-computing_20260606_153537_007,calibforge-clean-v2,12,0,0,1024,1,856,1,0,0,1,0,0,1,1/1
+scientific-computing_20260611_205750_003,calibforge-fresh900,12,0,0,1024,1,797,1,0,0,1,0,0,1,1/1
+scientific-computing_20260616_102700_003,calibforge-clean-v2,12,0,0,1024,2,768,2,0,0,1,0,0,5,1/1
+scientific-computing_20260617_104707_006,calibforge-fresh900,12,0,0,1024,1,903,1,0,0,1,0,0,4,1/1
+security_20260509_020109_006,calibforge-clean-v2,12,0,0,1024,1,917,1,0,0,1,0,0,1,1/1
+security_20260604_003113_002,calibforge-clean-v2,12,0,0,1024,2,732,2,0,0,1,0,0,1,1/1
+software-engineering_20260510_062946_010,calibforge-clean-v2,24,0,0,2048,2,411,2,0,0,1,0,0,2,1/1 2/2
+software-engineering_20260604_193056_015,agentpick-calibforge-clean-fast,12,0,0,1024,2,14,2,0,0,1,0,0,1,1/1
+software-engineering_20260615_143956_015,calibforge-fresh900,12,0,0,1024,2,13,2,0,0,1,0,0,1,1/1
+system-administration_20260604_003113_004,calibforge-fresh900,24,0,0,1024,1,844,1,0,0,1,0,0,3,1/1
+system-administration_20260604_004411_003,calibforge-fresh900,24,0,0,1261,2,1480,2,0,0,1,0,0,1,1/1 2/2
+system-administration_20260604_194036_009,agentpick-calibforge-clean-fast,12,0,0,1024,1,909,1,0,0,1,0,0,1,1/1
+system-administration_20260607_104421_008,calibforge-clean-v2,12,0,0,1024,1,74,1,0,0,1,0,0,1,1/1
+system-administration_20260614_141608_009,agentpick-calibforge-clean-fast,24,0,0,1024,1,604,1,0,0,1,0,0,4,1/1
+task_000972_32925c73,agentpick-clean-fast,12,0,0,1024,2,839,2,0,0,1,0,0,6,1/1
+task_003391_f8b99429,agentpick-clean-fast,24,0,0,1055,2,939,2,0,0,1,0,0,2,1/1 2/2
+tw_345797,agentpick-clean-fast,23,0,0,1355,2,184,2,0,0,1,0,0,1,1/1 2/2
