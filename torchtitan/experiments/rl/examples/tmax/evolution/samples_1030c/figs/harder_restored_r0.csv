@@ -1,0 +1,42 @@
+task,a,b,instr_same_as_r0,r0,prev,new,tests_same,env_same
+amueller__word_cloud.ec24191c.combine_file__9bx7cdni,1,2,True,[0],[12],"[11, 12]",False,False
+data-processing_20260415_182321_001,3,4,True,[0],"[11, 12]",[],False,False
+data-processing_20260415_182321_001,2,3,True,[0],[12],"[11, 12]",False,False
+data-processing_20260415_182321_001,1,2,True,[0],"[4, 9, 10, 12]",[12],False,True
+data-processing_20260508_180627_004,1,2,True,[0],"[7, 8, 9, 12]","[6, 6]",False,True
+data-processing_20260604_004411_003,1,2,True,[0],"[8, 11, 8, 10, 10, 12]",[],True,False
+data-processing_20260605_015435_001,1,2,True,[0],"[2, 8, 6, 9, 12]",[],True,True
+data-processing_20260618_093107_004,1,2,True,[0],"[10, 12]","[10, 10, 10, 11]",False,False
+data-science_20260604_003113_003,1,2,True,[0],[12],[12],False,False
+data-science_20260605_015435_005,1,2,True,[0],"[4, 1, 10, 10, 12]",[],True,False
+debugging_20260606_153537_004,1,2,True,[0],"[6, 6, 12]","[2, 5, 3]",False,False
+debugging_20260606_172606_001,1,2,True,[0],"[9, 9, 12]","[7, 2]",False,True
+debugging_20260611_210349_001,2,3,True,[0],[12],[0],False,False
+debugging_20260611_210349_001,1,2,True,[0],"[9, 12]",[12],False,False
+file-operations_20260415_182321_002,1,2,True,[0],"[1, 5, 6, 11, 10, 12]",[],False,False
+file-operations_20260419_112101_001,1,2,True,[0],"[8, 12]","[10, 8, 10]",False,True
+file-operations_20260602_105139_004,2,3,True,[0],"[6, 9, 12]","[9, 11]",False,False
+file-operations_20260610_111012_004,2,3,True,[0],[12],"[4, 5, 11, 8]",True,False
+file-operations_20260615_143956_005,1,2,True,[0],"[11, 9, 9, 12]","[4, 3, 5]",True,False
+games_20260611_205750_001,1,2,True,[0],[12],"[1, 2, 4, 4, 3]",True,False
+jsvine__pdfplumber.02ff4313.func_pm_ctrl_invert_if__tv5b85l9,1,2,True,[0],"[7, 12]",[0],True,False
+machine-learning_20260604_002443_002,1,2,True,[0],"[9, 11, 12]","[8, 9, 11]",False,False
+mathematics_20260616_102700_001,1,2,True,[0],"[9, 8, 11, 12]","[4, 3]",False,False
+model-training_20260415_002933_002,1,2,True,[0],[12],"[4, 3]",True,False
+pypa__bandersnatch-1557,1,2,True,[0],"[10, 11, 12]","[2, 1, 0]",True,True
+rts_task_59ae2da3d0ccc51f525f042a,1,2,True,[0],"[11, 12]","[12, 12]",False,True
+security_20260427_204204_002,1,2,True,[0],"[8, 9, 11, 12]",[5],True,False
+security_20260604_193356_008,3,4,True,[0],"[7, 9, 10, 12]",[],True,False
+security_20260604_193356_008,1,2,True,[0],[12],"[1, 0]",True,False
+software-engineering_20260514_134238_012,2,3,True,[0],"[8, 9, 8, 10, 12]",[],False,False
+software-engineering_20260602_105139_006,2,3,True,[0],[12],"[5, 8, 11, 9]",True,True
+software-engineering_20260604_144210_017,1,2,True,[0],"[2, 10, 10, 10, 11, 12]",[],False,False
+software-engineering_20260604_194036_002,2,3,True,[0],"[6, 9, 8, 12]",[],False,False
+software-engineering_20260604_194036_002,1,2,True,[0],"[10, 12]","[6, 9, 8, 12]",True,True
+software-engineering_20260606_172554_019,3,4,True,[0],[12],"[12, 12]",False,True
+software-engineering_20260606_172554_019,1,2,True,[0],"[11, 12]",[12],False,True
+software-engineering_20260617_051646_013,1,2,True,[0],"[9, 8, 11, 12]","[8, 7]",False,False
+system-administration_20260509_065529_005,1,2,True,[0],"[4, 10, 12]","[6, 10, 9]",False,True
+system-administration_20260603_181444_008,2,3,True,[0],"[11, 9, 10, 11, 12]",[],False,False
+task_002422_ccc838ee,5,6,True,[0],[12],[0],False,False
+task_002422_ccc838ee,3,4,True,[0],[12],[0],False,True
