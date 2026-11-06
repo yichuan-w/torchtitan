@@ -736,10 +736,22 @@ def freeze(
         measured.pop(tid, None)
 
     lo, hi = (int(x) for x in reference_band.split("-"))
+
+    # A reference group is banded at its own size, scaled from the band out
+    # of k_read as peer_context._band does at rewrite time (3-8/12 is 4-11/16),
+    # so a k=16 re-measure counts as a peer exactly when PEER_CONTEXT would use it.
+    def ref_band(n: int) -> tuple[int, int]:
+        b_lo = min(max(1, int(lo * n / k_read + 0.5)), n - 1)
+        return b_lo, min(max(b_lo, int(hi * n / k_read + 0.5)), n - 1)
+
     reference: dict[str, dict] = {}
     for r in reference_first_group or []:
-        for tid, m in _measured_by_first_group(r, k_read).items():
-            if tid in signals or tid in reference or m["graded"] != k_read or not lo <= m["solved"] <= hi:
+        for tid, m in _measured_by_first_group(r, 1 << 30).items():
+            n = m["source"]["group_size"]
+            if tid in signals or tid in reference or m["graded"] != n or n < 2:
+                continue
+            b_lo, b_hi = ref_band(n)
+            if not b_lo <= m["solved"] <= b_hi:
                 continue
             reference[tid] = m
 
