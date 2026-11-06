@@ -1,0 +1,566 @@
+{
+ "doc": "EVOLVE_BENCH.md, Standard (2026-11-06), Judging agent: the calibration set with the verdict each should get. Roots and evals are NAME/rest; evolve_judge.py judge --spec resolves NAME through --alias NAME=PATH: run1030c and run111e are the training roots of runs 1030c (9B) and 111e (122B), bench is the 122B harder EvolveBench directory (arms/ and combo/evals/). A training rewrite is measured on its first after.groups groups on the result revision; a bench rewrite on its eval. expect.category null accepts any category with worth false. a4_time_limit: the A4 rewrites whose failed attempts end mostly at the time budget (A4 has two more rewrites with some time-budget failures, security_20260610_111012_002 1 of 6 and tw_327279 4 of 12, left out because most of their failures submitted).",
+ "items": [
+  {
+   "name": "tls",
+   "group": "worth",
+   "root": "run1030c",
+   "task": "task_005436_d605aece",
+   "rewrite": "20261031-161618Z--harder",
+   "after": {
+    "groups": 3
+   },
+   "expect": {
+    "worth": true,
+    "category": "meaningful"
+   },
+   "source": "#324 item 5: the new revision's successes check SAN and test with --cacert"
+  },
+  {
+   "name": "lz4",
+   "group": "worth",
+   "root": "run1030c",
+   "task": "software-engineering_20260508_045740_001",
+   "rewrite": "20261031-083256Z--harder",
+   "after": {
+    "groups": 3
+   },
+   "expect": {
+    "worth": true,
+    "category": "meaningful"
+   },
+   "source": "#324: 35 of 39 successes use rpath or LD_LIBRARY_PATH; 3 replace the system library"
+  },
+  {
+   "name": "task_001320-rev2",
+   "group": "leak",
+   "root": "run111e",
+   "task": "task_001320_249b9329",
+   "rewrite": "20261103-150916Z--harder",
+   "after": {
+    "groups": 1
+   },
+   "expect": {
+    "worth": false,
+    "category": "leak"
+   },
+   "source": "#319: the instruction states the FACTORS operand and its answer"
+  },
+  {
+   "name": "task_001320-rev3",
+   "group": "leak",
+   "root": "run111e",
+   "task": "task_001320_249b9329",
+   "rewrite": "20261104-135835Z--harder",
+   "after": {
+    "groups": 1
+   },
+   "expect": {
+    "worth": false,
+    "category": "leak"
+   },
+   "source": "#319: the same sentence with a larger semiprime"
+  },
+  {
+   "name": "haproxy",
+   "group": "check_dropped",
+   "root": "run1030c",
+   "task": "system-administration_20260509_065529_005",
+   "rewrite": "20261031-204341Z--harder",
+   "after": {
+    "groups": 3
+   },
+   "expect": {
+    "worth": false,
+    "category": "claimed_check_missing"
+   },
+   "source": "#324: hardening.md keeps the live 503 check; the shipped tests narrow it to a config grep"
+  },
+  {
+   "name": "A4-mathematics_20260514_012509_002",
+   "group": "a4_time_limit",
+   "root": "bench/arms/evb122b-h50--b50c-A4-r1",
+   "task": "mathematics_20260514_012509_002",
+   "rewrite": "20261105-191801Z--harder",
+   "after": {
+    "evals": [
+     "bench/combo/evals/20261105-200219Z--base-Qwen3.5-122B-A10B-step0-combo1"
+    ],
+    "label": "A4__{task}"
+   },
+   "expect": {
+    "worth": false,
+    "category": "lengthened_work"
+   },
+   "source": "#319: arm A4 (EVOLVE_HARDER_WORK alone); most failed attempts end at the time budget"
+  },
+  {
+   "name": "A4-model-training_20260413_174325_003",
+   "group": "a4_time_limit",
+   "root": "bench/arms/evb122b-h50--b50c-A4-r1",
+   "task": "model-training_20260413_174325_003",
+   "rewrite": "20261105-191801Z--harder",
+   "after": {
+    "evals": [
+     "bench/combo/evals/20261105-200219Z--base-Qwen3.5-122B-A10B-step0-combo1"
+    ],
+    "label": "A4__{task}"
+   },
+   "expect": {
+    "worth": false,
+    "category": "lengthened_work"
+   },
+   "source": "#319: arm A4 (EVOLVE_HARDER_WORK alone); most failed attempts end at the time budget"
+  },
+  {
+   "name": "A4-scientific-computing_20260509_154924_005",
+   "group": "a4_time_limit",
+   "root": "bench/arms/evb122b-h50--b50c-A4-r1",
+   "task": "scientific-computing_20260509_154924_005",
+   "rewrite": "20261105-193553Z--harder",
+   "after": {
+    "evals": [
+     "bench/combo/evals/20261105-222043Z--base-Qwen3.5-122B-A10B-step0-combo2"
+    ],
+    "label": "A4__{task}"
+   },
+   "expect": {
+    "worth": false,
+    "category": "lengthened_work"
+   },
+   "source": "#319: arm A4 (EVOLVE_HARDER_WORK alone); most failed attempts end at the time budget"
+  },
+  {
+   "name": "A0-conan-io__conan.86f29e13.func_pm_remove_assign__vt2zl5s6",
+   "group": "still_12of12",
+   "root": "bench/arms/evb122b-h50--b50c-A0-r1",
+   "task": "conan-io__conan.86f29e13.func_pm_remove_assign__vt2zl5s6",
+   "rewrite": "20261105-191749Z--harder",
+   "after": {
+    "evals": [
+     "bench/combo/evals/20261105-200219Z--base-Qwen3.5-122B-A10B-step0-combo1"
+    ],
+    "label": "A0__{task}"
+   },
+   "expect": {
+    "worth": false,
+    "category": null
+   },
+   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud"
+  },
+  {
+   "name": "A0-debugging_20260416_172928_002",
+   "group": "still_12of12",
+   "root": "bench/arms/evb122b-h50--b50c-A0-r1",
+   "task": "debugging_20260416_172928_002",
+   "rewrite": "20261105-191749Z--harder",
+   "after": {
+    "evals": [
+     "bench/combo/evals/20261105-200219Z--base-Qwen3.5-122B-A10B-step0-combo1"
+    ],
+    "label": "A0__{task}"
+   },
+   "expect": {
+    "worth": false,
+    "category": null
+   },
+   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud"
+  },
+  {
+   "name": "A0-debugging_20260417_112147_004",
+   "group": "still_12of12",
+   "root": "bench/arms/evb122b-h50--b50c-A0-r1",
+   "task": "debugging_20260417_112147_004",
+   "rewrite": "20261105-191749Z--harder",
+   "after": {
+    "evals": [
+     "bench/combo/evals/20261105-200219Z--base-Qwen3.5-122B-A10B-step0-combo1"
+    ],
+    "label": "A0__{task}"
+   },
+   "expect": {
+    "worth": false,
+    "category": null
+   },
+   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud"
+  },
+  {
+   "name": "A0-debugging_20260504_125558_001",
+   "group": "still_12of12",
+   "root": "bench/arms/evb122b-h50--b50c-A0-r1",
+   "task": "debugging_20260504_125558_001",
+   "rewrite": "20261105-191749Z--harder",
+   "after": {
+    "evals": [
+     "bench/combo/evals/20261105-200219Z--base-Qwen3.5-122B-A10B-step0-combo1"
+    ],
+    "label": "A0__{task}"
+   },
+   "expect": {
+    "worth": false,
+    "category": null
+   },
+   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud"
+  },
+  {
+   "name": "A0-scientific-computing_20260414_080620_005",
+   "group": "still_12of12",
+   "root": "bench/arms/evb122b-h50--b50c-A0-r1",
+   "task": "scientific-computing_20260414_080620_005",
+   "rewrite": "20261105-191749Z--harder",
+   "after": {
+    "evals": [
+     "bench/combo/evals/20261105-200219Z--base-Qwen3.5-122B-A10B-step0-combo1"
+    ],
+    "label": "A0__{task}"
+   },
+   "expect": {
+    "worth": false,
+    "category": null
+   },
+   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud"
+  },
+  {
+   "name": "A0-scientific-computing_20260513_204536_003",
+   "group": "still_12of12",
+   "root": "bench/arms/evb122b-h50--b50c-A0-r1",
+   "task": "scientific-computing_20260513_204536_003",
+   "rewrite": "20261105-193721Z--harder",
+   "after": {
+    "evals": [
+     "bench/combo/evals/20261105-200219Z--base-Qwen3.5-122B-A10B-step0-combo1"
+    ],
+    "label": "A0__{task}"
+   },
+   "expect": {
+    "worth": false,
+    "category": null
+   },
+   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud"
+  },
+  {
+   "name": "A1-data-processing_20260418_044216_004",
+   "group": "still_12of12",
+   "root": "bench/arms/evb122b-h50--b50c-A1-r1",
+   "task": "data-processing_20260418_044216_004",
+   "rewrite": "20261105-191751Z--harder",
+   "after": {
+    "evals": [
+     "bench/combo/evals/20261105-200219Z--base-Qwen3.5-122B-A10B-step0-combo1"
+    ],
+    "label": "A1__{task}"
+   },
+   "expect": {
+    "worth": false,
+    "category": null
+   },
+   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud"
+  },
+  {
+   "name": "A1-data-science_20260417_112147_005",
+   "group": "still_12of12",
+   "root": "bench/arms/evb122b-h50--b50c-A1-r1",
+   "task": "data-science_20260417_112147_005",
+   "rewrite": "20261105-191751Z--harder",
+   "after": {
+    "evals": [
+     "bench/combo/evals/20261105-200219Z--base-Qwen3.5-122B-A10B-step0-combo1"
+    ],
+    "label": "A1__{task}"
+   },
+   "expect": {
+    "worth": false,
+    "category": null
+   },
+   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud"
+  },
+  {
+   "name": "A1-debugging_20260416_172928_002",
+   "group": "still_12of12",
+   "root": "bench/arms/evb122b-h50--b50c-A1-r1",
+   "task": "debugging_20260416_172928_002",
+   "rewrite": "20261105-191751Z--harder",
+   "after": {
+    "evals": [
+     "bench/combo/evals/20261105-200219Z--base-Qwen3.5-122B-A10B-step0-combo1"
+    ],
+    "label": "A1__{task}"
+   },
+   "expect": {
+    "worth": false,
+    "category": null
+   },
+   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud"
+  },
+  {
+   "name": "A1-scientific-computing_20260414_080620_005",
+   "group": "still_12of12",
+   "root": "bench/arms/evb122b-h50--b50c-A1-r1",
+   "task": "scientific-computing_20260414_080620_005",
+   "rewrite": "20261105-191751Z--harder",
+   "after": {
+    "evals": [
+     "bench/combo/evals/20261105-200219Z--base-Qwen3.5-122B-A10B-step0-combo1"
+    ],
+    "label": "A1__{task}"
+   },
+   "expect": {
+    "worth": false,
+    "category": null
+   },
+   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud"
+  },
+  {
+   "name": "A1-scientific-computing_20260513_204536_003",
+   "group": "still_12of12",
+   "root": "bench/arms/evb122b-h50--b50c-A1-r1",
+   "task": "scientific-computing_20260513_204536_003",
+   "rewrite": "20261105-193716Z--harder",
+   "after": {
+    "evals": [
+     "bench/combo/evals/20261105-200219Z--base-Qwen3.5-122B-A10B-step0-combo1"
+    ],
+    "label": "A1__{task}"
+   },
+   "expect": {
+    "worth": false,
+    "category": null
+   },
+   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud"
+  },
+  {
+   "name": "A2-data-science_20260417_112147_005",
+   "group": "still_12of12",
+   "root": "bench/arms/evb122b-h50--b50c-A2-r1",
+   "task": "data-science_20260417_112147_005",
+   "rewrite": "20261105-191751Z--harder",
+   "after": {
+    "evals": [
+     "bench/combo/evals/20261105-200219Z--base-Qwen3.5-122B-A10B-step0-combo1"
+    ],
+    "label": "A2__{task}"
+   },
+   "expect": {
+    "worth": false,
+    "category": null
+   },
+   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud"
+  },
+  {
+   "name": "A2-mathematics_20260514_012509_002",
+   "group": "still_12of12",
+   "root": "bench/arms/evb122b-h50--b50c-A2-r1",
+   "task": "mathematics_20260514_012509_002",
+   "rewrite": "20261105-191751Z--harder",
+   "after": {
+    "evals": [
+     "bench/combo/evals/20261105-200219Z--base-Qwen3.5-122B-A10B-step0-combo1"
+    ],
+    "label": "A2__{task}"
+   },
+   "expect": {
+    "worth": false,
+    "category": null
+   },
+   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud"
+  },
+  {
+   "name": "A2-model-training_20260413_174325_003",
+   "group": "still_12of12",
+   "root": "bench/arms/evb122b-h50--b50c-A2-r1",
+   "task": "model-training_20260413_174325_003",
+   "rewrite": "20261105-191751Z--harder",
+   "after": {
+    "evals": [
+     "bench/combo/evals/20261105-200219Z--base-Qwen3.5-122B-A10B-step0-combo1"
+    ],
+    "label": "A2__{task}"
+   },
+   "expect": {
+    "worth": false,
+    "category": null
+   },
+   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud"
+  },
+  {
+   "name": "A2-scientific-computing_20260414_080620_005",
+   "group": "still_12of12",
+   "root": "bench/arms/evb122b-h50--b50c-A2-r1",
+   "task": "scientific-computing_20260414_080620_005",
+   "rewrite": "20261105-191751Z--harder",
+   "after": {
+    "evals": [
+     "bench/combo/evals/20261105-200219Z--base-Qwen3.5-122B-A10B-step0-combo1"
+    ],
+    "label": "A2__{task}"
+   },
+   "expect": {
+    "worth": false,
+    "category": null
+   },
+   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud"
+  },
+  {
+   "name": "A4-conan-io__conan.86f29e13.func_pm_remove_assign__vt2zl5s6",
+   "group": "still_12of12",
+   "root": "bench/arms/evb122b-h50--b50c-A4-r1",
+   "task": "conan-io__conan.86f29e13.func_pm_remove_assign__vt2zl5s6",
+   "rewrite": "20261105-191801Z--harder",
+   "after": {
+    "evals": [
+     "bench/combo/evals/20261105-200219Z--base-Qwen3.5-122B-A10B-step0-combo1"
+    ],
+    "label": "A4__{task}"
+   },
+   "expect": {
+    "worth": false,
+    "category": null
+   },
+   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud"
+  },
+  {
+   "name": "A4-data-science_20260417_112147_005",
+   "group": "still_12of12",
+   "root": "bench/arms/evb122b-h50--b50c-A4-r1",
+   "task": "data-science_20260417_112147_005",
+   "rewrite": "20261105-191801Z--harder",
+   "after": {
+    "evals": [
+     "bench/combo/evals/20261105-200219Z--base-Qwen3.5-122B-A10B-step0-combo1"
+    ],
+    "label": "A4__{task}"
+   },
+   "expect": {
+    "worth": false,
+    "category": null
+   },
+   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud"
+  },
+  {
+   "name": "A4-machine-learning_20260508_045740_002",
+   "group": "still_12of12",
+   "root": "bench/arms/evb122b-h50--b50c-A4-r1",
+   "task": "machine-learning_20260508_045740_002",
+   "rewrite": "20261105-191801Z--harder",
+   "after": {
+    "evals": [
+     "bench/combo/evals/20261105-200219Z--base-Qwen3.5-122B-A10B-step0-combo1"
+    ],
+    "label": "A4__{task}"
+   },
+   "expect": {
+    "worth": false,
+    "category": null
+   },
+   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud"
+  },
+  {
+   "name": "A4-rts_task_273506dfe1d5bfc5c2b4f83c",
+   "group": "still_12of12",
+   "root": "bench/arms/evb122b-h50--b50c-A4-r1",
+   "task": "rts_task_273506dfe1d5bfc5c2b4f83c",
+   "rewrite": "20261105-191801Z--harder",
+   "after": {
+    "evals": [
+     "bench/combo/evals/20261105-200219Z--base-Qwen3.5-122B-A10B-step0-combo1"
+    ],
+    "label": "A4__{task}"
+   },
+   "expect": {
+    "worth": false,
+    "category": null
+   },
+   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud"
+  },
+  {
+   "name": "A4-scientific-computing_20260414_080620_005",
+   "group": "still_12of12",
+   "root": "bench/arms/evb122b-h50--b50c-A4-r1",
+   "task": "scientific-computing_20260414_080620_005",
+   "rewrite": "20261105-191801Z--harder",
+   "after": {
+    "evals": [
+     "bench/combo/evals/20261105-200219Z--base-Qwen3.5-122B-A10B-step0-combo1"
+    ],
+    "label": "A4__{task}"
+   },
+   "expect": {
+    "worth": false,
+    "category": null
+   },
+   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud"
+  },
+  {
+   "name": "PC-data-science_20260417_112147_005",
+   "group": "still_12of12",
+   "root": "bench/arms/evb122b-h50--b50c-PC-r1",
+   "task": "data-science_20260417_112147_005",
+   "rewrite": "20261105-191804Z--harder",
+   "after": {
+    "evals": [
+     "bench/combo/evals/20261105-200219Z--base-Qwen3.5-122B-A10B-step0-combo1"
+    ],
+    "label": "PC__{task}"
+   },
+   "expect": {
+    "worth": false,
+    "category": null
+   },
+   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud"
+  },
+  {
+   "name": "PC-debugging_20260416_172928_002",
+   "group": "still_12of12",
+   "root": "bench/arms/evb122b-h50--b50c-PC-r1",
+   "task": "debugging_20260416_172928_002",
+   "rewrite": "20261105-191804Z--harder",
+   "after": {
+    "evals": [
+     "bench/combo/evals/20261105-200219Z--base-Qwen3.5-122B-A10B-step0-combo1"
+    ],
+    "label": "PC__{task}"
+   },
+   "expect": {
+    "worth": false,
+    "category": null
+   },
+   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud"
+  },
+  {
+   "name": "PC-debugging_20260417_112147_004",
+   "group": "still_12of12",
+   "root": "bench/arms/evb122b-h50--b50c-PC-r1",
+   "task": "debugging_20260417_112147_004",
+   "rewrite": "20261105-191804Z--harder",
+   "after": {
+    "evals": [
+     "bench/combo/evals/20261105-200219Z--base-Qwen3.5-122B-A10B-step0-combo1"
+    ],
+    "label": "PC__{task}"
+   },
+   "expect": {
+    "worth": false,
+    "category": null
+   },
+   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud"
+  },
+  {
+   "name": "PC-scientific-computing_20260414_080620_005",
+   "group": "still_12of12",
+   "root": "bench/arms/evb122b-h50--b50c-PC-r1",
+   "task": "scientific-computing_20260414_080620_005",
+   "rewrite": "20261105-191804Z--harder",
+   "after": {
+    "evals": [
+     "bench/combo/evals/20261105-200219Z--base-Qwen3.5-122B-A10B-step0-combo1"
+    ],
+    "label": "PC__{task}"
+   },
+   "expect": {
+    "worth": false,
+    "category": null
+   },
+   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud"
+  }
+ ]
+}
