@@ -65,6 +65,18 @@
       ],
       "count": null,
       "skip_unpackable": true
+    },
+    {
+      "name": "turing-clean",
+      "repo": "recursive-data-env/turing-gift",
+      "revision": "a2250adfb05436813d7aeae8713d125cd12caf10",
+      "adapter": "tmax_reaudit",
+      "metadata": "data/turing_clean.parquet",
+      "archives": [
+        "data/tasks-turing_clean.tar"
+      ],
+      "count": null,
+      "skip_unpackable": true
     }
   ]
 }
