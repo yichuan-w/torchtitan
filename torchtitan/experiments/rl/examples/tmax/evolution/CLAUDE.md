@@ -39,4 +39,5 @@ what the prompt cannot control.
 what to do with a task whose consecutive rewrites in one direction all leave it where it was (still
 all-fail after several easier rewrites, still all-pass after several harder ones): retire it, pause
 sampling it, or hand it to the data side. He ruled that it is not retired; it keeps being sampled
-as usual. How often this happens is reported by EvolveBench as a measure, not acted on.
+as usual: compute a training run spends on tasks that give no signal is not something he optimises
+for. How often this happens is reported by EvolveBench as a measure, not acted on.
