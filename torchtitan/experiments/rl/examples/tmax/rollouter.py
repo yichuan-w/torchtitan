@@ -2755,7 +2755,12 @@ class TMaxRollouter(Rollouter):
             and captured
             and captured[-1].completion_token_ids
         ):
-            matched = match_self_destruct(last_turn_commands(captured))
+            matched = match_self_destruct(
+                last_turn_commands(captured),
+                episode_commands=last_turn_commands(captured, len(captured)),
+                error=error_msg,
+                terminal_events=terminal_events,
+            )
             if matched is not None:
                 infra_failed = False
                 status = RolloutStatus.COMPLETED

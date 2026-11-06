@@ -69,12 +69,18 @@ class TerminalLifecycle:
         # Its default title "tmux: server" fell to the agent's `pkill server`
         # on tasks with their own `server`, and security tasks deleted the
         # terminus-* dir as suspicious (run 111e: 27 and 42 rollouts).
-        neutral = os.environ.get("TT_NEUTRAL_TMUX", "1") == "1"
-        prefix = "tmux" if neutral else "terminus"
-        self.directory = f"/var/tmp/{prefix}-{uuid.uuid4().hex}"
-        # Linux tmux titles its server "<argv0 name>: server" cut to 15 bytes at
-        # a space, so a 12-character name drops "server" from it.
-        self.server_link = f"{self.directory}/tmux-session" if neutral else ""
+        self.neutral = os.environ.get("TT_NEUTRAL_TMUX", "1") == "1"
+        name = f"{'tmux' if self.neutral else 'terminus'}-{uuid.uuid4().hex}"
+        # TT_TMUX_USR_LIB: keep the directory under /usr/lib. In /var/tmp the
+        # agent's cleanups took it (`rm -rf /var/tmp/* /tmp/*` to free disk,
+        # security tasks removing the unknown binaries; run 114: 3 rollouts),
+        # and with it the pinned loader every harness client runs through.
+        # Deleting /usr/lib breaks the sandbox anyway; /usr/local and /opt are
+        # reinstalled or wiped by tasks. /var/tmp stays the fallback.
+        self.candidates = [f"/var/tmp/{name}"]
+        if os.environ.get("TT_TMUX_USR_LIB", "1") == "1":
+            self.candidates.insert(0, f"/usr/lib/{name}")
+        self._set_directory(self.candidates[0])
         self.prepared = False
         self.session: str | None = None
         self.server_pid = ""
@@ -88,6 +94,12 @@ class TerminalLifecycle:
         # runs whatever `tmux` the sandbox's PATH and library cache resolve.
         self.tmux_command = ""
 
+    def _set_directory(self, directory: str) -> None:
+        self.directory = directory
+        # Linux tmux titles its server "<argv0 name>: server" cut to 15 bytes at
+        # a space, so a 12-character name drops "server" from it.
+        self.server_link = f"{directory}/tmux-session" if self.neutral else ""
+
     def _event(self, kind: str, **details: Any) -> None:
         self.events.append({"time": time.time(), "kind": kind, **details})
 
@@ -96,9 +108,17 @@ class TerminalLifecycle:
         return TerminalUnavailable(reason, self.events)
 
     async def prepare(self) -> None:
-        result = await self.execute(f"mkdir -m 700 -p {shlex.quote(self.directory)}")
-        if result.return_code != 0:
+        script = " || ".join(
+            f"{{ mkdir -m 700 -p {d} 2>/dev/null && echo {d}; }}"
+            for d in map(shlex.quote, self.candidates)
+        )
+        result = await self.execute(script)
+        made = (result.stdout or "").strip().splitlines()[-1:]
+        if result.return_code != 0 or not made or made[0] not in self.candidates:
             raise self._unavailable("terminal_directory_creation_failed")
+        if made[0] != self.candidates[0]:
+            self._event("terminal_directory_fallback", directory=made[0])
+        self._set_directory(made[0])
         self.prepared = True
 
     def _starttime_command(self) -> str:
