@@ -17,6 +17,170 @@ happens, and the rewriter never sees the measurement.
 `evolve_bench.py` is the one entry point; `evolve_bench.py <cmd> -h` lists
 every argument.
 
+## Standard (2026-11-06)
+
+This section is the standard EvolveBench results are judged by. Where any
+other part of this file, or an earlier comment in yichuan-w/torchtitan#319,
+differs from it, this section holds. The sections after it describe the tool
+and the sets frozen before this standard; where they name a single student, a
+single recipe, k=16 or McNemar, this section's two students, their two
+recipes, k=12 and the sign test apply.
+
+### Principles
+
+Work done under this standard needs no further approval, provided it keeps
+these five principles, which Zhifei set and canonical `evolution/CLAUDE.md` on
+`yichuan/qwen35-port-cotrain` also records:
+
+1. The loop spends no extra student rollouts to measure a rewrite; a task's
+   difficulty is read only from rollouts training already runs (2026-10-19).
+   EvolveBench's own evaluations sit outside training and do not break this.
+2. A change to what the rewriter is told (a prompt edit, a prompt flag) enters
+   training only after it beats the mainline arm A0 on EvolveBench as specified
+   here. EvolveBench is the only measure that decides it (2026-11-05).
+3. When the rewriter does something wrong, first find the sentence of its
+   prompt that pushed it there and change the prompt. A check is a backstop: a
+   check that does not change a prompt is only recorded until it is measured the
+   same way (2026-11-05).
+4. A task that several rewrites in a row did not move stays in training as
+   usual. Training compute spent on tasks without a signal is not what is being
+   optimized (2026-11-05).
+5. Mechanism details are decided by whether they raise EvolveBench and help the
+   policy progressively solve Terminal-Bench 2 tasks (2026-11-05).
+
+Execution details inside these principles are decided by whoever runs the
+measurement and reported in yichuan-w/torchtitan#319. A change to the principles
+or to this standard goes through Zhifei's side first.
+
+### Task selection
+
+Candidates: the 47 tasks of the 122B harder slice `evb122b-h50`, the 55 of
+dev55, the rest of agentpick400, and tasks from runs 111e and 114. Each
+candidate's original is measured once at k=12 on base 9B and once on base 122B
+(122B under `train-111c-122b`; 9B under the recipe the dev55 re-measurement on
+the eval cluster records in its `launch.json`). Then:
+
+- easier: originals base 122B solves in none of 12 attempts;
+- harder: originals base 9B solves in all 12 attempts;
+- a candidate in neither group is left out.
+
+The pool is the candidates that pass this selection. A task's direction is set
+here and holds for both students, including a student whose own 12 attempts
+on the original are mixed.
+
+The known-defect repair rows of agentpick400 (`repair` and `calibforge_repair`,
+labelled in `data_evolve_bench_defects.tsv`, release config
+`data_evolve_bench.json`) are candidates like the rest and also report a repair
+rate, as described below. An earlier k=12 measurement of an original on the
+same student can stand in for its selection measurement; a k=16 measurement
+contributes its first 12 graded attempts.
+
+### Rewriting and measurement
+
+Every task in the pool is rewritten once per student, 9B and 122B. The
+rewriter's traces are that student's own 12 attempts on the original. The
+rewrite is then measured on the same student at k=12, the group size of the
+122B training runs. One rep is the whole pool rewritten and measured once per student; every
+arm runs 3 reps. An existing rewrite counts toward a rep only when its traces
+came from the student it is measured on.
+
+### Reported numbers
+
+The main number is clean_mixed: tasks whose rewrite, measured at k=12, is solved
+in 1 to 11 of 12 attempts and has no confirmed defect in the Opus blind audit,
+whose audit step is followed by a verify step. It is the same for both directions and both students and
+is reported per direction and student and in total; the denominator is the
+tasks of that direction in the pool, and a rewrite the pipeline did not accept
+counts as not clean_mixed.
+
+Reported beside it:
+
+- tasks still at 12/12 and tasks at 0/12 after the rewrite;
+- attempts that ended at the time limit, as an infrastructure finding with the
+  per-turn generation wait, never as difficulty;
+- confirmed audit defects by class; LEAKY is the leak measure;
+- repair rate by defect class, from `tally --labels data_evolve_bench_defects.tsv`
+  (`repair` in its output), with a hand label in the `fixed` column taking
+  precedence.
+
+Not reported: the count of rewrites landing in 3 to 8 of 12, which is the
+solved-count band `EVOLVE_HARDER_TARGET` gives harder rewrites in training and
+not what EvolveBench judges by; and the count of new "input X gives output Y"
+sentences, which is measured only on the 7-task leak slice that tests
+`EVOLVE_NO_WORKED_ANSWERS` (the parents of the seven 111e harder rewrites that
+added such a sentence). dev55's earlier k=16 clean_mixed numbers serve only to
+compare with the three earlier replicates of the p8 rewriter (3d60dfdd7).
+
+### Comparison with A0
+
+Each arm is paired with A0 task by task, rep 1 with rep 1 and so on, with an
+exact sign test on clean_mixed. The difference between A0's own reps is the
+noise floor. An arm wins only when the whole pool is measured and every rep is
+audited, its clean_mixed lead over A0 is larger than A0's own rep-to-rep
+difference, and the paired sign test gives p < 0.05.
+
+### Chain mode
+
+Chain mode takes about 50 tasks, and each task runs its own chain of up to 3
+hops. A hop is one rewrite and one k=12 measurement of it on the chain's
+student; the next hop goes harder after 12/12, easier after
+0/12, and the chain stops at a mixed result. The next hop's traces are the
+attempts of the previous hop's measurement (`eval_signal_run.py`, branch
+`evolve-second-hop-stage`). The tasks include deflate
+(`software-engineering_20260611_205750_010`), Forth
+(`software-engineering_20260604_144210_015`), 111e tasks still at 12/12 after
+two or more harder rewrites, and the 48 tasks proposed as chain seeds in
+`candidates/doc-cases-20261027`, whose labelled failure class is reported
+beside each hop; with these the set may exceed 50. Chain mode reports, per hop,
+the counts above, plus:
+
+- stubborn rate: tasks whose result did not change over two or more
+  consecutive same-direction hops, an easier task staying at 0/12 or a harder
+  one at 12/12;
+- oscillation rate: harder overshooting to 0/12 and easier bringing it back to
+  12/12, or the reverse.
+
+Stubborn tasks stay in training as usual; the chain only reports them.
+
+### Judging agent
+
+A separate agent judges whether a rewrite is worth anything; Yichuan's side
+implements it. It does not ask that question directly. From the tested
+student's attempts on the original and on the rewrite it answers:
+
+- what new judgement the rewriter claims the change requires;
+- whether the failed attempts fail on exactly that judgement;
+- whether most successful attempts actually make that judgement;
+- whether failures submitted a wrong answer or ran out of time or context;
+- whether the rewrite leaks the answer, only lengthens the work, lets the
+  difficulty be bypassed, requires something the instruction does not state,
+  or breaks the environment.
+
+For easier rewrites it also reports the kind of help: repairs the task,
+supplies missing information, gives the method, or does the core work for the
+student. Its output is one verdict per rewrite with the reason and quoted
+evidence.
+
+It enters the report only after its agreement is measured on a calibration set,
+above all how often it passes a rewrite that is not worth anything. The
+calibration set, with the verdict each should get, uses rewrites named in
+yichuan-w/torchtitan#319 and #324:
+
+- the TLS rewrite: worth it;
+- the LZ4 rewrite: worth it by the majority of solutions;
+- `task_001320` rev2 and rev3: leak;
+- the HAProxy rewrite: the check its author meant to add was dropped;
+- the rewrites of arm A4 (`EVOLVE_HARDER_WORK` alone) whose failures hit the time
+  limit: lengthened work;
+- the 24 rewrites still at 12/12 that Yichuan read in #319.
+
+### Arms under this standard
+
+A0, `EVOLVE_HARDER_TARGET`, `EVOLVE_PEER_CONTEXT`, AQ2 (`EVOLVE_HARDER_QUIET`),
+AN (`EVOLVE_NO_WORKED_ANSWERS`) and ASR (`EVOLVE_HARDER_STATE_RESULT`) are all
+concluded again under this standard. Results measured before it are no longer
+grounds for a decision.
+
 ## The task set
 
 `data_evolve_bench.json` is a `data_release.py` config over
