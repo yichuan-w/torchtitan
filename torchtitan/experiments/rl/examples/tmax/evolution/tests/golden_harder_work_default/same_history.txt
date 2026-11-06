@@ -1,0 +1,229 @@
+This task was solved 12 of 12 attempts and met the
+hardening threshold.
+
+These tasks train an agent for real terminal work, the
+kind Terminal-Bench measures: building, configuring, debugging and repairing
+real software, recovering data in real formats, applying a known algorithm under
+a real constraint. A harder task needs more of that work or deeper knowledge of
+a real system. It does not need more care in reading the workspace.
+
+Start from the student's attempts in `traces/`: what the successful strategy
+did, and which real work the task currently spares it -- a dependency that
+already installs cleanly, a version whose behavior is the one everyone
+remembers, a format reduced to its easy subset, a service that needs no
+configuration.
+
+Then research one real difficulty that fits this task's domain and tools: a
+documented behavior change between two versions of a package the task uses, a
+known issue in an upstream project's tracker together with its fix, a detail of
+a file format or protocol from its specification, a failure an operator of this
+software meets in practice. Your own recollection decides what to look for;
+it is never the source. Search with your web tool to find candidate sources. Your shell also has network access: read the primary source
+there -- the project's documentation or changelog page, the issue thread
+through GitHub's REST API (`api.github.com/repos/<owner>/<repo>/issues/<n>`,
+`/releases`), a package's PyPI JSON, the specification, the code at a tag.
+Cite only what you fetched.
+
+The difficulty must be real in this environment. Pin the actual upstream
+artifact it comes from (`package==version`, a repository at a commit, a URL
+with its sha256) in the Dockerfile -- not a distribution package pinned to a
+point release (`git=1:2.34.1-1ubuntu1.18`): the archive drops superseded
+builds and the image stops building -- and confirm in `./sandbox exec` that the
+behavior the source describes happens here: the error, the wrong output, the
+crash.
+
+Then act as the student on what it now meets. In the sandbox, apply the fix
+the error message or tool output itself suggests, and the fix the attempts in
+`traces/` reach for first when a step fails (often upgrading, reinstalling or
+regenerating the thing that broke), and grade each. If either passes, the
+difficulty announces its own fix: such changes stayed at k of k in measured
+groups, so choose another. A planted error must not name its own fix. The work
+has to need a decision the message does not dictate -- a result that is wrong
+without saying so until the student checks it, or a choice between plausible
+fixes that only checking tells apart -- and the output has to give an
+investigating student something to go on: a name, a code, a documented
+message. The intended fix must be reachable without editing a file the task
+protects or pins by digest: when the natural fix is an edit to such a file,
+every attempt that makes it fails the integrity check, and the group fails
+every time. Record both fixes you tried and their grades in
+`run/hardening.md`.
+
+A library, tool, version or bug that does not exist upstream is not
+allowed, and neither is a vendored imitation of one. The environment holds the
+problem, never its fix: no patch, fixed release, backported file or note that
+names the fix goes into the image or the task's files; the fix lives only in
+the reference solution.
+
+Write `run/hardening.md` before editing the task: the sources by URL with the
+sentence of each that you rely on, the pinned artifacts, the reproduction
+command with the output you observed, what the student must now do that the
+successful attempts did not, and why that is one modest step from the skills
+those attempts show.
+
+These are not hardening, whatever their effect on the solve rate: decoy files,
+a second candidate or stale copy to choose between, a log that contradicts a
+config, an extra edge-case clause for the input, stricter output formatting, a
+longer instruction. Keep the original task's wording: removing what it
+already says is a withdrawal of help, not the real difficulty, and it mixes
+the two in the student's measured solve rate. Help that an earlier
+simplification of this task added (`traces/history/since-original.diff`) is
+not the original task's. If any of it hands the student the result the task
+asks for -- a value the checks expect, the exact output, the decisive step --
+withdrawing it whole is this rewrite's change, however much the attempts lean
+on it, and nothing new is added on top: a task that gives its answer away does
+not get harder by adding to it. Say in `run/hardening.md` what you withdrew.
+State any new requirement the
+way a user would, in a sentence or two -- the goal and the deliverable. Do not
+list the pitfalls; the agent meets them as error messages, logs and behavior
+in the environment, the way the real software presents them.
+
+The student has 7200 seconds of wall clock, 120 turns
+and a 79,872-token context per attempt, and generating its own
+turns takes most of that time: in measured attempts its commands ran for about 100
+seconds in total. So the reference solution's commands, as `./sandbox check`
+times them, stay well under 300 seconds, and anything slow that is not the
+point of the task -- a large download, a full build of a dependency -- happens
+in the Dockerfile, at image build. What is left to the student is a debug and
+rebuild loop measured in minutes. Its context is limited too: a correct
+solution must not require reading an unbounded build log or data dump.
+
+Preserve the original user goal and requirements unrelated to the change.
+Aim for a modest reduction in this student's solve rate toward mixed success,
+not universal failure. Base the prediction on the student's own path, not on
+the shortcut you imagine: after editing, replay the commands of two successful
+attempts from `traces/` against the revised task (`./sandbox exec`, then
+`./sandbox grade`; the verifier's output is in `run/last-grade.json`), each
+from a fresh `./sandbox reset` of the built image, starting nothing by hand
+that the instruction says is ready (AGENTS.md says why), and say
+in `run/hardening.md` where each now stops and every check it fails. If both
+still pass, the change does not touch the path the student takes. Then write
+the solved count you expect from the next group of the same size as a number
+("5 of 8"), resting on those replays. If no real
+difficulty that fits this task can be reproduced here, write
+`GIVE UP: no-real-difficulty — <what you searched and why it did not fit>` and
+stop.
+
+
+The size of the rewrite is checked, not trusted. The reference solution may stay the same length or shrink, and may grow by at most 8 non-comment lines. Do not add code to meet a minimum length.
+The seed has 2 non-comment solution lines; the verifier may gain at most 5 assertions over the
+seed's 1. `./sandbox check` fails outside that and the caller
+rejects the rewrite. Measured on this corpus: rewrites that grew to 125 lines
+came back 0/16 five times in six, while the seed at its own size was solved
+every time. These limits bound the patch size; student re-testing measures difficulty.
+
+Then do the work in this order, one file at a time. The order is not
+arbitrary — each file is written against the one before it, and the synthesis
+pipeline that produced these tasks runs the same sequence for that reason:
+
+  1. `solution/solve.sh` — adapt the existing solution to the changed condition.
+     Preserve the parts that still apply.
+  2. the verifier — written against that answer and the requirement, not
+     against incidental details of the workspace.
+  3. `instruction.md` — what the agent is told. It has to make everything the
+     verifier requires discoverable: findable in the workspace, or stated here.
+  4. `environment/Dockerfile` — the environment the other three assume.
+
+Add whatever new files the change needs — a fixture the Dockerfile copies, a
+config, a data file. Anything you write in the package comes back with it.
+
+Constraints on the environment, because step 4 is yours now and these are what
+the pipeline that built these tasks learned the hard way:
+
+- **Every COPY source must exist in the package.** A Dockerfile line referring to
+  a file you did not write is the most common way a rewritten task is thrown
+  away: it builds nowhere, and the failure arrives long after this session ended.
+- **What you add has to fit in the row.** The package is shipped to training as
+  one line of JSON: COPY sources together stay under 1 MiB, and files under
+  `tests/` are text and together stay under 1 MiB; a binary under `tests/` is
+  refused by name (the container's boot says so). A binary the environment needs is
+  a COPY source under `environment/` or is produced by a RUN; a large reference
+  the verifier needs is checked by hash, not shipped.
+- Preserve the seed's base image and installation style; make the smallest change
+  the changed condition needs. An environment rewritten wholesale is a new task,
+  not a harder one.
+- The sandbox has network access, and a task may use it -- fetching a pinned
+  file, querying a public service -- when that is part of the work rather than
+  decoration. Pin what is fetched (a URL plus a checksum or a version) so the
+  reference solution stays reproducible, and make a failed fetch fail loudly:
+  a non-zero exit and the error on stderr, never a silent fallback. The
+  harness records what each sandbox could reach at boot, so a task that needs
+  the network is diagnosable when a cluster's egress differs. No credentials
+  and nothing that only works through a proxy.
+- The container is the size training gives this task (`run/resources.json`),
+  and `./sandbox check` measures what the reference solution costs in it. The
+  task is provisioned from that measurement, never below the seed's size and
+  never from a number you write. If the solution outgrows the box, `check`
+  says what ran out; make the solution need less. `./sandbox check --max`
+  measures at the platform ceiling (4 vCPU / 8 GiB / 10 GiB) and is for the
+  rare harder task that genuinely needs more than the seed had, not a way
+  past a failing check. A task that needs more than the ceiling never starts,
+  so it is unrunnable rather than hard.
+- Guard edits against paths you did not create (`test -f` first); prefer adding a
+  local fixture over patching something the image cloned.
+
+**Before you run `./sandbox check`, reconcile the verifier against the solution
+one check at a time.** For each check, name the lines of `solve.sh` that make it
+pass. A check with nothing behind it is the single largest way these tasks are
+lost: the reference runs cleanly, scores zero, and the whole task is thrown away
+after a full image build. Where nothing satisfies a check, fix `solve.sh` if the
+check is fair, and fix the check if it asks for something the instruction never
+promised and the workspace never reveals — that one would fail a real agent too.
+Do this literally, check by check; an impression that it all hangs together is
+what produces the failure.
+
+Aim for a task a capable agent lands about half the time.
+
+Before hardening, check that the successful attempts earned their reward. If
+one passed with a result the instruction rules out -- a hard-coded answer where
+the task requires computing it, skipped required work the verifier does not
+check, an edited test or grading file -- or the task setup itself is broken,
+repairing that is part of this rewrite: make the requirement the shortcut
+skipped explicit and checkable, or fix the setup, then harden the repaired
+task. Record every repair in `run/repair.json`: a list of objects with
+nonempty "defect", "evidence" (attempt file and turn), "change" and "kind";
+each repair is reported for review. "kind" is "reward_hack" for a shortcut an
+attempt was rewarded for, "hidden_requirement" for a check the instruction
+never states, "broken_setup" for an environment missing what the task needs,
+and "other" for anything else. An attempt that solved the task the intended
+way is not a defect, however quickly it did so.
+
+TRACES. `traces/attempt-NN.jsonl`, one file per attempt (NN counts from 01,
+in the order the attempts ran), one JSON object per line. Line 1 is the
+rollout: reward, turns, secs, and how it ended (status, finish_reason,
+submitted, format_errors, infra_failed), with the task, run and group it
+came from. Every later line is one turn, in order: turn, keystrokes (a list:
+what the agent typed; empty on a closing turn), task_complete, output (the
+terminal after it; empty on the last turn, where the episode ended),
+analysis, plan, think. A turn with no parseable response has raw instead of
+keystrokes. The header may contain verifier diagnostics and a per-test report.
+If `traces/previous-simplify.json` exists, read the prior intervention and its
+measured outcome before editing. An all-failed variant needs a stronger or
+different intervention at the remaining obstacle; an all-solved variant needs
+part of the removed difficulty restored, not an unrelated extra deliverable.
+The current attempts show whether the prior prediction held.
+These attempts are one group, all solved or all failed, so they cannot show
+which decision separates a pass from a fail. When `traces/revision/` exists it
+holds that contrast for the revision being rewritten: `trajectory.jsonl`, one
+line per group the student finished on it in this run, oldest first (solved,
+total, finish reasons), and `mixed/gG-rK.jsonl`, the attempts of its latest
+mixed groups in the same format. Compare a passing and a failing attempt from
+one mixed group to find the decision that differs, and read the trajectory
+for how fast the student moved on this revision. jq is on PATH;
+these are enough:
+
+  head -qn1 traces/*.jsonl | jq -c '{rollout, reward, turns, finish_reason}'
+                                                              # every attempt's outcome
+  jq -r 'select(.turn) | "\(.turn)\t" + ((.keystrokes // [.raw]) | join(""))' traces/attempt-01.jsonl
+                                                              # the commands alone, turn number first
+  tail -n 4 traces/attempt-03.jsonl | jq -r '.turn, .output'  # what the last four turns saw
+  jq -r 'select(.turn) | select((((.keystrokes // [.raw]) | join("")) + (.output // "")) | test("metrics")) | .turn' traces/attempt-02.jsonl
+                                                              # the turns whose commands or output mention "metrics"
+A line number from grep -n over the joined keystrokes is not a turn number.
+
+Budget: this session is ended at <CLOCK>,
+whatever state the files are in, and a session that ends that way is discarded
+whole. `reset` and `check` build the image and take minutes each;
+`./sandbox exec` takes seconds. Plan for two or three checks, not for guessing.
+
+THIS TASK'S HISTORY
+Read traces/history/summary.md first: every earlier rewrite of this task, oldest first, with what training measured before it, how it ended and why, and which files it changed, with the diff and notes files for each (index.jsonl holds the same records as data). Read them before editing: they show which changes already moved this task and how far, and which attempts failed and why. Do not copy any of it into the task.

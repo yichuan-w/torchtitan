@@ -105,7 +105,49 @@ def student_budget() -> str:
     )
 
 
-def prompt(hint: str) -> str:
+# The group size the EVOLVE_*_TARGET bands are written against (#306): run
+# 1031b's groups, where the easier and harder hit rates were measured.
+TARGET_GROUP = 12
+
+
+def target_band(var: str, attempts: int) -> tuple[int, int] | None:
+    """The solved-count band env ``var`` names, as "lo-hi" out of TARGET_GROUP,
+    scaled to a group of ``attempts`` and kept inside 1..attempts-1; None when
+    unset."""
+    spec = os.environ.get(var, "").strip()
+    if not spec:
+        return None
+    m = re.fullmatch(r"(\d+)\s*-\s*(\d+)", spec)
+    if not m or not 0 < int(m[1]) <= int(m[2]) < TARGET_GROUP:
+        raise ValueError(
+            f'{var} must read "lo-hi" with 0 < lo <= hi < {TARGET_GROUP}, got {spec!r}'
+        )
+    lo, hi = (int(x) * attempts / TARGET_GROUP for x in m.groups())
+    lo = min(max(1, int(lo + 0.5)), attempts - 1)
+    hi = min(max(lo, int(hi + 0.5)), attempts - 1)
+    return lo, hi
+
+
+def easier_target(attempts: int) -> str:
+    """EVOLVE_EASIER_TARGET (#306 item 1): an explicit band for the next group
+    and the measured bias of earlier predictions. Empty when unset, so the
+    prompt is unchanged. In run 1031b easier rewrites predicted 4.8 of 12 on
+    average and their first group solved 2.7."""
+    band = target_band("EVOLVE_EASIER_TARGET", attempts)
+    if band is None:
+        return ""
+    lo, hi = band
+    return f"""
+
+Aim for {lo} to {hi} of {attempts} solved in that next group, and write expected
+inside that range. Past easier rewrites under-simplified: they predicted about 2
+more solves in 12 than the next group produced. Size the change for this target,
+not for the least help that might produce a first success."""
+
+
+def prompt(hint: str, attempts: int = TARGET_GROUP) -> str:
+    """The easier rewrite's guidance; ``attempts`` is the group size the next
+    measurement uses, read only by EVOLVE_EASIER_TARGET."""
     if hint not in ("none", "vague", "specific"):
         raise ValueError(f"unknown simplify hint level: {hint}")
     return f"""Hint level: {hint}. It limits what the instruction and any text you supply
@@ -124,7 +166,7 @@ group of the same size lands in the learnable band: some attempts succeed and
 some fail. A task that stays at 0/k gives no training signal and wastes every
 rollout spent on it; a task that overshoots to k/k gives no signal either,
 until a later hardening withdraws the help. Neither miss is the safe one: size
-the change to what the attempts show.
+the change to what the attempts show.{easier_target(attempts)}
 
 {student_budget()}
 
@@ -329,6 +371,22 @@ def extra_guidance() -> str:
 
 
 EXPECTED = re.compile(r"^\s*\d+\s+of\s+\d+\s*$")
+# A harder rewrite's prediction in run/hardening.md, on a line of its own:
+# expected: "k of n" (EVOLVE_HARDER_TARGET asks for it). A list marker or
+# backticks around the line are tolerated; prose with a count in it is not.
+HARDER_EXPECTED = re.compile(
+    r'^[ \t>*`-]*expected:[ \t]*"?[ \t]*(\d+)[ \t]+of[ \t]+(\d+)[ \t]*"?`?[ \t]*$',
+    re.MULTILINE | re.IGNORECASE,
+)
+
+
+def harder_expected(text: str) -> str | None:
+    """The ``expected: "k of n"`` line of a hardening.md, as "k of n"; None
+    when there is none or k exceeds n."""
+    m = HARDER_EXPECTED.search(text)
+    if m is None or int(m[1]) > int(m[2]):
+        return None
+    return f"{int(m[1])} of {int(m[2])}"
 
 # How an attempt that ran out of room ends (rollouter._FINISH_REASONS).
 LIMIT_REASONS = frozenset({"hit_context_limit", "hit_max_turns", "hit_time_budget"})

@@ -112,6 +112,11 @@ class TMaxSample:
     and each accepted rewrite folded into the mix raises it. Travels into every
     rollout record and signal, so a verdict names the revision it was reached on."""
 
+    evolve_frozen: bool = False
+    """``metadata.evolve_frozen``: a pinned copy of a task the evolve loop keeps
+    beside the revision it rewrites (issue #306). Trained on like any row, but
+    its groups raise no rewrite signal."""
+
     lineage: SampleLineage | None = field(default=None, compare=False)
     """Per-yield identity; excluded from equality because it is not task content."""
 
@@ -207,6 +212,7 @@ def _parse_sample_row(row: dict) -> TMaxSample:
         or _coerce_prompt(row.get("prompt")),
         tmax=tmax,
         rev=int(md.get("rev") or 0),
+        evolve_frozen=bool(md.get("evolve_frozen")),
         boot_kwargs=harbor_env.boot_kwargs(md),
         healthcheck=md.get("healthcheck") or None,
         agent_user=md.get("agent_user") or "",

@@ -37,6 +37,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import shutil
 import statistics
 import subprocess
@@ -49,6 +50,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import evolve as ev
+import harder_work
+import peer_context
 import simplify_operators as so
 import synth_client as llm
 import task_size as ts
@@ -2246,6 +2249,136 @@ never states, "broken_setup" for an environment missing what the task needs,
 and "other" for anything else. An attempt that solved the task the intended
 way is not a defect, however quickly it did so."""
 
+# EVOLVE_HARDER_TARGET="lo-hi" (#306 item 6, default unset): the last sentence
+# of both harder jobs becomes an explicit band out of a group of 12, scaled to
+# this group (so.target_band), and the prediction becomes a line the caller can
+# score, checked like an easier rewrite's expected (_require_harder_expected).
+# The band also replaces the guidance's "modest reduction", and the job states
+# how far 111e's harder rewrites fell short of their predictions.
+_HALF_AIM = "Aim for a task a capable agent lands about half the time."
+assert _HARDER_JOB.endswith(_HALF_AIM) and _HARDER_JOB_BLIND.endswith(_HALF_AIM)
+_HARDER_TARGET = """Aim for a task the next group of {n} attempts solves {lo} to {hi} times.
+Past harder rewrites for this student were too small: in run 111e, 238 of the
+349 whose first training group was measured were solved by every attempt of
+it, and the authors of 220 of those 238 had reported that both replayed
+attempts now stopped. A change that looks sufficient to you is usually not.
+In `run/hardening.md`, put that prediction on a line of its own, exactly
+`expected: "k of {n}"` with k the solved count you expect; the caller reads that
+line and returns a hardening.md without it to you."""
+# The guidance's own aim, which the band replaces: "modest" is the step the
+# 111e audit (issue #313) found too small for a 122B student.
+_MODEST_AIM = """Aim for a modest reduction in this student's solve rate toward mixed success,
+not universal failure."""
+assert _MODEST_AIM in _REAL_HARDER_GUIDANCE
+_BAND_AIM = """Aim for {lo} to {hi} of {n} solved in the next group, not universal
+failure."""
+
+
+def _harder_aim(job_text: str, attempts: int) -> str:
+    """A harder job with EVOLVE_HARDER_TARGET's band in place of its last
+    sentence and of the guidance's "modest reduction"; unchanged when the
+    flag is unset."""
+    band = so.target_band("EVOLVE_HARDER_TARGET", attempts)
+    if band is None:
+        return job_text
+    fields = {"n": attempts, "lo": band[0], "hi": band[1]}
+    return job_text.replace(_MODEST_AIM, _BAND_AIM.format(**fields)).replace(
+        _HALF_AIM, _HARDER_TARGET.format(**fields), 1
+    )
+
+
+_HARDER_EXPECTED_JOB = """The caller cannot read your prediction: `run/hardening.md`
+has no line of its own reading exactly `expected: "k of n"`, with k the solved
+count you expect from the next group of the same size and n that size. Add that
+line, keeping the prediction you already wrote. Change nothing else: the task,
+the reference solution and the environment stay as they are, and your last
+`./sandbox check` still stands."""
+
+
+def _require_harder_expected(
+    rewrite: layout.RewriteDir,
+    author: layout.SessionDir,
+    deadline: RewriteDeadline,
+) -> str:
+    """The harder author's ``expected: "k of n"`` line, under
+    EVOLVE_HARDER_TARGET; one resume of the author when it is missing, as
+    _require_declaration does for simplify.json. Raises ValueError when the
+    line is still missing, RuntimeError when the resume edited the task."""
+    pkg = rewrite.package
+    path = pkg / "run" / "hardening.md"
+
+    def read() -> str | None:
+        return so.harder_expected(path.read_text(errors="replace")) if path.is_file() else None
+
+    if (expected := read()) is not None:
+        return expected
+    before = _probe_hashes(pkg, ("run", "traces"))
+    timeout = _session_timeout(deadline, "harder expected repair")
+    with session(rewrite, "declaration", timeout=timeout, resumes=author) as run:
+        _run_codex(
+            run, pkg, _HARDER_EXPECTED_JOB + _budget(timeout), resume=_session_id(author)
+        )
+    _check_verdict(pkg)
+    if _probe_hashes(pkg, ("run", "traces")) != before:
+        raise RuntimeError("harder expected repair changed task files")
+    if (expected := read()) is None:
+        raise ValueError('run/hardening.md requires a line expected: "k of n"')
+    return expected
+
+
+# EVOLVE_HARDER_WORK / EVOLVE_HARDER_ESCALATE (harder_work.py, default off):
+# the phrases harder_work.drop_modest replaces must be in the texts it edits.
+for _old, _new in harder_work.MODEST_REPLACEMENTS:
+    assert _old in _REAL_HARDER_GUIDANCE or _old in _STUDENT_HARDER_GUIDANCE, _old
+
+
+def _harder_work_text(job_text: str, stats: dict | None, target: dict | None, attempts: int) -> str:
+    """A harder job with the measured work target in place of the "modest
+    step" sizing; unchanged when neither flag gave this rewrite a target."""
+    if target is None or stats is None:
+        return job_text
+    return harder_work.drop_modest(job_text) + harder_work.prompt_block(stats, target, attempts)
+
+
+_HARDER_WORK_JOB = """The caller cannot read your work estimate: `run/hardening.md`
+has no line of its own reading exactly `work: N turns`, with N the turns you
+expect the median successful attempt to need on the revised task. Add that
+line, keeping what you already wrote. Change nothing else: the task, the
+reference solution and the environment stay as they are, and your last
+`./sandbox check` still stands."""
+
+
+def _require_harder_work(
+    rewrite: layout.RewriteDir,
+    author: layout.SessionDir,
+    deadline: RewriteDeadline,
+) -> int:
+    """The harder author's ``work: N turns`` line, under EVOLVE_HARDER_WORK or
+    an escalated EVOLVE_HARDER_ESCALATE; one resume of the author when it is
+    missing, as _require_harder_expected does. Raises ValueError when the line
+    is still missing, RuntimeError when the resume edited the task."""
+    pkg = rewrite.package
+    path = pkg / "run" / "hardening.md"
+
+    def read() -> int | None:
+        return harder_work.declared_work(path.read_text(errors="replace")) if path.is_file() else None
+
+    if (work := read()) is not None:
+        return work
+    before = _probe_hashes(pkg, ("run", "traces"))
+    timeout = _session_timeout(deadline, "harder work repair")
+    with session(rewrite, "declaration", timeout=timeout, resumes=author) as run:
+        _run_codex(
+            run, pkg, _HARDER_WORK_JOB + _budget(timeout), resume=_session_id(author)
+        )
+    _check_verdict(pkg)
+    if _probe_hashes(pkg, ("run", "traces")) != before:
+        raise RuntimeError("harder work repair changed task files")
+    if (work := read()) is None:
+        raise ValueError('run/hardening.md requires a line work: "N turns"')
+    return work
+
+
 _EASIER_JOB = """This task was solved {solved} of {attempts} attempts.
 Diagnose the attempts and reduce one obstacle while retaining a stated skill.
 {guidance}"""
@@ -2326,6 +2459,70 @@ dropped. So a behaviour the task needs checked -- the one your change turns on
 above all -- is lost unless the instruction states it and the entry quotes that
 statement: state it in the instruction, or drop the entry."""
 
+# EVOLVE_NO_WORKED_ANSWERS=1 (#319, default off): the instruction states rules,
+# never the result for an input the task itself uses. task_001320 in 111e: a
+# blind verifier BLOCKED on a disputed count, the author was told to "state the
+# choice your reference solution makes" in the instruction, and it wrote the
+# reference's output for the shipped FACTORS operand ("input 6560999999999999
+# must print 3"). Later harder rewrites kept that sentence as the task's wording
+# and swapped in each new operand; students hard-coded it. Of 1,520 accepted
+# real-guidance harder rewrites in 111e, 7 added such a sentence, 2 of them in
+# this repair step. Off, every prompt is unchanged.
+def _no_worked_answers() -> bool:
+    return os.environ.get("EVOLVE_NO_WORKED_ANSWERS", "0") == "1" or _harder_quiet()
+
+
+_NO_WORKED_ANSWER_NOTE = """
+
+A requirement in the instruction states a rule that holds for every input the
+deliverable may get. It never gives the result for an input the task itself
+uses: an operand in a shipped file, an input your scratch tests run, the
+reproduction case from your sources. Such a sentence hands the student the
+value the check expects, and printing that value passes without the work. This
+holds for such a sentence an earlier rewrite added too: withdraw it rather than
+keep it or update its numbers. Where a check needs that result, the verifier
+computes it from the environment."""
+
+
+# EVOLVE_HARDER_QUIET=1 (#319, default off; turns EVOLVE_NO_WORKED_ANSWERS on
+# too): a harder change counts only where its wrong result passes the checks
+# the successful attempts ran on their own work. In combo1 of the 122B harder
+# slice, the rewrites still at 12/12 mostly failed loudly (a traceback, a FAIL
+# line, a plainly wrong label) while the clean 3-8/12 ones failed silently; the
+# "both replays fail" line appeared in 19/24 of the first and 17/18 of the
+# second, so a replay that stops at a new error says nothing. Naming the checked
+# property in the instruction did not separate them (17/24 vs 15/18), so the
+# instruction rule first tried here was withdrawn. Applies to the real guidance
+# only (not calibration, not student guidance). Off, every prompt is unchanged.
+def _harder_quiet() -> bool:
+    return os.environ.get("EVOLVE_HARDER_QUIET", "0") == "1"
+
+
+_QUIET_REPLAY = (
+    "If both still pass, the change does not touch the path the student takes.",
+    "If both still pass, the change does not touch the path the student takes. "
+    "A replay stops at the first new error only because it replays fixed\n"
+    "keystrokes; a student reads that error and changes course. Count every failure\n"
+    "the attempt's own commands would print -- a traceback, a FAIL line, a non-zero\n"
+    "exit, a count or label that is plainly wrong -- as fixed within a few turns.\n"
+    "The change makes the task harder only where the wrong result passes every\n"
+    "check the successful attempts ran on their own work; do not ship a test,\n"
+    "script or exit code that reports it.",
+)
+def _sub_words(text: str, old: str, new: str) -> str:
+    """Replace the one occurrence of ``old`` in ``text``, whatever line breaks
+    the prompt source wraps it with."""
+    pattern = r"\s+".join(re.escape(word) for word in old.split())
+    out, n = re.subn(pattern, lambda _m: new, text)
+    assert n == 1, (n, old)
+    return out
+
+
+def _harder_quiet_text(text: str) -> str:
+    """The real-guidance harder prompt under EVOLVE_HARDER_QUIET."""
+    return _sub_words(text, *_QUIET_REPLAY)
+
+
 _REPAIR_JOB = """Your rewrite did not survive the caller's check. It rebuilt the
 package from scratch, ran `solution/solve.sh` against the verifier (exit
 {exit_code}) and audited what the verifier demands against what an agent can
@@ -2390,6 +2587,26 @@ corrected task next. The container you had is gone; a fresh one is booting,
 and your first command waits for it.
 
 Confirm with `./sandbox check` before you stop."""
+
+_BLOCKED_CHOICE = """Stating a choice the grading
+already depends on does not change what the task asks for; change nothing
+else."""
+_BLOCKED_CHOICE_NO_ANSWER = """Stating a choice the grading
+already depends on does not change what the task asks for; change nothing
+else. A choice is a rule that holds for every input (which count, which
+format, which path), never the result for an input the task itself uses, such
+as an operand in a shipped file or a case a check runs: stating that result
+gives the answer away."""
+
+
+def _verifier_blocked_job() -> str:
+    """_VERIFIER_BLOCKED_JOB, with EVOLVE_NO_WORKED_ANSWERS's limit on what a
+    stated choice may be."""
+    if not _no_worked_answers():
+        return _VERIFIER_BLOCKED_JOB
+    assert _BLOCKED_CHOICE in _VERIFIER_BLOCKED_JOB
+    return _VERIFIER_BLOCKED_JOB.replace(_BLOCKED_CHOICE, _BLOCKED_CHOICE_NO_ANSWER)
+
 
 _VERIFIER_JOB = """The task in this package was revised through a change to its
 requirements or workflow. Write the verifier for the task as the
@@ -3466,7 +3683,7 @@ def _blind_verifier_answered(
                 0,
                 seq=answers,
                 deadline=deadline,
-                job=_VERIFIER_BLOCKED_JOB,
+                job=_verifier_blocked_job(),
             )
 
 
@@ -3777,6 +3994,35 @@ def _trace_counts(traces: Path) -> tuple[int, int] | None:
     return (solved, attempts) if attempts else None
 
 
+def _rewrite_context(traces: Path) -> tuple[str, str]:
+    """The author prompt's first line and its LAST MIXED VERSION paragraph,
+    from traces/context.json (evolve_ondella._stage_rewrite_context, staged
+    under EVOLVE_REWRITE_CONTEXT); empty strings for what it does not hold,
+    and both empty without it."""
+    try:
+        context = json.loads((traces / "context.json").read_text())
+    except (OSError, ValueError):
+        return "", ""
+    head = para = ""
+    if p := context.get("prediction"):
+        head = (
+            f"The version you are rewriting (r{p['rev']}) was predicted to solve "
+            f"{p['expected']}, and its first training group solved {p['solved']} of "
+            f"{p['total']}.\n\n"
+        )
+    if m := context.get("last_mixed"):
+        para = (
+            "\n\nTHE LAST MIXED VERSION\n"
+            f"r{m['rev']} is the latest version of this task that produced a mixed "
+            f"group: {m['solved']} of {m['total']} solved (run {m['run']}, group "
+            f"{m['group']}). Its instruction is {m['instruction']}. Compare it with "
+            "the current one: what changed between the two is the first candidate "
+            "for what moved this task out of the learnable band. It is read-only "
+            "evidence, not part of the task.\n"
+        )
+    return head, para
+
+
 def evolve_agentic(
     rewrite: layout.RewriteDir,
     task: dict,
@@ -3842,13 +4088,38 @@ def evolve_agentic(
         "python" if ev._verifier_rel(task).endswith(".py") else "shell",
         solution_rel=fmap["solve_sh"],
     )
+    work_stats = work_target = None
+    if job == "harder" and harder_work.enabled():
+        work_stats = harder_work.parent_stats(
+            rewrite.traces,
+            skip_finish=_RULE_TERMINATED,
+            turn_budget=so.STUDENT_TURNS,
+            secs_budget=so.STUDENT_SECONDS,
+            context_tokens=so.STUDENT_CONTEXT,
+        )
+        work_target = harder_work.target(work_stats, harder_work.lineage_misses(rewrite.traces))
+        if work_target is not None:
+            (pkg / "run" / "parent_work.json").write_text(
+                json.dumps({"stats": work_stats, "target": work_target}, indent=2) + "\n"
+            )
+            seed_file = pkg / "run" / "seed_size.json"
+            if seed_file.is_file():
+                seed_file.write_text(
+                    json.dumps({**json.loads(seed_file.read_text()), **work_target["caps"]}) + "\n"
+                )
+    caps = work_target["caps"] if work_target is not None else {
+        "max_added": ts.MAX_ADDED, "max_added_asserts": ts.MAX_ADDED_ASSERTS,
+    }
     # A plan of instruction-only interventions changes no requirement: the
     # original's verifier is the version's, never one rewritten for it.
     keep_verifier = job == "easier" and plan_is_instruction_only(task.get("_intervention_plan"))
     blind = job in ("harder", "easier") and VERIFIER_AUTHOR == "blind" and not keep_verifier
+    quiet = _harder_quiet() and job == "harder" and not calibration and HARDER_GUIDANCE == "real"
     prompt = (
         {
-            "harder": (_HARDER_JOB_BLIND if blind else _HARDER_JOB).format(
+            "harder": _harder_work_text(_harder_aim((
+                lambda text: _harder_quiet_text(text) if quiet else text
+            )((_HARDER_JOB_BLIND if blind else _HARDER_JOB).format(
                 solved=solved,
                 attempts=attempts_n,
                 guidance=_calibration_guidance(solved, attempts_n)
@@ -3867,26 +4138,34 @@ def evolve_agentic(
                 seed_asserts=seed_size["verifier_asserts"],
                 growth_bound=(
                     "The reference solution may stay the same length or shrink, "
-                    f"and may grow by at most {ts.MAX_ADDED} non-comment lines. "
+                    f"and may grow by at most {caps['max_added']} non-comment lines. "
                     "Do not add code to meet a minimum length."
                 ),
-                max_asserts=ts.MAX_ADDED_ASSERTS,
-            )
+                max_asserts=caps["max_added_asserts"],
+            )), attempts_n), work_stats, work_target, attempts_n)
             + _HARDER_REPAIR_NOTE
             + (_UNSOLVED_HARDER_NOTE if task.get("_unsolved") else ""),
             "easier": (_PLAN_JOB if task.get("_intervention_plan") else _EASIER_JOB).format(
                 solved=solved,
                 attempts=attempts_n,
-                guidance=so.prompt(task.get("_simplify_hint", "vague")),
+                guidance=so.prompt(task.get("_simplify_hint", "vague"), attempts_n),
             )
             + (_UNSOLVED_NOTE if task.get("_unsolved") else ""),
             "repair": _REPAIR_JOB.format(exit_code=exit_code),
         }[job]
-        + (_CHECKED_NOTE if blind else "")
+        + (
+            _CHECKED_NOTE
+            + (_NO_WORKED_ANSWER_NOTE if _no_worked_answers() else "")
+            if blind
+            else ""
+        )
         + _traces_spec(rewrite.traces)
         + _budget(author_timeout)
     )
 
+    if job in ("harder", "easier"):
+        head, last_mixed = _rewrite_context(rewrite.traces)
+        prompt = head + prompt
     history = rewrite.traces / "history"
     if job in ("harder", "easier") and history.is_dir() and any(history.iterdir()):
         prompt += (
@@ -3912,6 +4191,9 @@ def evolve_agentic(
             "revision failed -- open the records that answer it. They are "
             "read-only, and none of it goes into the task.\n"
         )
+
+    if job in ("harder", "easier"):
+        prompt += last_mixed + peer_context.prompt(rewrite.traces)
 
     if job in ("harder", "easier") and task.get("_student_feedback"):
         feedback = task["_student_feedback"]
@@ -3968,6 +4250,11 @@ def evolve_agentic(
             _require_declaration(
                 rewrite, run.dir, task.get("_simplify_hint", "vague"), deadline
             )
+        if job == "harder" and so.target_band("EVOLVE_HARDER_TARGET", attempts_n):
+            _require_harder_expected(rewrite, run.dir, deadline)
+        declared_work = None
+        if job == "harder" and work_target is not None:
+            declared_work = _require_harder_work(rewrite, run.dir, deadline)
         _add_time(timings, "agent", time.monotonic() - stage_start)
         if blind:
             author_check = _last_check(pkg)
@@ -4013,6 +4300,20 @@ def evolve_agentic(
         out["_agent_exit_code"] = agent_error.returncode
     if job == "harder":
         out["_harder_mode"] = "student"
+        if so.target_band("EVOLVE_HARDER_TARGET", attempts_n):
+            hardening = pkg / "run" / "hardening.md"
+            out["_harder_expected"] = (
+                so.harder_expected(hardening.read_text(errors="replace"))
+                if hardening.is_file()
+                else None
+            )
+        if work_target is not None and work_stats is not None:
+            out["_harder_work"] = {
+                **work_target,
+                "declared_turns": declared_work,
+                "parent": harder_work.summary(work_stats),
+            }
+            out["_size_caps"] = work_target["caps"]
     if job == "easier":
         decision = so.read_decision(pkg, task.get("_simplify_hint", "vague"))
         decision["hint_level"] = task.get("_simplify_hint", "vague")
