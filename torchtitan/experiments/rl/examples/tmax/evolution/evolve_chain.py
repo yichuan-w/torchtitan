@@ -621,35 +621,39 @@ def audit_bundle(a: argparse.Namespace) -> None:
     a.out.mkdir(parents=True)
     shutil.copy2(_EVO / "agents" / "bench_audit.md", a.out / "INSTRUCTIONS.md")
     shutil.copy2(_EVO / "agents" / "bench_audit_verify.md", a.out / "VERIFY.md")
-    keymap = {}
+    keymap, task_of = {}, {}
     for t in tasks:
         order = [label for label in sorted(roots) if t in accepted[label]]
         random.Random(f"{a.seed}:{a.hop}:{t}").shuffle(order)
-        keymap[t] = {f"V{i + 1}": lab for i, lab in enumerate(order)}
-        td = a.out / t
-        td.mkdir()
-        for v, label in keymap[t].items():
-            rw = accepted[label][t]
-            tdir = roots[label] / "evolution" / "tasks" / t
-            r_in, r_out = f"r{rw['input_rev']}", f"r{rw['result_rev']}"
-            vd = td / v
-            vd.mkdir()
-            # Each arm's input revision differs after hop 1, so each variant carries its own.
-            shutil.copytree(tdir / r_in, vd / "original", symlinks=True)
-            shutil.copytree(tdir / r_out, vd / "package", symlinks=True)
-            for part in ("instruction.md", "tests", "solution", "environment"):
-                (vd / f"diff_{part.replace('.md', '')}.txt").write_text(eb._diff(tdir, f"{r_in}/{part}", f"{r_out}/{part}"))
-            (vd / "agent_summary.md").write_text(
-                eb._scrub(eb._last_agent_message(rw["_dir"]) or "(no agent summary found)", list(roots.values())))
-            (vd / "direction.txt").write_text(f"{rw['job']}\n")
-    if a.hop > 1:
-        with open(a.out / "INSTRUCTIONS.md", "a") as f:
-            f.write("\nIn this bundle every variant directory carries its own `original/`: the revision that "
-                    "variant rewrote, which differs between variants. Read `V<k>/original/` where the "
-                    "instructions above say `original/`.\n")
+        # Hop 1: every variant rewrote the seed, so they share one original/ as in
+        # evolve_bench.audit_bundle. Later hops: each arm rewrote its own previous
+        # revision, so each variant gets its own task directory whose original/ is
+        # that revision; the rubric and the audit prompt stay unchanged.
+        groups = [(t, order)] if a.hop == 1 else [(f"{t}~{i + 1}", [lab]) for i, lab in enumerate(order)]
+        for dname, labels in groups:
+            td = a.out / dname
+            td.mkdir()
+            keymap[dname] = {f"V{i + 1}": lab for i, lab in enumerate(labels)}
+            task_of[dname] = t
+            first = accepted[labels[0]][t]
+            shutil.copytree(roots[labels[0]] / "evolution" / "tasks" / t / f"r{first['input_rev']}", td / "original",
+                            symlinks=True)
+            for v, label in keymap[dname].items():
+                rw = accepted[label][t]
+                tdir = roots[label] / "evolution" / "tasks" / t
+                r_in, r_out = f"r{rw['input_rev']}", f"r{rw['result_rev']}"
+                vd = td / v
+                vd.mkdir()
+                shutil.copytree(tdir / r_out, vd / "package", symlinks=True)
+                for part in ("instruction.md", "tests", "solution", "environment"):
+                    (vd / f"diff_{part.replace('.md', '')}.txt").write_text(
+                        eb._diff(tdir, f"{r_in}/{part}", f"{r_out}/{part}"))
+                (vd / "agent_summary.md").write_text(
+                    eb._scrub(eb._last_agent_message(rw["_dir"]) or "(no agent summary found)", list(roots.values())))
+                (vd / "direction.txt").write_text(f"{rw['job']}\n")
     a.key.parent.mkdir(parents=True, exist_ok=True)
     layout.write_json_atomic(a.key, {"arms": {k: str(v) for k, v in roots.items()}, "seed": a.seed, "hop": a.hop,
-                                     "chain": a.chain, "tasks": keymap})
+                                     "chain": a.chain, "tasks": keymap, "task_of": task_of})
     print(f"hop {a.hop}: {len(tasks)} tasks -> {a.out}; key -> {a.key}")
 
 
@@ -659,13 +663,14 @@ def _audits(paths: list[tuple[Path, Path]]) -> dict[tuple[str, str, int], dict]:
     for audit, key in paths:
         k = json.load(open(key))
         hop = int(k.get("hop", 1))
-        for t, variants in k["tasks"].items():
+        for dname, variants in k["tasks"].items():
+            t = k.get("task_of", {}).get(dname, dname)
             for v, label in variants.items():
-                vp = audit / t / v / "verdict.json"
+                vp = audit / dname / v / "verdict.json"
                 if not vp.exists():
                     continue
                 verdict = json.load(open(vp))
-                checks = json.load(open(audit / t / v / "verify.json")) if (audit / t / v / "verify.json").exists() else {}
+                checks = json.load(open(audit / dname / v / "verify.json")) if (audit / dname / v / "verify.json").exists() else {}
                 confirmed = sorted({f["class"] for f in verdict.get("findings", [])
                                     if checks.get(f["id"]) in ("confirmed", "partly")})
                 pending = [f["id"] for f in verdict.get("findings", [])

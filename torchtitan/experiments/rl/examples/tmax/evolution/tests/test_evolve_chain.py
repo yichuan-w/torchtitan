@@ -172,3 +172,36 @@ def test_hop_collect_stages_the_next_hop(tmp_path):
          "--skip-accepted", "--only-failed", "--max-attempts", "2", "--attempts-since", "20261106-0100"],
         check=True, capture_output=True, text=True).stdout
     assert out.startswith("staged 1 signals, 12 rollout records")
+
+
+def test_audit_bundle_hop2_gives_each_variant_its_own_original(tmp_path):
+    import argparse
+
+    bench = tmp_path / "bench"
+    roots = {}
+    for label in ("A0", "AQ2"):
+        root = bench / "arms" / f"c--{label}"
+        for r in range(3):
+            d = root / "evolution" / "tasks" / "t" / f"r{r}"
+            (d / "tests").mkdir(parents=True)
+            (d / "instruction.md").write_text(f"{label} r{r}\n")
+        _rewrite(root, "t", "20261106-000000Z", "harder", 0, "accepted")
+        _rewrite(root, "t", "20261106-010000Z", "harder", 1, "accepted")
+        roots[label] = root
+    chain = bench / "chains" / "c"
+    chain.mkdir(parents=True)
+    (chain / "chain.json").write_text(json.dumps({"arms": {k: {"root": str(v)} for k, v in roots.items()}}))
+    out, key = tmp_path / "audit", tmp_path / "audit-key.json"
+    ec.audit_bundle(argparse.Namespace(bench=bench, chain="c", hop=2, out=out, key=key, seed=1))
+    k = json.loads(key.read_text())
+    assert sorted(k["task_of"]) == ["t~1", "t~2"] and set(k["task_of"].values()) == {"t"}
+    for dname, variants in k["tasks"].items():
+        (label,) = variants.values()
+        assert (out / dname / "original" / "instruction.md").read_text() == f"{label} r1\n"
+        assert (out / dname / "V1" / "package" / "instruction.md").read_text() == f"{label} r2\n"
+    (out / "t~1" / "V1" / "verdict.json").write_text(json.dumps(
+        {"label": "LEAKY", "findings": [{"id": "f1", "class": "LEAKY"}]}))
+    (out / "t~1" / "V1" / "verify.json").write_text(json.dumps({"f1": "confirmed"}))
+    got = ec._audits([(out, key)])
+    lab = k["tasks"]["t~1"]["V1"]
+    assert got[(lab, "t", 2)] == {"label": "LEAKY", "confirmed": ["LEAKY"], "defects": ["LEAKY"], "settled": True}
