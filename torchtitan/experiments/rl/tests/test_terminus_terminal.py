@@ -209,7 +209,15 @@ def test_each_terminal_has_a_directory_outside_tmp():
     first, _ = terminal()
     second, _ = terminal()
     assert first.directory != second.directory
-    assert first.directory.startswith("/var/tmp/terminus-")
+    assert first.directory.startswith("/var/tmp/tmux-")
+    assert first.server_link == first.directory + "/tmux-session"
+
+
+def test_neutral_tmux_names_can_be_turned_off(monkeypatch):
+    monkeypatch.setenv("TT_NEUTRAL_TMUX", "0")
+    lifecycle, _ = terminal()
+    assert lifecycle.directory.startswith("/var/tmp/terminus-")
+    assert lifecycle.server_link == ""
 
 
 # --- isolation and evidence -----------------------------------------------

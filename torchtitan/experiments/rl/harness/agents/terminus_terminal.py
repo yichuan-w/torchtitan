@@ -65,7 +65,16 @@ class TerminalUnavailable(RuntimeError):
 class TerminalLifecycle:
     def __init__(self, execute: Any) -> None:
         self.execute = execute
-        self.directory = f"/var/tmp/terminus-{uuid.uuid4().hex}"
+        # TT_NEUTRAL_TMUX: run the server as `tmux-session` from a tmux-* dir.
+        # Its default title "tmux: server" fell to the agent's `pkill server`
+        # on tasks with their own `server`, and security tasks deleted the
+        # terminus-* dir as suspicious (run 111e: 27 and 42 rollouts).
+        neutral = os.environ.get("TT_NEUTRAL_TMUX", "1") == "1"
+        prefix = "tmux" if neutral else "terminus"
+        self.directory = f"/var/tmp/{prefix}-{uuid.uuid4().hex}"
+        # Linux tmux titles its server "<argv0 name>: server" cut to 15 bytes at
+        # a space, so a 12-character name drops "server" from it.
+        self.server_link = f"{self.directory}/tmux-session" if neutral else ""
         self.prepared = False
         self.session: str | None = None
         self.server_pid = ""
