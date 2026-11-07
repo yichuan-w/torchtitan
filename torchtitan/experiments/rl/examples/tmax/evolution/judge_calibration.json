@@ -890,6 +890,258 @@
     "category": null
    },
    "source": "#319 6696587663 (Andy's labels on the second batch, 6696446291) #12: README hands over the System ID to code page table, doing the core judgement"
+  },
+  {
+   "name": "pool9b-AK-task_000078_704c9ecc",
+   "group": "candidate_pool_r1_b3",
+   "root": "bench/arms/pool-9b-easier--pool9b-AK-r1",
+   "task": "task_000078_704c9ecc",
+   "rewrite": "20261106-164239Z--easier",
+   "after": {
+    "evals": [
+     "bench/evals/20261106-172920Z--base-Qwen3.5-9B-step0-9b-05"
+    ],
+    "label": "AK__{task}"
+   },
+   "expect": {
+    "worth": true,
+    "category": "meaningful"
+   },
+   "source": "#319 6699959685 (Andy's labels on the third batch, 6699902578) #2: fixes the wrong p-value constant; all 6 failures miss the inclusive 10-100 bp spacing window; successes write the inclusive window themselves"
+  },
+  {
+   "name": "pool9b-ASR-rts_task_fe9b38379292388dd5e39009",
+   "group": "candidate_pool_r1_b3",
+   "root": "bench/arms/pool-9b--pool9b-ASR-r1",
+   "task": "rts_task_fe9b38379292388dd5e39009",
+   "rewrite": "20261106-155859Z--easier",
+   "after": {
+    "evals": [
+     "bench/evals/20261106-172920Z--base-Qwen3.5-9B-step0-9b-05"
+    ],
+    "label": "ASR__{task}"
+   },
+   "expect": {
+    "worth": false,
+    "category": null
+   },
+   "source": "#319 6699959685 (Andy's labels on the third batch, 6699902578) #4: a wrong size still passes"
+  },
+  {
+   "name": "pool9b-p15-scientific-computing_20260513_204536_003",
+   "group": "candidate_pool_r1_b3",
+   "root": "bench/arms/pool-9b--pool9b-p15-r1",
+   "task": "scientific-computing_20260513_204536_003",
+   "rewrite": "20261106-164059Z--harder",
+   "after": {
+    "evals": [
+     "bench/evals/20261106-183149Z--base-Qwen3.5-9B-step0-9b-07"
+    ],
+    "label": "p15__{task}"
+   },
+   "expect": {
+    "worth": true,
+    "category": "meaningful"
+   },
+   "source": "#319 6699959685 (Andy's labels on the third batch, 6699902578) #5: all 3 failures assume edit distance equals Hamming at equal length; 7 of 9 successes write the full DP; same task as second-batch negative #6, other student and rewrite, opposite label"
+  },
+  {
+   "name": "pool9b-p15-software-engineering_20260510_054909_009",
+   "group": "candidate_pool_r1_b3",
+   "root": "bench/arms/pool-9b--pool9b-p15-r1",
+   "task": "software-engineering_20260510_054909_009",
+   "rewrite": "20261106-175144Z--easier",
+   "after": {
+    "evals": [
+     "bench/evals/20261106-190916Z--base-Qwen3.5-9B-step0-9b-08"
+    ],
+    "label": "p15__{task}"
+   },
+   "expect": {
+    "worth": false,
+    "category": null
+   },
+   "source": "#319 6699959685 (Andy's labels on the third batch, 6699902578) #6: 3/12 before and after, failures unchanged"
+  },
+  {
+   "name": "pool9b-AQP-scientific-computing_20260509_154924_005",
+   "group": "candidate_pool_r1_b3",
+   "root": "bench/arms/pool-9b--pool9b-AQP-r1",
+   "task": "scientific-computing_20260509_154924_005",
+   "rewrite": "20261106-165827Z--harder",
+   "after": {
+    "evals": [
+     "bench/evals/20261106-183149Z--base-Qwen3.5-9B-step0-9b-07"
+    ],
+    "label": "AQP__{task}"
+   },
+   "expect": {
+    "worth": true,
+    "category": "meaningful"
+   },
+   "source": "#319 6699959685 (Andy's labels on the third batch, 6699902578) #7: 8 of 9 failures step over the pulse; successes deliberately limit the step size"
+  },
+  {
+   "name": "pool9b-AQP-rts_task_5d6a0a000cb4fb920b833a82",
+   "group": "candidate_pool_r1_b3",
+   "root": "bench/arms/pool-9b--pool9b-AQP-r1",
+   "task": "rts_task_5d6a0a000cb4fb920b833a82",
+   "rewrite": "20261106-130630Z--easier",
+   "after": {
+    "evals": [
+     "bench/evals/20261106-145023Z--base-Qwen3.5-9B-step0-9b-01"
+    ],
+    "label": "AQP__{task}"
+   },
+   "expect": {
+    "worth": false,
+    "category": null
+   },
+   "source": "#319 6699959685 (Andy's labels on the third batch, 6699902578) #8: failures all hit the context limit or ran out of turns"
+  },
+  {
+   "name": "pool9b-A0-rts_task_273506dfe1d5bfc5c2b4f83c",
+   "group": "candidate_pool_r1_b3",
+   "root": "bench/arms/pool-9b--pool9b-A0-r1",
+   "task": "rts_task_273506dfe1d5bfc5c2b4f83c",
+   "rewrite": "20261106-121228Z--harder",
+   "after": {
+    "evals": [
+     "bench/evals/20261106-145023Z--base-Qwen3.5-9B-step0-9b-01"
+    ],
+    "label": "A0__{task}"
+   },
+   "expect": {
+    "worth": false,
+    "category": null
+   },
+   "source": "#319 6699959685 (Andy's labels on the third batch, 6699902578) #9: most failures hit the context limit or fail the newly added hash check"
+  },
+  {
+   "name": "pool9b-AQ2-system-administration_20260420_020307_002",
+   "group": "candidate_pool_r1_b3",
+   "root": "bench/arms/pool-9b--pool9b-AQ2-r1",
+   "task": "system-administration_20260420_020307_002",
+   "rewrite": "20261106-192031Z--harder",
+   "after": {
+    "evals": [
+     "bench/evals/20261106-211656Z--base-Qwen3.5-9B-step0-9b-09"
+    ],
+    "label": "AQ2__{task}"
+   },
+   "expect": {
+    "worth": true,
+    "category": "meaningful"
+   },
+   "source": "#319 6699959685 (Andy's labels on the third batch, 6699902578) #10: all 7 failures miss the prefix-stripping map or drop the query the instruction keeps"
+  },
+  {
+   "name": "pool122b-AK-task_000021_ab956b8c",
+   "group": "candidate_pool_r1_b3",
+   "root": "bench/arms/pool-122b-easier--pool122b-AK-r1",
+   "task": "task_000021_ab956b8c",
+   "rewrite": "20261106-170141Z--easier",
+   "after": {
+    "evals": [
+     "bench/evals/20261106-175607Z--base-Qwen3.5-122B-A10B-step0-122b-08"
+    ],
+    "label": "AK__{task}"
+   },
+   "expect": {
+    "worth": true,
+    "category": "meaningful"
+   },
+   "source": "#319 6699959685 (Andy's labels on the third batch, 6699902578) #12: repairs the grader never running the script; all 3 failures break the stated max-3-restarts rule"
+  },
+  {
+   "name": "pool122b-ASR-pexpect__ptyprocess.1067dbda.func_pm_remove_loop__exlxfztz",
+   "group": "candidate_pool_r1_b3",
+   "root": "bench/arms/pool-122b--pool122b-ASR-r1",
+   "task": "pexpect__ptyprocess.1067dbda.func_pm_remove_loop__exlxfztz",
+   "rewrite": "20261106-121804Z--harder",
+   "after": {
+    "evals": [
+     "bench/evals/20261106-143823Z--base-Qwen3.5-122B-A10B-step0-122b-01"
+    ],
+    "label": "ASR__{task}"
+   },
+   "expect": {
+    "worth": false,
+    "category": null
+   },
+   "source": "#319 6699959685 (Andy's labels on the third batch, 6699902578) #13: failures hit the test stub lacking isatty/fd, an unstated implementation requirement"
+  },
+  {
+   "name": "pool122b-ASR-software-engineering_20260615_105532_014",
+   "group": "candidate_pool_r1_b3",
+   "root": "bench/arms/pool-122b--pool122b-ASR-r1",
+   "task": "software-engineering_20260615_105532_014",
+   "rewrite": "20261106-182313Z--easier",
+   "after": {
+    "evals": [
+     "bench/evals/20261106-194446Z--base-Qwen3.5-122B-A10B-step0-122b-11"
+    ],
+    "label": "ASR__{task}"
+   },
+   "expect": {
+    "worth": false,
+    "category": null
+   },
+   "source": "#319 6699959685 (Andy's labels on the third batch, 6699902578) #14: failures come down to the PPM maxval reading detail"
+  },
+  {
+   "name": "pool122b-p15-rts_task_aa3db4f023400748db590c7d",
+   "group": "candidate_pool_r1_b3",
+   "root": "bench/arms/pool-122b--pool122b-p15-r1",
+   "task": "rts_task_aa3db4f023400748db590c7d",
+   "rewrite": "20261106-145058Z--easier",
+   "after": {
+    "evals": [
+     "bench/evals/20261106-155114Z--base-Qwen3.5-122B-A10B-step0-122b-04"
+    ],
+    "label": "p15__{task}"
+   },
+   "expect": {
+    "worth": true,
+    "category": "meaningful"
+   },
+   "source": "#319 6699959685 (Andy's labels on the third batch, 6699902578) #16: drops the unstated count from the grader; all 7 failures stay on the original config extraction"
+  },
+  {
+   "name": "pool122b-A0-data-processing_20260615_143956_003",
+   "group": "candidate_pool_r1_b3",
+   "root": "bench/arms/pool-122b--pool122b-A0-r1",
+   "task": "data-processing_20260615_143956_003",
+   "rewrite": "20261106-105349Z--easier",
+   "after": {
+    "evals": [
+     "bench/evals/20261106-143823Z--base-Qwen3.5-122B-A10B-step0-122b-01"
+    ],
+    "label": "A0__{task}"
+   },
+   "expect": {
+    "worth": false,
+    "category": null
+   },
+   "source": "#319 6699959685 (Andy's labels on the third batch, 6699902578) #19: the added guidance gives the entity-merging method"
+  },
+  {
+   "name": "pool122b-AN2-debugging_20260504_125558_001",
+   "group": "candidate_pool_r1_b3",
+   "root": "bench/arms/pool-122b--pool122b-AN2-r1",
+   "task": "debugging_20260504_125558_001",
+   "rewrite": "20261106-105653Z--harder",
+   "after": {
+    "evals": [
+     "bench/evals/20261106-143823Z--base-Qwen3.5-122B-A10B-step0-122b-01"
+    ],
+    "label": "AN2__{task}"
+   },
+   "expect": {
+    "worth": false,
+    "category": null
+   },
+   "source": "#319 6699959685 (Andy's labels on the third batch, 6699902578) #20: the new check is flaky: the same script passes 8 times and fails 3"
   }
  ]
 }
