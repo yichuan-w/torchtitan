@@ -2194,6 +2194,120 @@
     "category": null
    },
    "source": "#319 6704716469 (Andy's labels on batch 5, 6704651042/6704652302/6704661149/6704688197) #32 (random)"
+  },
+  {
+   "name": "pool122b-AQ2-rts_task_6ba244b698500a5585a1f154",
+   "group": "candidate_pool_r1_b5a",
+   "split": "holdout",
+   "root": "bench/arms/pool-122b--pool122b-AQ2-r1",
+   "task": "rts_task_6ba244b698500a5585a1f154",
+   "rewrite": "20261106-133911Z--easier",
+   "after": {
+    "evals": [
+     "bench/evals/20261106-143823Z--base-Qwen3.5-122B-A10B-step0-122b-01"
+    ],
+    "label": "AQ2__{task}"
+   },
+   "expect": {
+    "worth": false,
+    "category": null
+   },
+   "source": "#319 6704770121 (Andy's labels on the appended candidates, 6704753341) #33"
+  },
+  {
+   "name": "pool9b-AQP-task_000660_1a27985b",
+   "group": "candidate_pool_r1_b5a",
+   "split": "holdout",
+   "root": "bench/arms/pool-9b--pool9b-AQP-r1",
+   "task": "task_000660_1a27985b",
+   "rewrite": "20261106-214207Z--easier",
+   "after": {
+    "evals": [
+     "bench/evals/20261107-022546Z--base-Qwen3.5-9B-step0-9b-12"
+    ],
+    "label": "AQP__{task}"
+   },
+   "expect": {
+    "worth": false,
+    "category": null
+   },
+   "source": "#319 6704770121 (Andy's labels on the appended candidates, 6704753341) #34"
+  },
+  {
+   "name": "pool122b-A0-task_000680_ff6ac094",
+   "group": "candidate_pool_r1_b5a",
+   "split": "holdout",
+   "root": "bench/arms/pool-122b--pool122b-A0-r1",
+   "task": "task_000680_ff6ac094",
+   "rewrite": "20261106-205106Z--easier",
+   "after": {
+    "evals": [
+     "bench/evals/20261107-012127Z--base-Qwen3.5-122B-A10B-step0-122b-14"
+    ],
+    "label": "A0__{task}"
+   },
+   "expect": {
+    "worth": false,
+    "category": null
+   },
+   "source": "#319 6704770121 (Andy's labels on the appended candidates, 6704753341) #36"
+  },
+  {
+   "name": "pool122b-AK-rts_task_d3290515a5700373e22d7dad",
+   "group": "candidate_pool_r1_b5a",
+   "split": "holdout",
+   "root": "bench/arms/pool-122b-easier--pool122b-AK-r1",
+   "task": "rts_task_d3290515a5700373e22d7dad",
+   "rewrite": "20261106-142334Z--easier",
+   "after": {
+    "evals": [
+     "bench/evals/20261106-155114Z--base-Qwen3.5-122B-A10B-step0-122b-04"
+    ],
+    "label": "AK__{task}"
+   },
+   "expect": {
+    "worth": false,
+    "category": null
+   },
+   "source": "#319 6704770121 (Andy's labels on the appended candidates, 6704753341) #37"
+  },
+  {
+   "name": "pool122b-A0-data-science_20260606_172622_006",
+   "group": "candidate_pool_r1_b5a",
+   "split": "holdout",
+   "root": "bench/arms/pool-122b--pool122b-A0-r1",
+   "task": "data-science_20260606_172622_006",
+   "rewrite": "20261106-105349Z--easier",
+   "after": {
+    "evals": [
+     "bench/evals/20261106-143823Z--base-Qwen3.5-122B-A10B-step0-122b-01"
+    ],
+    "label": "A0__{task}"
+   },
+   "expect": {
+    "worth": false,
+    "category": null
+   },
+   "source": "#319 6704770121 (Andy's labels on the appended candidates, 6704753341) #38"
+  },
+  {
+   "name": "pool9b-AK-rts_task_6a81762bd5745f498f36b83e",
+   "group": "candidate_pool_r1_b5a",
+   "split": "holdout",
+   "root": "bench/arms/pool-9b-easier--pool9b-AK-r1",
+   "task": "rts_task_6a81762bd5745f498f36b83e",
+   "rewrite": "20261106-115233Z--easier",
+   "after": {
+    "evals": [
+     "bench/evals/20261106-152348Z--base-Qwen3.5-9B-step0-9b-02"
+    ],
+    "label": "AK__{task}"
+   },
+   "expect": {
+    "worth": false,
+    "category": null
+   },
+   "source": "#319 6704770121 (Andy's labels on the appended candidates, 6704753341) #40"
   }
  ]
 }
