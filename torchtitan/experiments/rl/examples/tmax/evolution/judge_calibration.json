@@ -1,5 +1,5 @@
 {
- "doc": "EVOLVE_BENCH.md, Standard (2026-11-06), Judging agent: the calibration set with the verdict each should get. Roots and evals are NAME/rest; evolve_judge.py judge --spec resolves NAME through --alias NAME=PATH: run1030c and run111e are the training roots of runs 1030c (9B) and 111e (122B), bench is the 122B harder EvolveBench directory (arms/ and combo/evals/). A training rewrite is measured on its first after.groups groups on the result revision; a bench rewrite on its eval. expect.category null accepts any category with worth false. a4_time_limit: the A4 rewrites whose failed attempts end mostly at the time budget (A4 has two more rewrites with some time-budget failures, security_20260610_111012_002 1 of 6 and tw_327279 4 of 12, left out because most of their failures submitted). split: tune = batches 1-2 and the seed negatives, used to adjust the rubric; holdout = batch 3 (candidate_pool_r1_b3), never used to adjust it (#319 6701803074).",
+ "doc": "EVOLVE_BENCH.md, Standard (2026-11-06), Judging agent: the calibration set with the verdict each should get. Roots and evals are NAME/rest; evolve_judge.py judge --spec resolves NAME through --alias NAME=PATH: run1030c and run111e are the training roots of runs 1030c (9B) and 111e (122B), bench is the 122B harder EvolveBench directory (arms/ and combo/evals/). A training rewrite is measured on its first after.groups groups on the result revision; a bench rewrite on its eval. expect.category null accepts any category with worth false. a4_time_limit: the A4 rewrites whose failed attempts end mostly at the time budget (A4 has two more rewrites with some time-budget failures, security_20260610_111012_002 1 of 6 and tw_327279 4 of 12, left out because most of their failures submitted). split: tune = batches 1-2 and the seed negatives, used to adjust the rubric; batch 3 (candidate_pool_r1_b3) was the first holdout and joined tune after it was seen (#319 6702372939); the holdout is batch 4, never used to adjust the rubric.",
  "items": [
   {
    "name": "tls",
@@ -958,7 +958,7 @@
     "category": "meaningful"
    },
    "source": "#319 6699959685 (Andy's labels on the third batch, 6699902578) #2: fixes the wrong p-value constant; all 6 failures miss the inclusive 10-100 bp spacing window; successes write the inclusive window themselves",
-   "split": "holdout"
+   "split": "tune"
   },
   {
    "name": "pool9b-ASR-rts_task_fe9b38379292388dd5e39009",
@@ -977,7 +977,7 @@
     "category": null
    },
    "source": "#319 6699959685 (Andy's labels on the third batch, 6699902578) #4: a wrong size still passes",
-   "split": "holdout"
+   "split": "tune"
   },
   {
    "name": "pool9b-p15-scientific-computing_20260513_204536_003",
@@ -996,7 +996,7 @@
     "category": "meaningful"
    },
    "source": "#319 6699959685 (Andy's labels on the third batch, 6699902578) #5: all 3 failures assume edit distance equals Hamming at equal length; 7 of 9 successes write the full DP; same task as second-batch negative #6, other student and rewrite, opposite label",
-   "split": "holdout"
+   "split": "tune"
   },
   {
    "name": "pool9b-p15-software-engineering_20260510_054909_009",
@@ -1015,7 +1015,7 @@
     "category": null
    },
    "source": "#319 6699959685 (Andy's labels on the third batch, 6699902578) #6: 3/12 before and after, failures unchanged",
-   "split": "holdout"
+   "split": "tune"
   },
   {
    "name": "pool9b-AQP-scientific-computing_20260509_154924_005",
@@ -1034,7 +1034,7 @@
     "category": "meaningful"
    },
    "source": "#319 6699959685 (Andy's labels on the third batch, 6699902578) #7: 8 of 9 failures step over the pulse; successes deliberately limit the step size",
-   "split": "holdout"
+   "split": "tune"
   },
   {
    "name": "pool9b-AQP-rts_task_5d6a0a000cb4fb920b833a82",
@@ -1053,7 +1053,7 @@
     "category": null
    },
    "source": "#319 6699959685 (Andy's labels on the third batch, 6699902578) #8: failures all hit the context limit or ran out of turns",
-   "split": "holdout"
+   "split": "tune"
   },
   {
    "name": "pool9b-A0-rts_task_273506dfe1d5bfc5c2b4f83c",
@@ -1072,7 +1072,7 @@
     "category": null
    },
    "source": "#319 6699959685 (Andy's labels on the third batch, 6699902578) #9: most failures hit the context limit or fail the newly added hash check",
-   "split": "holdout"
+   "split": "tune"
   },
   {
    "name": "pool9b-AQ2-system-administration_20260420_020307_002",
@@ -1091,7 +1091,7 @@
     "category": "meaningful"
    },
    "source": "#319 6699959685 (Andy's labels on the third batch, 6699902578) #10: all 7 failures miss the prefix-stripping map or drop the query the instruction keeps",
-   "split": "holdout"
+   "split": "tune"
   },
   {
    "name": "pool122b-AK-task_000021_ab956b8c",
@@ -1110,7 +1110,7 @@
     "category": "meaningful"
    },
    "source": "#319 6699959685 (Andy's labels on the third batch, 6699902578) #12: repairs the grader never running the script; all 3 failures break the stated max-3-restarts rule",
-   "split": "holdout"
+   "split": "tune"
   },
   {
    "name": "pool122b-ASR-pexpect__ptyprocess.1067dbda.func_pm_remove_loop__exlxfztz",
@@ -1129,7 +1129,7 @@
     "category": null
    },
    "source": "#319 6699959685 (Andy's labels on the third batch, 6699902578) #13: failures hit the test stub lacking isatty/fd, an unstated implementation requirement",
-   "split": "holdout"
+   "split": "tune"
   },
   {
    "name": "pool122b-ASR-software-engineering_20260615_105532_014",
@@ -1148,7 +1148,7 @@
     "category": null
    },
    "source": "#319 6699959685 (Andy's labels on the third batch, 6699902578) #14: failures come down to the PPM maxval reading detail",
-   "split": "holdout"
+   "split": "tune"
   },
   {
    "name": "pool122b-p15-rts_task_aa3db4f023400748db590c7d",
@@ -1167,7 +1167,7 @@
     "category": "meaningful"
    },
    "source": "#319 6699959685 (Andy's labels on the third batch, 6699902578) #16: drops the unstated count from the grader; all 7 failures stay on the original config extraction",
-   "split": "holdout"
+   "split": "tune"
   },
   {
    "name": "pool122b-A0-data-processing_20260615_143956_003",
@@ -1186,7 +1186,7 @@
     "category": null
    },
    "source": "#319 6699959685 (Andy's labels on the third batch, 6699902578) #19: the added guidance gives the entity-merging method",
-   "split": "holdout"
+   "split": "tune"
   },
   {
    "name": "pool122b-AN2-debugging_20260504_125558_001",
@@ -1205,7 +1205,7 @@
     "category": null
    },
    "source": "#319 6699959685 (Andy's labels on the third batch, 6699902578) #20: the new check is flaky: the same script passes 8 times and fails 3",
-   "split": "holdout"
+   "split": "tune"
   }
  ]
 }

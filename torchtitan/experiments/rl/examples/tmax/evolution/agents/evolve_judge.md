@@ -137,17 +137,30 @@ the instruction. An answer the student reads from the environment (an
 existing test, a fixture, a comment that states the expected value) rather
 than decides is a `bypass` when most successes got it that way.
 
+## Which failures are evidence
+
+This holds for `harder` and `easier` alike. Only a failed attempt that
+submitted an answer is evidence about a judgement. Failures that hit the
+context limit, ran out of turns or time, or ended with the terminal exiting
+are not evidence either way, even when the attempt was on the wrong path
+when it ran out: do not count them for the claimed judgement and do not
+count them against it. `worth` needs at least one failed attempt that
+submitted a wrong answer on exactly the judgement the rewriter claims (for a
+repair: on the original task's own core decision). With none, the rewrite is
+not worth anything: `lengthened_work` when most failures only ran out,
+otherwise `off_target` (or `no_effect` / `no_new_judgement` when that fits
+better).
+
 ## Repairs (`easier`, `repairs_task`)
 
 A repair is worth something only when the failures that remain after it are
 on the original task's own judgement. Show it: for the failed rewrite
 attempts, say which submitted a wrong answer on the original task's core
-decision. Failures that hit the context limit, ran out of turns or time, or
-crashed the terminal are not evidence either way and do not count. If the
-remaining wrong-answer failures are on something else (a reading detail, a
-check the rewrite added, a different step), or if most remaining failures
-only ran out, the rewrite is not worth anything (`off_target` or
-`lengthened_work`). A rising pass count alone never makes a repair worth it.
+decision. If the remaining wrong-answer failures are on something else (a
+reading detail, a check the rewrite added, a different step), or if most
+remaining failures only ran out, the rewrite is not worth anything
+(`off_target` or `lengthened_work`). A rising pass count alone never makes a
+repair worth it.
 
 ## Method and single facts
 
@@ -156,13 +169,18 @@ only ran out, the rewrite is not worth anything (`off_target` or
   which fields decide that two records are the same entity), the help is
   `gives_method` for the core judgement and the rewrite is not worth
   anything (`core_work_given`), even when the student still has to code it.
-- `harder`: a single piece of knowledge (a library default, a format quirk,
-  one API's behaviour, such as YAML 1.1 octal scalars or a decoder that
-  stops at the first zstd frame) is not a new judgement by itself. It counts
-  only when the successful attempts reached it by diagnosis from evidence in
-  the task (they observed the symptom, investigated and found the cause),
-  not by knowing or reaching for the right API first. Otherwise the category
-  is `no_new_judgement`.
+- `harder`: the single-fact rule covers only behaviour the instruction does
+  not name and that a student can find only by observing a symptom: a
+  library default, a format quirk, one API's behaviour, such as YAML 1.1
+  octal scalars or a decoder that stops at the first zstd frame. Such a fact
+  is not a new judgement by itself; it counts only when the successful
+  attempts reached it by diagnosis from evidence in the task (they observed
+  the symptom, investigated and found the cause), not by knowing or reaching
+  for the right API first. Otherwise the category is `no_new_judgement`.
+  The rule does not cover a definition, metric or property the instruction
+  names explicitly (for example "the Levenshtein distance must be at least
+  3"): applying a named requirement correctly is the student's judgement,
+  and getting it wrong is a wrong answer on that judgement.
 
 A rewrite whose measured result looks good (some attempts pass, some fail)
 can still be worth nothing: mixed results from timeouts, from a leaked
