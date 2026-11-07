@@ -23,6 +23,14 @@ from pathlib import Path
 import pack_to_dataset as pack
 from recorded_solution import ACTION_PATH, SHELL_PATH, parse_actions
 
+# A verifier timeout carried from a task's task.toml ``[verifier] timeout_sec`` into
+# ``verifier_timeout_sec`` is capped at this many seconds. TB-2.1 declares up to
+# 12000 s; the whole-rollout wall-clock guard is ``budget + verifier + 300``
+# (rollouter._guard_for), so an uncapped 12000 s would stretch every such rollout's
+# guard to ~14200 s. A row that genuinely needs more sets ``validated_test_timeout_s``
+# explicitly, which always wins and is never capped here.
+VERIFIER_TIMEOUT_FROM_TOML_CAP_SEC = 1800
+
 
 def encoded(value):
     return (
@@ -200,6 +208,55 @@ def resources(source, record):
     return result
 
 
+def toml_verifier_timeout_sec(task_dir) -> int | None:
+    """A task's own grader budget from its ``task.toml`` ``[verifier] timeout_sec``,
+    or ``None`` when the package declares none.
+
+    task.toml ships inside every package (``build_seed_dataset`` requires it), so it
+    is readable from the staged task dir at build time, exactly as
+    ``prepare_tmax_reaudit_data`` already reads ``[environment]`` and ``[agent]`` from
+    it. A positive number only; a missing file or an unparsable toml is simply "not
+    declared" (``None``), never an error -- the timeout is an optimization, like the
+    sizing fields, so a bad toml must not block the row."""
+    toml_path = os.path.join(str(task_dir), "task.toml")
+    if not os.path.exists(toml_path):
+        return None
+    import tomllib
+
+    try:
+        with open(toml_path, "rb") as stream:
+            cfg = tomllib.load(stream)
+    except Exception:
+        return None
+    declared = (cfg.get("verifier") or {}).get("timeout_sec")
+    ok = (
+        isinstance(declared, (int, float))
+        and not isinstance(declared, bool)
+        and declared > 0
+    )
+    return int(declared) if ok else None
+
+
+def verifier_timeout_sec(record, md, task_dir) -> int | None:
+    """The ``verifier_timeout_sec`` a built row should carry, or ``None`` to leave it
+    unset (the rollouter then uses its eval-timeout floor).
+
+    An explicit row value (``validated_test_timeout_s``) always wins and is never
+    capped. Otherwise, a timeout the package already set itself -- a Harbor separate
+    verifier does, via ``pack.to_row`` -- is kept as-is. Only when neither is present
+    is the task's own ``task.toml`` ``[verifier] timeout_sec`` carried, capped at
+    ``VERIFIER_TIMEOUT_FROM_TOML_CAP_SEC`` so one slow grader cannot blow up the
+    whole-rollout wall-clock guard (``budget + verifier + 300`` in ``rollouter``)."""
+    if record.get("validated_test_timeout_s"):
+        return record["validated_test_timeout_s"]
+    if md.get("verifier_timeout_sec"):
+        return md["verifier_timeout_sec"]
+    toml_timeout = toml_verifier_timeout_sec(task_dir)
+    if toml_timeout is None:
+        return None
+    return min(toml_timeout, VERIFIER_TIMEOUT_FROM_TOML_CAP_SEC)
+
+
 def materialize_solution(task, record):
     """Write a row's action-list solution into a package that ships none, and
     say whether the package now has a reference solution.
@@ -348,8 +405,9 @@ def prepare_source(source, files, stage, checkpoints, log):
                 )
             }
             md["rev"] = 0
-            if record.get("validated_test_timeout_s"):
-                md["verifier_timeout_sec"] = record["validated_test_timeout_s"]
+            verifier_timeout = verifier_timeout_sec(record, md, task)
+            if verifier_timeout is not None:
+                md["verifier_timeout_sec"] = verifier_timeout
             write_json(checkpoint, row)
             log(source=source["name"], task=tid, status="complete")
         rows.append(row)
