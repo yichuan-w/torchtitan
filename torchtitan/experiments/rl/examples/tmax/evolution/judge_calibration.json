@@ -1,5 +1,5 @@
 {
- "doc": "EVOLVE_BENCH.md, Standard (2026-11-06), Judging agent: the calibration set with the verdict each should get. Roots and evals are NAME/rest; evolve_judge.py judge --spec resolves NAME through --alias NAME=PATH: run1030c and run111e are the training roots of runs 1030c (9B) and 111e (122B), bench is the 122B harder EvolveBench directory (arms/ and combo/evals/). A training rewrite is measured on its first after.groups groups on the result revision; a bench rewrite on its eval. expect.category null accepts any category with worth false. a4_time_limit: the A4 rewrites whose failed attempts end mostly at the time budget (A4 has two more rewrites with some time-budget failures, security_20260610_111012_002 1 of 6 and tw_327279 4 of 12, left out because most of their failures submitted).",
+ "doc": "EVOLVE_BENCH.md, Standard (2026-11-06), Judging agent: the calibration set with the verdict each should get. Roots and evals are NAME/rest; evolve_judge.py judge --spec resolves NAME through --alias NAME=PATH: run1030c and run111e are the training roots of runs 1030c (9B) and 111e (122B), bench is the 122B harder EvolveBench directory (arms/ and combo/evals/). A training rewrite is measured on its first after.groups groups on the result revision; a bench rewrite on its eval. expect.category null accepts any category with worth false. a4_time_limit: the A4 rewrites whose failed attempts end mostly at the time budget (A4 has two more rewrites with some time-budget failures, security_20260610_111012_002 1 of 6 and tw_327279 4 of 12, left out because most of their failures submitted). split: tune = batches 1-2 and the seed negatives, used to adjust the rubric; holdout = batch 3 (candidate_pool_r1_b3), never used to adjust it (#319 6701803074).",
  "items": [
   {
    "name": "tls",
@@ -14,7 +14,8 @@
     "worth": false,
     "category": "unstated_requirement"
    },
-   "source": "#324 item 5: the new revision's successes check SAN and test with --cacert; label per EVOLVE_BENCH.md Standard (3e94bc50): not worth it, the grader's pinned urllib3 is not stated"
+   "source": "#324 item 5: the new revision's successes check SAN and test with --cacert; label per EVOLVE_BENCH.md Standard (3e94bc50): not worth it, the grader's pinned urllib3 is not stated",
+   "split": "tune"
   },
   {
    "name": "lz4",
@@ -29,7 +30,8 @@
     "worth": false,
     "category": "off_target"
    },
-   "source": "#324: 35 of 39 successes use rpath or LD_LIBRARY_PATH; 3 replace the system library; label per EVOLVE_BENCH.md Standard (3e94bc50): not worth it, failures already load 1.10.0 at runtime"
+   "source": "#324: 35 of 39 successes use rpath or LD_LIBRARY_PATH; 3 replace the system library; label per EVOLVE_BENCH.md Standard (3e94bc50): not worth it, failures already load 1.10.0 at runtime",
+   "split": "tune"
   },
   {
    "name": "task_001320-rev2",
@@ -44,7 +46,8 @@
     "worth": false,
     "category": "leak"
    },
-   "source": "#319: the instruction states the FACTORS operand and its answer"
+   "source": "#319: the instruction states the FACTORS operand and its answer",
+   "split": "tune"
   },
   {
    "name": "task_001320-rev3",
@@ -59,7 +62,8 @@
     "worth": false,
     "category": "leak"
    },
-   "source": "#319: the same sentence with a larger semiprime"
+   "source": "#319: the same sentence with a larger semiprime",
+   "split": "tune"
   },
   {
    "name": "haproxy",
@@ -74,7 +78,8 @@
     "worth": false,
     "category": "claimed_check_missing"
    },
-   "source": "#324: hardening.md keeps the live 503 check; the shipped tests narrow it to a config grep"
+   "source": "#324: hardening.md keeps the live 503 check; the shipped tests narrow it to a config grep",
+   "split": "tune"
   },
   {
    "name": "A4-mathematics_20260514_012509_002",
@@ -92,7 +97,8 @@
     "worth": false,
     "category": "lengthened_work"
    },
-   "source": "#319: arm A4 (EVOLVE_HARDER_WORK alone); most failed attempts end at the time budget"
+   "source": "#319: arm A4 (EVOLVE_HARDER_WORK alone); most failed attempts end at the time budget",
+   "split": "tune"
   },
   {
    "name": "A4-model-training_20260413_174325_003",
@@ -110,7 +116,8 @@
     "worth": false,
     "category": "lengthened_work"
    },
-   "source": "#319: arm A4 (EVOLVE_HARDER_WORK alone); most failed attempts end at the time budget"
+   "source": "#319: arm A4 (EVOLVE_HARDER_WORK alone); most failed attempts end at the time budget",
+   "split": "tune"
   },
   {
    "name": "A4-scientific-computing_20260509_154924_005",
@@ -128,7 +135,8 @@
     "worth": false,
     "category": "lengthened_work"
    },
-   "source": "#319: arm A4 (EVOLVE_HARDER_WORK alone); most failed attempts end at the time budget"
+   "source": "#319: arm A4 (EVOLVE_HARDER_WORK alone); most failed attempts end at the time budget",
+   "split": "tune"
   },
   {
    "name": "A0-conan-io__conan.86f29e13.func_pm_remove_assign__vt2zl5s6",
@@ -146,7 +154,8 @@
     "worth": false,
     "category": null
    },
-   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud"
+   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud",
+   "split": "tune"
   },
   {
    "name": "A0-debugging_20260416_172928_002",
@@ -164,7 +173,8 @@
     "worth": false,
     "category": null
    },
-   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud"
+   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud",
+   "split": "tune"
   },
   {
    "name": "A0-debugging_20260417_112147_004",
@@ -182,7 +192,8 @@
     "worth": false,
     "category": null
    },
-   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud"
+   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud",
+   "split": "tune"
   },
   {
    "name": "A0-debugging_20260504_125558_001",
@@ -200,7 +211,8 @@
     "worth": false,
     "category": null
    },
-   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud"
+   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud",
+   "split": "tune"
   },
   {
    "name": "A0-scientific-computing_20260414_080620_005",
@@ -218,7 +230,8 @@
     "worth": false,
     "category": null
    },
-   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud"
+   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud",
+   "split": "tune"
   },
   {
    "name": "A0-scientific-computing_20260513_204536_003",
@@ -236,7 +249,8 @@
     "worth": false,
     "category": null
    },
-   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud"
+   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud",
+   "split": "tune"
   },
   {
    "name": "A1-data-processing_20260418_044216_004",
@@ -254,7 +268,8 @@
     "worth": false,
     "category": null
    },
-   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud"
+   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud",
+   "split": "tune"
   },
   {
    "name": "A1-data-science_20260417_112147_005",
@@ -272,7 +287,8 @@
     "worth": false,
     "category": null
    },
-   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud"
+   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud",
+   "split": "tune"
   },
   {
    "name": "A1-debugging_20260416_172928_002",
@@ -290,7 +306,8 @@
     "worth": false,
     "category": null
    },
-   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud"
+   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud",
+   "split": "tune"
   },
   {
    "name": "A1-scientific-computing_20260414_080620_005",
@@ -308,7 +325,8 @@
     "worth": false,
     "category": null
    },
-   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud"
+   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud",
+   "split": "tune"
   },
   {
    "name": "A1-scientific-computing_20260513_204536_003",
@@ -326,7 +344,8 @@
     "worth": false,
     "category": null
    },
-   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud"
+   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud",
+   "split": "tune"
   },
   {
    "name": "A2-data-science_20260417_112147_005",
@@ -344,7 +363,8 @@
     "worth": false,
     "category": null
    },
-   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud"
+   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud",
+   "split": "tune"
   },
   {
    "name": "A2-mathematics_20260514_012509_002",
@@ -362,7 +382,8 @@
     "worth": false,
     "category": null
    },
-   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud"
+   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud",
+   "split": "tune"
   },
   {
    "name": "A2-model-training_20260413_174325_003",
@@ -380,7 +401,8 @@
     "worth": false,
     "category": null
    },
-   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud"
+   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud",
+   "split": "tune"
   },
   {
    "name": "A2-scientific-computing_20260414_080620_005",
@@ -398,7 +420,8 @@
     "worth": false,
     "category": null
    },
-   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud"
+   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud",
+   "split": "tune"
   },
   {
    "name": "A4-conan-io__conan.86f29e13.func_pm_remove_assign__vt2zl5s6",
@@ -416,7 +439,8 @@
     "worth": false,
     "category": null
    },
-   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud"
+   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud",
+   "split": "tune"
   },
   {
    "name": "A4-data-science_20260417_112147_005",
@@ -434,7 +458,8 @@
     "worth": false,
     "category": null
    },
-   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud"
+   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud",
+   "split": "tune"
   },
   {
    "name": "A4-machine-learning_20260508_045740_002",
@@ -452,7 +477,8 @@
     "worth": false,
     "category": null
    },
-   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud"
+   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud",
+   "split": "tune"
   },
   {
    "name": "A4-rts_task_273506dfe1d5bfc5c2b4f83c",
@@ -470,7 +496,8 @@
     "worth": false,
     "category": null
    },
-   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud"
+   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud",
+   "split": "tune"
   },
   {
    "name": "A4-scientific-computing_20260414_080620_005",
@@ -488,7 +515,8 @@
     "worth": false,
     "category": null
    },
-   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud"
+   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud",
+   "split": "tune"
   },
   {
    "name": "PC-data-science_20260417_112147_005",
@@ -506,7 +534,8 @@
     "worth": false,
     "category": null
    },
-   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud"
+   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud",
+   "split": "tune"
   },
   {
    "name": "PC-debugging_20260416_172928_002",
@@ -524,7 +553,8 @@
     "worth": false,
     "category": null
    },
-   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud"
+   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud",
+   "split": "tune"
   },
   {
    "name": "PC-debugging_20260417_112147_004",
@@ -542,7 +572,8 @@
     "worth": false,
     "category": null
    },
-   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud"
+   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud",
+   "split": "tune"
   },
   {
    "name": "PC-scientific-computing_20260414_080620_005",
@@ -560,7 +591,8 @@
     "worth": false,
     "category": null
    },
-   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud"
+   "source": "#319 6671575981: still 12/12 on base 122B; the instruction names the checked property or the new failure is loud",
+   "split": "tune"
   },
   {
    "name": "A1-scientific-computing_20260508_180627_004-cand",
@@ -579,7 +611,8 @@
     "worth": true,
     "category": "meaningful"
    },
-   "source": "#319 6694518301 (Andy's labels on the 13 candidates of 6694392442): 4 failures only on the overlapping-CDS check (11..13 N->S); 5 of 7 successes check 11..13 explicitly; audit clean"
+   "source": "#319 6694518301 (Andy's labels on the 13 candidates of 6694392442): 4 failures only on the overlapping-CDS check (11..13 N->S); 5 of 7 successes check 11..13 explicitly; audit clean",
+   "split": "tune"
   },
   {
    "name": "A2-machine-learning_20260508_045740_002-cand",
@@ -598,7 +631,8 @@
     "worth": true,
     "category": "meaningful"
    },
-   "source": "#319 6694518301 (Andy's labels on the 13 candidates of 6694392442): 5 failures all on test_expected_utility; all 7 successes use exponential tilting (~0.430687); audit clean"
+   "source": "#319 6694518301 (Andy's labels on the 13 candidates of 6694392442): 5 failures all on test_expected_utility; all 7 successes use exponential tilting (~0.430687); audit clean",
+   "split": "tune"
   },
   {
    "name": "PC-conan-io__conan.86f29e13.func_pm_remove_assign__vt2zl5s6-cand",
@@ -614,10 +648,11 @@
     "label": "PC__{task}"
    },
    "expect": {
-    "worth": true,
-    "category": "meaningful"
+    "worth": false,
+    "category": "bypass"
    },
-   "source": "#319 6694518301 (Andy's labels on the 13 candidates of 6694392442): 8 failures all on the new m4 check; 4 successes switch to i686; audit clean"
+   "source": "#319 6694518301 (Andy's labels on the 13 candidates of 6694392442): 8 failures all on the new m4 check; 4 successes switch to i686; audit clean; relabelled not worth it per #319 6701803074: the repo's existing test_triplets.py states i686-linux-gnu and 3 of 4 successes took it from there without the m4 diagnosis (bypass)",
+   "split": "tune"
   },
   {
    "name": "A1-model-training_20260413_174325_003-cand",
@@ -636,7 +671,8 @@
     "worth": false,
     "category": null
    },
-   "source": "#319 6694518301 (Andy's labels on the 13 candidates of 6694392442): most successes bypass the precision judgement (4 of 6 use squared distance or pairwise_distance)"
+   "source": "#319 6694518301 (Andy's labels on the 13 candidates of 6694392442): most successes bypass the precision judgement (4 of 6 use squared distance or pairwise_distance)",
+   "split": "tune"
   },
   {
    "name": "A2-rts_task_273506dfe1d5bfc5c2b4f83c-cand",
@@ -655,7 +691,8 @@
     "worth": false,
     "category": null
    },
-   "source": "#319 6694518301 (Andy's labels on the 13 candidates of 6694392442): most failures are not on the v1/v2 port, as with LZ4"
+   "source": "#319 6694518301 (Andy's labels on the 13 candidates of 6694392442): most failures are not on the v1/v2 port, as with LZ4",
+   "split": "tune"
   },
   {
    "name": "PC-data-processing_20260418_044216_004-cand",
@@ -674,7 +711,8 @@
     "worth": false,
     "category": null
    },
-   "source": "#319 6694518301 (Andy's labels on the 13 candidates of 6694392442): no success makes the multi-frame judgement; which API was picked separates pass from fail"
+   "source": "#319 6694518301 (Andy's labels on the 13 candidates of 6694392442): no success makes the multi-frame judgement; which API was picked separates pass from fail",
+   "split": "tune"
   },
   {
    "name": "PC-security_20260616_094815_004-cand",
@@ -693,7 +731,8 @@
     "worth": false,
     "category": null
    },
-   "source": "#319 6694518301 (Andy's labels on the 13 candidates of 6694392442): claims no new judgement, only tightens grading"
+   "source": "#319 6694518301 (Andy's labels on the 13 candidates of 6694392442): claims no new judgement, only tightens grading",
+   "split": "tune"
   },
   {
    "name": "A2-scientific-computing_20260508_180627_004-cand",
@@ -712,7 +751,8 @@
     "worth": false,
     "category": null
    },
-   "source": "#319 6694518301 (Andy's labels on the 13 candidates of 6694392442): 4 of 5 successes bypass dnachisel greedily; instruction does not ask for the exact optimum (audit refused)"
+   "source": "#319 6694518301 (Andy's labels on the 13 candidates of 6694392442): 4 of 5 successes bypass dnachisel greedily; instruction does not ask for the exact optimum (audit refused)",
+   "split": "tune"
   },
   {
    "name": "encoding",
@@ -727,7 +767,8 @@
     "worth": false,
     "category": null
    },
-   "source": "#319 6694518301 (Andy's labels on the 13 candidates of 6694392442): 4 of 5 successes only reorder the encoding fallback, no per-file judgement"
+   "source": "#319 6694518301 (Andy's labels on the 13 candidates of 6694392442): 4 of 5 successes only reorder the encoding fallback, no per-file judgement",
+   "split": "tune"
   },
   {
    "name": "pool122b-A0-burnash__gspread.a8be3b96.func_pm_ctrl_shuffle__o621cgb3",
@@ -745,7 +786,8 @@
     "worth": true,
     "category": "meaningful"
    },
-   "source": "#319 6696587663 (Andy's labels on the second batch, 6696446291) #2: 8 failures all DID NOT RAISE (tested the wrong object); 4 successes fix the CELL_ADDR_RE match; audit WEAK, no defects; replaces PC gspread"
+   "source": "#319 6696587663 (Andy's labels on the second batch, 6696446291) #2: 8 failures all DID NOT RAISE (tested the wrong object); 4 successes fix the CELL_ADDR_RE match; audit WEAK, no defects; replaces PC gspread",
+   "split": "tune"
   },
   {
    "name": "pool122b-AQ2-data-science_20260604_003814_006",
@@ -763,7 +805,8 @@
     "worth": true,
     "category": "meaningful"
    },
-   "source": "#319 6696587663 (Andy's labels on the second batch, 6696446291) #8: supplies the decimal-point requirement the grader had and the instruction lacked, says what not how; 4 failures on the original merge-column / quoted-field work; audit clean"
+   "source": "#319 6696587663 (Andy's labels on the second batch, 6696446291) #8: supplies the decimal-point requirement the grader had and the instruction lacked, says what not how; 4 failures on the original merge-column / quoted-field work; audit clean",
+   "split": "tune"
   },
   {
    "name": "pool122b-A0-rts_task_f08f705c2d22a4b7a9e6e8fd",
@@ -781,7 +824,8 @@
     "worth": false,
     "category": null
    },
-   "source": "#319 6696587663 (Andy's labels on the second batch, 6696446291) #1: 6 of 11 successes bypass the YAML 1.1 octal judgement with a regex and int()"
+   "source": "#319 6696587663 (Andy's labels on the second batch, 6696446291) #1: 6 of 11 successes bypass the YAML 1.1 octal judgement with a regex and int()",
+   "split": "tune"
   },
   {
    "name": "pool122b-A0-rts_task_c005db1813b454fd2b579297",
@@ -799,7 +843,8 @@
     "worth": false,
     "category": null
    },
-   "source": "#319 6696587663 (Andy's labels on the second batch, 6696446291) #3: half the failures hit an unrepaired implied requirement (keep the remote tag); 2 hit checks the rewrite added"
+   "source": "#319 6696587663 (Andy's labels on the second batch, 6696446291) #3: half the failures hit an unrepaired implied requirement (keep the remote tag); 2 hit checks the rewrite added",
+   "split": "tune"
   },
   {
    "name": "pool122b-A0-rts_task_96a22e8b553ac94c19c977e9",
@@ -817,7 +862,8 @@
     "worth": false,
     "category": null
    },
-   "source": "#319 6696587663 (Andy's labels on the second batch, 6696446291) #4: all 12 do the core import; pass/fail is only whether gzip -k was used"
+   "source": "#319 6696587663 (Andy's labels on the second batch, 6696446291) #4: all 12 do the core import; pass/fail is only whether gzip -k was used",
+   "split": "tune"
   },
   {
    "name": "pool122b-AQ2-scientific-computing_20260513_204536_003",
@@ -835,7 +881,8 @@
     "worth": false,
     "category": null
    },
-   "source": "#319 6696587663 (Andy's labels on the second batch, 6696446291) #6: the one failure is a DP bug, not the new judgement"
+   "source": "#319 6696587663 (Andy's labels on the second batch, 6696446291) #6: the one failure is a DP bug, not the new judgement",
+   "split": "tune"
   },
   {
    "name": "pool122b-AN2-security_20260428_101637_007",
@@ -853,7 +900,8 @@
     "worth": false,
     "category": null
    },
-   "source": "#319 6696587663 (Andy's labels on the second batch, 6696446291) #9: the 3 failures drop the leaf certificate's SAN; none fails on the new judgement"
+   "source": "#319 6696587663 (Andy's labels on the second batch, 6696446291) #9: the 3 failures drop the leaf certificate's SAN; none fails on the new judgement",
+   "split": "tune"
   },
   {
    "name": "pool122b-AN2-rts_task_f08f705c2d22a4b7a9e6e8fd",
@@ -871,7 +919,8 @@
     "worth": false,
     "category": null
    },
-   "source": "#319 6696587663 (Andy's labels on the second batch, 6696446291) #10: the one success happened to use zstandard.open, no multi-frame judgement; second negative of the data-processing kind"
+   "source": "#319 6696587663 (Andy's labels on the second batch, 6696446291) #10: the one success happened to use zstandard.open, no multi-frame judgement; second negative of the data-processing kind",
+   "split": "tune"
   },
   {
    "name": "pool122b-AN2-software-engineering_20260430_081156_005",
@@ -889,7 +938,8 @@
     "worth": false,
     "category": null
    },
-   "source": "#319 6696587663 (Andy's labels on the second batch, 6696446291) #12: README hands over the System ID to code page table, doing the core judgement"
+   "source": "#319 6696587663 (Andy's labels on the second batch, 6696446291) #12: README hands over the System ID to code page table, doing the core judgement",
+   "split": "tune"
   },
   {
    "name": "pool9b-AK-task_000078_704c9ecc",
@@ -907,7 +957,8 @@
     "worth": true,
     "category": "meaningful"
    },
-   "source": "#319 6699959685 (Andy's labels on the third batch, 6699902578) #2: fixes the wrong p-value constant; all 6 failures miss the inclusive 10-100 bp spacing window; successes write the inclusive window themselves"
+   "source": "#319 6699959685 (Andy's labels on the third batch, 6699902578) #2: fixes the wrong p-value constant; all 6 failures miss the inclusive 10-100 bp spacing window; successes write the inclusive window themselves",
+   "split": "holdout"
   },
   {
    "name": "pool9b-ASR-rts_task_fe9b38379292388dd5e39009",
@@ -925,7 +976,8 @@
     "worth": false,
     "category": null
    },
-   "source": "#319 6699959685 (Andy's labels on the third batch, 6699902578) #4: a wrong size still passes"
+   "source": "#319 6699959685 (Andy's labels on the third batch, 6699902578) #4: a wrong size still passes",
+   "split": "holdout"
   },
   {
    "name": "pool9b-p15-scientific-computing_20260513_204536_003",
@@ -943,7 +995,8 @@
     "worth": true,
     "category": "meaningful"
    },
-   "source": "#319 6699959685 (Andy's labels on the third batch, 6699902578) #5: all 3 failures assume edit distance equals Hamming at equal length; 7 of 9 successes write the full DP; same task as second-batch negative #6, other student and rewrite, opposite label"
+   "source": "#319 6699959685 (Andy's labels on the third batch, 6699902578) #5: all 3 failures assume edit distance equals Hamming at equal length; 7 of 9 successes write the full DP; same task as second-batch negative #6, other student and rewrite, opposite label",
+   "split": "holdout"
   },
   {
    "name": "pool9b-p15-software-engineering_20260510_054909_009",
@@ -961,7 +1014,8 @@
     "worth": false,
     "category": null
    },
-   "source": "#319 6699959685 (Andy's labels on the third batch, 6699902578) #6: 3/12 before and after, failures unchanged"
+   "source": "#319 6699959685 (Andy's labels on the third batch, 6699902578) #6: 3/12 before and after, failures unchanged",
+   "split": "holdout"
   },
   {
    "name": "pool9b-AQP-scientific-computing_20260509_154924_005",
@@ -979,7 +1033,8 @@
     "worth": true,
     "category": "meaningful"
    },
-   "source": "#319 6699959685 (Andy's labels on the third batch, 6699902578) #7: 8 of 9 failures step over the pulse; successes deliberately limit the step size"
+   "source": "#319 6699959685 (Andy's labels on the third batch, 6699902578) #7: 8 of 9 failures step over the pulse; successes deliberately limit the step size",
+   "split": "holdout"
   },
   {
    "name": "pool9b-AQP-rts_task_5d6a0a000cb4fb920b833a82",
@@ -997,7 +1052,8 @@
     "worth": false,
     "category": null
    },
-   "source": "#319 6699959685 (Andy's labels on the third batch, 6699902578) #8: failures all hit the context limit or ran out of turns"
+   "source": "#319 6699959685 (Andy's labels on the third batch, 6699902578) #8: failures all hit the context limit or ran out of turns",
+   "split": "holdout"
   },
   {
    "name": "pool9b-A0-rts_task_273506dfe1d5bfc5c2b4f83c",
@@ -1015,7 +1071,8 @@
     "worth": false,
     "category": null
    },
-   "source": "#319 6699959685 (Andy's labels on the third batch, 6699902578) #9: most failures hit the context limit or fail the newly added hash check"
+   "source": "#319 6699959685 (Andy's labels on the third batch, 6699902578) #9: most failures hit the context limit or fail the newly added hash check",
+   "split": "holdout"
   },
   {
    "name": "pool9b-AQ2-system-administration_20260420_020307_002",
@@ -1033,7 +1090,8 @@
     "worth": true,
     "category": "meaningful"
    },
-   "source": "#319 6699959685 (Andy's labels on the third batch, 6699902578) #10: all 7 failures miss the prefix-stripping map or drop the query the instruction keeps"
+   "source": "#319 6699959685 (Andy's labels on the third batch, 6699902578) #10: all 7 failures miss the prefix-stripping map or drop the query the instruction keeps",
+   "split": "holdout"
   },
   {
    "name": "pool122b-AK-task_000021_ab956b8c",
@@ -1051,7 +1109,8 @@
     "worth": true,
     "category": "meaningful"
    },
-   "source": "#319 6699959685 (Andy's labels on the third batch, 6699902578) #12: repairs the grader never running the script; all 3 failures break the stated max-3-restarts rule"
+   "source": "#319 6699959685 (Andy's labels on the third batch, 6699902578) #12: repairs the grader never running the script; all 3 failures break the stated max-3-restarts rule",
+   "split": "holdout"
   },
   {
    "name": "pool122b-ASR-pexpect__ptyprocess.1067dbda.func_pm_remove_loop__exlxfztz",
@@ -1069,7 +1128,8 @@
     "worth": false,
     "category": null
    },
-   "source": "#319 6699959685 (Andy's labels on the third batch, 6699902578) #13: failures hit the test stub lacking isatty/fd, an unstated implementation requirement"
+   "source": "#319 6699959685 (Andy's labels on the third batch, 6699902578) #13: failures hit the test stub lacking isatty/fd, an unstated implementation requirement",
+   "split": "holdout"
   },
   {
    "name": "pool122b-ASR-software-engineering_20260615_105532_014",
@@ -1087,7 +1147,8 @@
     "worth": false,
     "category": null
    },
-   "source": "#319 6699959685 (Andy's labels on the third batch, 6699902578) #14: failures come down to the PPM maxval reading detail"
+   "source": "#319 6699959685 (Andy's labels on the third batch, 6699902578) #14: failures come down to the PPM maxval reading detail",
+   "split": "holdout"
   },
   {
    "name": "pool122b-p15-rts_task_aa3db4f023400748db590c7d",
@@ -1105,7 +1166,8 @@
     "worth": true,
     "category": "meaningful"
    },
-   "source": "#319 6699959685 (Andy's labels on the third batch, 6699902578) #16: drops the unstated count from the grader; all 7 failures stay on the original config extraction"
+   "source": "#319 6699959685 (Andy's labels on the third batch, 6699902578) #16: drops the unstated count from the grader; all 7 failures stay on the original config extraction",
+   "split": "holdout"
   },
   {
    "name": "pool122b-A0-data-processing_20260615_143956_003",
@@ -1123,7 +1185,8 @@
     "worth": false,
     "category": null
    },
-   "source": "#319 6699959685 (Andy's labels on the third batch, 6699902578) #19: the added guidance gives the entity-merging method"
+   "source": "#319 6699959685 (Andy's labels on the third batch, 6699902578) #19: the added guidance gives the entity-merging method",
+   "split": "holdout"
   },
   {
    "name": "pool122b-AN2-debugging_20260504_125558_001",
@@ -1141,7 +1204,8 @@
     "worth": false,
     "category": null
    },
-   "source": "#319 6699959685 (Andy's labels on the third batch, 6699902578) #20: the new check is flaky: the same script passes 8 times and fails 3"
+   "source": "#319 6699959685 (Andy's labels on the third batch, 6699902578) #20: the new check is flaky: the same script passes 8 times and fails 3",
+   "split": "holdout"
   }
  ]
 }

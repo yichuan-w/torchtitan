@@ -84,7 +84,9 @@ Answer each from the record, quoting it:
   Such a rewrite is not worth anything as written (`no_new_judgement`).
 - `easier`: the change removes the obstacle the parent's failed attempts
   actually hit; successful attempts still do the task's core work themselves;
-  help is not `does_core_work`; and no defect above decides the outcome. When the
+  help is neither `does_core_work` nor `gives_method` for the core judgement;
+  a repair meets "Repairs" below; and no defect above decides any failed
+  attempt. When the
   rewrite attempts still fail at the same place as the parent's, it removed
   the wrong obstacle (`no_effect`).
 
@@ -107,15 +109,22 @@ Give one `category`, the first that applies in this order:
 
 ## Weighing a defect
 
-A defect decides the verdict only when it decides most of the outcomes it is
-about. Count the attempts it actually changes. A grader that fails one or a
-few attempts on an unusual but allowed reading, while most failures miss the
-claimed judgement and most successes make it, is recorded in `defects` and
-the `reason`, and the category stays `meaningful`. The same holds the other
-way: a bypass a few successes take does not undo a judgement most successes
-make. A leak, a broken environment or a claimed check that the shipped
-grader does not enforce decides the verdict whenever it is there, since it
-changes what every attempt is graded on.
+A defect that decides any failed attempt makes the rewrite worth nothing,
+however many attempts it touches. Count the attempts it changes, and if even
+one failure comes from it, `worth` is false. This covers:
+
+- a wrong answer that passes (an attempt that misses the claimed judgement,
+  or submits a known-wrong value, and still gets reward): `bypass`;
+- unstable grading (the same approach or the same script passes in some
+  attempts and fails in others, or the expected value moves between runs):
+  `broken_environment`;
+- an implementation requirement the instruction does not state (a stub,
+  interface, path, format or tool the grader needs and the instruction never
+  names) that fails an attempt: `unstated_requirement`.
+
+A leak, a broken environment or a claimed check that the shipped grader does
+not enforce decides the verdict whenever it is there, since it changes what
+every attempt is graded on.
 
 Read the instruction as the student reads it, literally. An attempt that
 ignores something the instruction supplies or names (builds its own copy of
@@ -124,7 +133,36 @@ not following an allowed reading, and the grader failing it is not an
 unstated requirement. Prefer the more specific category: when the author's
 claimed check is missing from the shipped grader, that is
 `claimed_check_missing` even if the replacement check is also stricter than
-the instruction.
+the instruction. An answer the student reads from the environment (an
+existing test, a fixture, a comment that states the expected value) rather
+than decides is a `bypass` when most successes got it that way.
+
+## Repairs (`easier`, `repairs_task`)
+
+A repair is worth something only when the failures that remain after it are
+on the original task's own judgement. Show it: for the failed rewrite
+attempts, say which submitted a wrong answer on the original task's core
+decision. Failures that hit the context limit, ran out of turns or time, or
+crashed the terminal are not evidence either way and do not count. If the
+remaining wrong-answer failures are on something else (a reading detail, a
+check the rewrite added, a different step), or if most remaining failures
+only ran out, the rewrite is not worth anything (`off_target` or
+`lengthened_work`). A rising pass count alone never makes a repair worth it.
+
+## Method and single facts
+
+- `easier`: if the added guidance states how to make the task's core
+  judgement (the rule, criterion or procedure the task trains, for example
+  which fields decide that two records are the same entity), the help is
+  `gives_method` for the core judgement and the rewrite is not worth
+  anything (`core_work_given`), even when the student still has to code it.
+- `harder`: a single piece of knowledge (a library default, a format quirk,
+  one API's behaviour, such as YAML 1.1 octal scalars or a decoder that
+  stops at the first zstd frame) is not a new judgement by itself. It counts
+  only when the successful attempts reached it by diagnosis from evidence in
+  the task (they observed the symptom, investigated and found the cause),
+  not by knowing or reaching for the right API first. Otherwise the category
+  is `no_new_judgement`.
 
 A rewrite whose measured result looks good (some attempts pass, some fail)
 can still be worth nothing: mixed results from timeouts, from a leaked
