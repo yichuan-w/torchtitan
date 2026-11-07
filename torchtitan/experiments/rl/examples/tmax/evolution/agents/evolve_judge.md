@@ -160,10 +160,15 @@ Look for: reading or running a solution, reference script or answer already
 in the environment; widening, editing or deleting a check (a mask, a
 constant, a test, a tolerance); writing the result file by hand instead of
 producing it; or any other way of passing without making the claimed
-judgement (for a repair: the original task's core decision). If even one
-success passed that way, the category is `bypass` and `worth` is false. A
-wrong answer that passes, even in a single attempt and even by chance, is
-also `bypass`.
+judgement (for a repair: the original task's core decision). A success
+that passed by luck (an untested choice that happened to work, a default
+that happened to be right) also did not make the judgement. If even one
+success passed in any of these ways, the category is `bypass` and `worth`
+is false. A wrong answer that passes, even in a single attempt and even by
+chance, is also `bypass`. Check this numerically too: when successes report
+a value the grader accepts within a range or tolerance, compare the values
+across successful attempts. If two successes disagree by more than the task
+allows, at least one wrong answer passed.
 
 ## Failures on exactly the claimed judgement
 
@@ -179,13 +184,21 @@ not state).
 ## Repairs (`easier`, `repairs_task`)
 
 A repair is worth something only when the failures that remain after it are
-on the original task's own judgement. Show it: for the failed rewrite
-attempts, say which submitted a wrong answer on the original task's core
-decision. If the remaining wrong-answer failures are on something else (a
-reading detail, a check the rewrite added, a different step), or if most
-remaining failures only ran out, the rewrite is not worth anything
-(`off_target` or `lengthened_work`). A rising pass count alone never makes a
-repair worth it.
+on the original task's own judgement. Show it: list every failed rewrite
+attempt that submitted an answer and label each one as exactly one of
+- core decision: it submitted a wrong answer on the original task's core
+  decision;
+- adjacent step: it failed on a neighbouring step (parsing, extracting a
+  value, a format or protocol detail, another part of the spec) rather than
+  the core decision, even when the instruction states that step;
+- unstated or unrepaired requirement: it failed on something the instruction
+  does not state, a check the rewrite added, or a parent defect the repair
+  left in place.
+If any failure is in the second or third class, the rewrite is not worth
+anything (`off_target`, or `unstated_requirement` for the third class). It
+is also not worth anything when no failure is in the first class or when
+most remaining failures only ran out (`lengthened_work`). A rising pass
+count alone never makes a repair worth it.
 
 ## Method and single facts
 
