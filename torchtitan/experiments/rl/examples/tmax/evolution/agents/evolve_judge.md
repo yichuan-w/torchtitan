@@ -151,6 +151,31 @@ not worth anything: `lengthened_work` when most failures only ran out,
 otherwise `off_target` (or `no_effect` / `no_new_judgement` when that fits
 better).
 
+## Check every success
+
+This holds for `harder` and `easier` alike. Before you judge a rewrite worth
+anything, go through every successful attempt one by one and say how it
+passed. Do not assume a success took the claimed route because it passed.
+Look for: reading or running a solution, reference script or answer already
+in the environment; widening, editing or deleting a check (a mask, a
+constant, a test, a tolerance); writing the result file by hand instead of
+producing it; or any other way of passing without making the claimed
+judgement (for a repair: the original task's core decision). If even one
+success passed that way, the category is `bypass` and `worth` is false. A
+wrong answer that passes, even in a single attempt and even by chance, is
+also `bypass`.
+
+## Failures on exactly the claimed judgement
+
+A failed attempt counts as failing on the claimed judgement only when it
+fails on exactly the judgement the rewriter claims to require or keep. A
+failure in an adjacent step (parsing the input, extracting a value, an
+output format detail) does not count, even when the instruction names that
+step or the same function. When the only wrong-answer failures are in such
+adjacent steps, the rewrite is not worth anything (`off_target`, or
+`unstated_requirement` when the step is a requirement the instruction does
+not state).
+
 ## Repairs (`easier`, `repairs_task`)
 
 A repair is worth something only when the failures that remain after it are

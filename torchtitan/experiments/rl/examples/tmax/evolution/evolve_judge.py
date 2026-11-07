@@ -480,7 +480,13 @@ def _prompt(item: dict) -> str:
     )
 
 
+# The model provider's usage policy refuses some sessions outright (e.g. `Details: [cyber]`); retries
+# do not help. Such a rewrite is not reviewed: neither right nor wrong, counted apart (#319 6704619517).
+POLICY_BLOCK_MARKERS = ("support.claude.com/en/articles/8106465", "safeguards flagged this session")
+
+
 def judge_one(item: dict, bundle: Path, out: Path, *, argv: list[str], meta: dict, log, lock) -> bool:
+    blocked = None
     for attempt in range(1, JUDGE_MAX_ATTEMPTS + 1):
         try:
             with tempfile.TemporaryDirectory(prefix="evolve-judge-") as raw:
@@ -496,17 +502,21 @@ def judge_one(item: dict, bundle: Path, out: Path, *, argv: list[str], meta: dic
                 **meta, "usage": envelope.get("usage"), "cost_usd": envelope.get("total_cost_usd"),
                 "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()}}
             layout.write_json_atomic(out, record)
+            out.with_suffix(".blocked.json").unlink(missing_ok=True)
             with lock:
                 log(f"item={item['id']} task={item['task']} done attempt={attempt} worth={verdict['worth']} "
                     f"category={verdict['category']}")
             return True
         except Exception as exc:  # retried; the last failure is logged and the item left open
+            blocked = str(exc)[-300:] if any(m in str(exc) for m in POLICY_BLOCK_MARKERS) else None
             with lock:
                 log(f"item={item['id']} task={item['task']} failed attempt={attempt} {type(exc).__name__}: {exc}")
+    if blocked:
+        layout.write_json_atomic(out.with_suffix(".blocked.json"), {"error": blocked})
     return False
 
 
-def _verdict_row(item: dict, verdict: dict | None) -> dict:
+def _verdict_row(item: dict, verdict: dict | None, blocked: bool = False) -> dict:
     row = {
         "id": item["id"], "name": item["name"], "root": str(item["root"].resolve()), "task": item["task"],
         "rewrite": item["rewrite"], "job": item["job"], "input_rev": item["input_rev"],
@@ -517,6 +527,7 @@ def _verdict_row(item: dict, verdict: dict | None) -> dict:
         row["expect"] = item["expect"]
     if verdict is None:
         row["verdict"] = None
+        row["blocked"] = bool(blocked)
     else:
         row["verdict"] = {k: v for k, v in verdict.items() if k != "metadata"}
         row["model"] = verdict.get("metadata", {}).get("model")
@@ -574,7 +585,7 @@ def run_judge(items: list[dict], *, out: Path, model: str, concurrency: int, dry
     for item in items:
         vp = out / "verdicts" / f"{item['id']}.json"
         verdict = json.loads(vp.read_text()) if vp.exists() else None
-        rows.append(_verdict_row(item, verdict))
+        rows.append(_verdict_row(item, verdict, vp.with_suffix(".blocked.json").exists()))
     path = out / "verdicts.jsonl"
     path.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows))
     judged = [r for r in rows if r["verdict"]]
@@ -592,6 +603,7 @@ def score(rows: list[dict]) -> dict:
     rewrites expected not worth anything that the judge called worth."""
     rows = [r for r in rows if r.get("expect") is not None]
     judged = [r for r in rows if r.get("verdict")]
+    blocked = [r for r in rows if not r.get("verdict") and r.get("blocked")]
     agree = [r for r in judged if r["verdict"]["worth"] == r["expect"]["worth"]]
     neg = [r for r in judged if not r["expect"]["worth"]]
     pos = [r for r in judged if r["expect"]["worth"]]
@@ -607,6 +619,8 @@ def score(rows: list[dict]) -> dict:
 
     return {
         "items": len(rows), "judged": len(judged),
+        "blocked": {"n": len(blocked), "items": [r["name"] for r in blocked]},
+        "failed": [r["name"] for r in rows if not r.get("verdict") and not r.get("blocked")],
         "agreement": {"agree": len(agree), "n": len(judged), "rate": rate(len(agree), len(judged))},
         "miss": {"judged_worth": sum(r["verdict"]["worth"] for r in neg), "n": len(neg),
                  "rate": rate(sum(r["verdict"]["worth"] for r in neg), len(neg)),
