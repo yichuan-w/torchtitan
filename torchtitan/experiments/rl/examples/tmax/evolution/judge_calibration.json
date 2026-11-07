@@ -608,10 +608,10 @@
     "label": "A1__{task}"
    },
    "expect": {
-    "worth": true,
-    "category": "meaningful"
+    "worth": false,
+    "category": "bypass"
    },
-   "source": "#319 6694518301 (Andy's labels on the 13 candidates of 6694392442): 4 failures only on the overlapping-CDS check (11..13 N->S); 5 of 7 successes check 11..13 explicitly; audit clean",
+   "source": "#319 6694518301 (Andy's labels on the 13 candidates of 6694392442): 4 failures only on the overlapping-CDS check (11..13 N->S); 5 of 7 successes check 11..13 explicitly; audit clean; relabelled not worth it per #319 6704893667: a lucky-pass success counts as bypass",
    "split": "tune"
   },
   {
@@ -1030,10 +1030,10 @@
     "label": "AQP__{task}"
    },
    "expect": {
-    "worth": true,
-    "category": "meaningful"
+    "worth": false,
+    "category": "bypass"
    },
-   "source": "#319 6699959685 (Andy's labels on the third batch, 6699902578) #7: 8 of 9 failures step over the pulse; successes deliberately limit the step size",
+   "source": "#319 6699959685 (Andy's labels on the third batch, 6699902578) #7: 8 of 9 failures step over the pulse; successes deliberately limit the step size; relabelled not worth it per #319 6704893667: a lucky-pass success counts as bypass",
    "split": "tune"
   },
   {
