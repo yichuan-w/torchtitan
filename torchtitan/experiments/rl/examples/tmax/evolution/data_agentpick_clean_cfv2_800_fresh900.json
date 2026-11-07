@@ -45,7 +45,7 @@
     {
       "name": "calibforge-clean-v2",
       "repo": "Fzz1/tb-full-data",
-      "revision": "ed6f52bc8360fa2f3a19c56af3a614c12599d2db",
+      "revision": "350eb3d94ad82fd720aa233832a6a1b23fa28fb4",
       "adapter": "tmax_reaudit",
       "metadata": "data/calibforge_1030c800_fast.parquet",
       "archives": [
@@ -57,7 +57,7 @@
     {
       "name": "calibforge-fresh900",
       "repo": "Fzz1/tb-full-data",
-      "revision": "ed6f52bc8360fa2f3a19c56af3a614c12599d2db",
+      "revision": "350eb3d94ad82fd720aa233832a6a1b23fa28fb4",
       "adapter": "tmax_reaudit",
       "metadata": "data/calibforge_fresh900_fast.parquet",
       "archives": [
